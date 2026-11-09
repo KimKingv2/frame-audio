@@ -192,25 +192,62 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   async function testAudioFile(path, row) {
     row.disabled = true;
     clearMetadataPreview();
-    setResult("正在讀取檔案資訊，並測試最多 64 KiB 的 HTTP Range 回應……\n" + path);
+    setResult("正在測試音訊檔案中段與尾端的 HTTP Range 回應……\n" + path);
     try {
-      const result = await probeOpenListAudioRange({
+      const info = await getOpenListFileInfo({
         baseUrl: activeBaseUrl,
         token: activeToken,
-        path,
-        byteCount: 65536
+        path
       });
+      const fileSize = Number(info.size || 0);
+      if (!Number.isSafeInteger(fileSize) || fileSize <= 0) {
+        throw new Error("OpenList 沒有提供有效的檔案大小。");
+      }
+      const chunk = 65536;
+      const offsets = [...new Set([
+        Math.floor(Math.floor(fileSize / 2) / chunk) * chunk,
+        Math.floor(Math.max(0, fileSize - chunk) / chunk) * chunk
+      ])].filter(offset => offset > 0 && offset < fileSize);
+
+      if (offsets.length === 0) {
+        setResult("檔案太小，無法測試非零位置的 Range。請選擇大於 128 KiB 的音訊檔。", "error");
+        return;
+      }
+
       const lines = [
-        result.range_supported ? "PASS：音訊來源支援 HTTP Range。" : "未通過：音訊來源目前不支援可用的 HTTP Range。",
-        "檔案路徑：" + path,
-        "HTTP 狀態：" + result.status_code,
-        "檔案大小：" + formatBytes(result.file_size),
-        "本次實際讀取：" + formatBytes(result.bytes_received),
-        "Content-Range：" + (result.content_range || "未提供，或未對瀏覽器暴露"),
-        "來源主機：" + (result.final_host || "無法判定"),
-        result.warning
-      ].filter(Boolean);
-      setResult(lines.join("\n"), result.range_supported ? "ok" : "error");
+        "中段／尾端 Range 測試",
+        "檔案大小：" + formatBytes(fileSize),
+        "檔案路徑：" + path
+      ];
+      let allPassed = true;
+      for (let index = 0; index < offsets.length; index += 1) {
+        const offset = offsets[index];
+        setResult(lines.concat("正在測試 " + (index + 1) + "/" + offsets.length + "，起始位移 " + offset + " bytes……").join("\n"));
+        const result = await probeOpenListAudioRange({
+          baseUrl: activeBaseUrl,
+          token: activeToken,
+          path,
+          byteCount: chunk,
+          startByte: offset
+        });
+        lines.push(
+          (result.range_supported ? "PASS" : "FAIL") +
+          "：bytes=" + result.start_byte + "-" + result.end_byte +
+          "；HTTP " + result.status_code +
+          "；讀取 " + formatBytes(result.bytes_received) +
+          "；來源 " + (result.final_host || "未知")
+        );
+        if (result.content_range) lines.push("Content-Range：" + result.content_range);
+        if (result.warning) lines.push(result.warning);
+        if (!result.range_supported) {
+          allPassed = false;
+          break;
+        }
+      }
+      lines.push(allPassed
+        ? "中段與尾端 Range 均通過。"
+        : "非零位置的 Range 未全部通過，這可能是 metadata 解析中斷的原因。");
+      setResult(lines.join("\n"), allPassed ? "ok" : "error");
     } catch (error) {
       setResult(error.message || "音訊 Range 測試失敗。", "error");
     } finally {
@@ -266,7 +303,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         const rangeButton = document.createElement("button");
         rangeButton.type = "button";
         rangeButton.className = "entry-action";
-        rangeButton.textContent = "Range 測試";
+        rangeButton.textContent = "中段／尾端 Range 測試";
         rangeButton.addEventListener("click", () => testAudioFile(fullPath, rangeButton));
 
         const metadataButton = document.createElement("button");
