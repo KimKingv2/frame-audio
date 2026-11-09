@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from frame_audio_indexer.indexer import MusicCatalog, _number, _raw_text
+from frame_audio_indexer.indexer import MusicCatalog, RangeReader, _number, _raw_text
 
 
 class MusicCatalogTests(unittest.TestCase):
@@ -75,6 +75,21 @@ class MusicCatalogTests(unittest.TestCase):
         self.assertEqual(folders["/Music/Artist"]["directTrackCount"], 1)
         self.assertEqual(folders["/Music"]["recursiveTrackCount"], 1)
         self.assertEqual(folders["/Music/Artist"]["parentId"], folders["/Music"]["id"])
+
+    def test_range_budget_is_strictly_below_source_size(self) -> None:
+        reader = RangeReader(
+            "https://media.invalid/song.mp3",
+            size=1000,
+            headers=None,
+            timeout_seconds=5,
+            max_transfer_bytes=16 * 1024 * 1024,
+            filename="song.mp3",
+        )
+        try:
+            self.assertLess(reader.max_transfer_bytes, reader.size)
+            self.assertLessEqual(reader.max_transfer_bytes, 400)
+        finally:
+            reader.close()
 
     def test_tag_helpers(self) -> None:
         self.assertEqual(_number("03/12"), 3)

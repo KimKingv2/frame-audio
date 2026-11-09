@@ -16,7 +16,7 @@ FRAME Audio 是以 OpenList 為音訊來源的私人音訊平台，分為 **Musi
 - docs/：架構與實作決策。
 
 ## 索引器
-索引器預設只處理 20 首歌曲，使用 64 KiB HTTP Range 讀取標籤，每首上限 16 MiB；若來源忽略 Range 並回傳 HTTP 200，會取消請求，不會下載完整檔案。索引結果、SQLite 與封面只寫入本機 private-export/。
+索引器預設只處理 20 首歌曲，使用最多 64 KiB HTTP Range 讀取標籤，每首上限 16 MiB，且不超過檔案大小的 40%；若來源忽略 Range 並回傳 HTTP 200，會取消請求，不會下載完整檔案。索引結果、SQLite 與封面只寫入本機 private-export/。
 
 安裝及使用方式見 indexer/README.md。完整曲庫掃描必須由使用者明確指定 scan-music --full，不會自動執行。
 

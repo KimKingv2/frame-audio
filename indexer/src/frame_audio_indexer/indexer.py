@@ -72,7 +72,10 @@ class RangeReader:
         self.size = size
         self.name = filename
         self.position = 0
-        self.max_transfer_bytes = max_transfer_bytes
+        # The absolute cap is also bounded to 40% of the source file size.
+        # Even an unexpected read(-1) can therefore never fetch the entire audio file.
+        self.max_transfer_bytes = min(max(0, int(size * 0.4)), max_transfer_bytes)
+        self.chunk_size = min(CHUNK_SIZE, max(1, self.max_transfer_bytes))
         self.bytes_fetched = 0
         self.range_requests = 0
         self.redirect_count = 0
@@ -118,7 +121,7 @@ class RangeReader:
             self.cache.move_to_end(start)
             return self.cache[start]
 
-        expected = min(CHUNK_SIZE, self.size - start)
+        expected = min(self.chunk_size, self.size - start)
         if expected <= 0:
             return b""
         if self.bytes_fetched + expected > self.max_transfer_bytes:
@@ -195,7 +198,7 @@ class RangeReader:
         output = bytearray()
         while len(output) < size:
             absolute = self.position
-            chunk_start = (absolute // CHUNK_SIZE) * CHUNK_SIZE
+            chunk_start = (absolute // self.chunk_size) * self.chunk_size
             chunk = self._chunk(chunk_start)
             offset = absolute - chunk_start
             take = min(size - len(output), len(chunk) - offset)
