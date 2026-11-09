@@ -53,6 +53,11 @@ class OpenListRangeTokenizer {
     this.rangeRequests = 0;
     this.requestAttempts = 0;
     this.retryCount = 0;
+    this.redirectedRequests = 0;
+    this.initialHost = (() => { try { return new URL(url).hostname; } catch { return "unknown"; } })();
+    this.finalHost = this.initialHost;
+    this.lastRequestMs = 0;
+    this.lastRequestRange = "";
     this.cache = new Map();
     this.controllers = new Set();
     this.closed = false;
@@ -89,6 +94,8 @@ class OpenListRangeTokenizer {
         const controller = new AbortController();
         this.controllers.add(controller);
         const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+        const requestStartedAt = performance.now();
+        let responseInfo = null;
         this.requestAttempts += 1;
         try {
           const response = await fetch(this.url, {
@@ -99,6 +106,17 @@ class OpenListRangeTokenizer {
             headers: { Range: `bytes=${start}-${end}` },
             signal: controller.signal
           });
+          let responseHost = this.initialHost;
+          try { responseHost = new URL(response.url || this.url).hostname; } catch {}
+          responseInfo = {
+            status: response.status,
+            redirected: response.redirected,
+            finalHost: responseHost
+          };
+          this.lastRequestMs = Math.round(performance.now() - requestStartedAt);
+          this.lastRequestRange = `bytes=${start}-${end}`;
+          this.finalHost = responseHost;
+          if (response.redirected) this.redirectedRequests += 1;
 
           if (response.status !== 206) {
             const finalUrl = response.url || this.url;
@@ -131,6 +149,8 @@ class OpenListRangeTokenizer {
           return bytes;
         } catch (error) {
           lastError = error;
+          this.lastRequestMs = Math.round(performance.now() - requestStartedAt);
+          this.lastRequestRange = `bytes=${start}-${end}`;
           const retryable =
             error?.name === "AbortError" ||
             error?.name === "TypeError" ||
@@ -139,7 +159,11 @@ class OpenListRangeTokenizer {
           if (!retryable || attempt >= MAX_RANGE_RETRIES || this.closed) {
             if (error?.name === "AbortError") {
               throw new Error(
-                `音訊 Range 請求逾時（${REQUEST_TIMEOUT_MS / 1000} 秒）。位元組範圍：${start}-${end}；已自動重試 ${this.retryCount} 次。`
+                `音訊 Range 請求逾時（${REQUEST_TIMEOUT_MS / 1000} 秒）。位元組範圍：${start}-${end}；初始主機：${this.initialHost}；` +
+                (responseInfo
+                  ? `已收到 HTTP ${responseInfo.status}；是否重新導向：${responseInfo.redirected ? "是" : "否"}；最終主機：${responseInfo.finalHost}；`
+                  : "逾時前尚未取得最終 HTTP 回應；") +
+                `本次耗時：${this.lastRequestMs} ms；已自動重試 ${this.retryCount} 次。`
               );
             }
             throw error;
@@ -258,6 +282,11 @@ class OpenListRangeTokenizer {
       rangeRequests: this.rangeRequests,
       requestAttempts: this.requestAttempts,
       retryCount: this.retryCount,
+      redirectedRequests: this.redirectedRequests,
+      initialHost: this.initialHost,
+      finalHost: this.finalHost,
+      lastRequestMs: this.lastRequestMs,
+      lastRequestRange: this.lastRequestRange,
       bytesFetched: this.bytesFetched,
       maxTransferBytes: this.maxTransferBytes
     };
