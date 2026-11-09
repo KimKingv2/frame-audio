@@ -181,8 +181,13 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       renderMetadataResult(path, Number(info.size || 0), result);
       const stats = result.stats || {};
       setResult(
-        "PASS：音訊標籤解析完成。\nRange 請求：" + (stats.rangeRequests || 0) +
-        " 次；實際讀取：" + formatBytes(stats.bytesFetched || 0) +
+        "PASS：音訊標籤解析完成。\n成功 Range：" + (stats.rangeRequests || 0) +
+        " 次；請求嘗試：" + (stats.requestAttempts || stats.rangeRequests || 0) +
+        " 次；自動重試：" + (stats.retryCount || 0) +
+        " 次。\n重新導向：" + (stats.redirectedRequests || 0) +
+        " 次；起始主機：" + (stats.initialHost || "未知") +
+        "；最終主機：" + (stats.finalHost || "未知") +
+        "。\n實際讀取：" + formatBytes(stats.bytesFetched || 0) +
         "；檔案大小：" + formatBytes(Number(info.size || 0)) +
         "。\n未下載完整音訊，未修改 OpenList 原始檔案。",
         "ok"
