@@ -1,5 +1,17 @@
 import { error, json, requireAdmin } from "../../_lib/api.js";
+
 export async function onRequestGet({request,env}) {
+  // Safe, unauthenticated presence check. Never returns secret values.
+  if (new URL(request.url).searchParams.get("diagnostics") === "1") {
+    return json({
+      ok: true,
+      branch: env.CF_PAGES_BRANCH || null,
+      hasAdminToken: typeof env.FRAME_AUDIO_ADMIN_TOKEN === "string" && env.FRAME_AUDIO_ADMIN_TOKEN.length > 0,
+      hasD1: !!env.DB && typeof env.DB.prepare === "function",
+      hasR2: !!env.ARTWORKS && typeof env.ARTWORKS.put === "function"
+    });
+  }
+
   const denied=await requireAdmin(request,env);
   if(denied)return denied;
   if(!env.DB||typeof env.DB.prepare!=="function")return error("D1 尚未綁定，請新增名為 DB 的 D1 binding。",503);
