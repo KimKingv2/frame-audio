@@ -250,14 +250,18 @@ function normalizeLyrics(value) {
   }).filter(Boolean);
 }
 
-export async function inspectAudioMetadata({ rawUrl, path, fileSize }) {
+export async function inspectAudioMetadata({ rawUrl, baseUrl, path, fileSize }) {
   if (!Number.isSafeInteger(fileSize) || fileSize <= 0) {
     throw new Error("OpenList 沒有提供有效的音訊檔案大小。");
   }
   if (!rawUrl) throw new Error("OpenList 沒有提供音訊來源網址。");
 
   const parser = await loadParser();
-  const url = new URL(String(rawUrl), window.location.origin);
+  const normalizedBase = String(baseUrl || "").trim().replace(/\/+$/, "");
+  if (!/^https?:\/\//i.test(normalizedBase)) {
+    throw new Error("OpenList 基礎網址無效，無法解析音訊來源。");
+  }
+  const url = new URL(String(rawUrl), normalizedBase + "/");
   if (!["https:", "http:"].includes(url.protocol)) {
     throw new Error("音訊來源網址協定不受支援。");
   }
