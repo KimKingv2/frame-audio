@@ -1,0 +1,163 @@
+import { listOpenListDirectory, joinOpenListPath, formatBytes } from "./openlist-client.js";
+
+(() => {
+  "use strict";
+
+  const $ = (selector) => document.querySelector(selector);
+  const dialog = $("#connection-dialog");
+  const urlInput = $("#openlist-url");
+  const tokenInput = $("#openlist-token");
+  const pathInput = $("#openlist-path");
+  const resultBox = $("#connection-result");
+  const browser = $("#directory-browser");
+  const listBox = $("#directory-list");
+  const currentPathLabel = $("#current-path");
+  const browseButton = $("#browse-root");
+  let activeBaseUrl = "";
+  let activeToken = "";
+  let activePath = "/";
+  let connected = false;
+
+  const views = {
+    music: ["Music", "YOUR MUSIC LIBRARY", "音樂，<span>隨時入場。</span>", "整理你的收藏，讓每一次播放都回到自己的音樂世界。", "MUSIC LIBRARY", "你的音樂收藏", "♫", "音樂庫尚未連接", "先連接 OpenList 並確認音樂根目錄；之後再建立音樂索引。"],
+    podcasts: ["Podcasts", "YOUR PODCAST LIBRARY", "好內容，<span>慢慢聽。</span>", "集中管理喜愛的節目，從上次停止的位置繼續收聽。", "PODCAST LIBRARY", "你的節目收藏", "▤", "Podcast 尚未連接", "接入節目資料後，節目封面、單集、收聽進度與播放速度控制就會出現在這裡。"],
+    tracks: ["Music", "TRACKS", "音樂，<span>隨時入場。</span>", "整理你的收藏，讓每一次播放都回到自己的音樂世界。", "TRACKS", "所有歌曲", "♫", "歌曲索引尚未發布", "歌曲索引發布後，這裡會顯示完整曲庫。"],
+    albums: ["Music", "ALBUMS", "音樂，<span>隨時入場。</span>", "整理你的收藏，讓每一次播放都回到自己的音樂世界。", "ALBUMS", "專輯", "▣", "專輯索引尚未發布", "專輯索引發布後，這裡會依照專輯資訊整理收藏。"],
+    artists: ["Music", "ARTISTS", "音樂，<span>隨時入場。</span>", "整理你的收藏，讓每一次播放都回到自己的音樂世界。", "ARTISTS", "歌手", "♙", "歌手索引尚未發布", "歌手索引發布後，這裡會整理歌曲與專輯關聯。"],
+    folders: ["Music", "FOLDER PLAYLISTS", "音樂，<span>隨時入場。</span>", "整理你的收藏，讓每一次播放都回到自己的音樂世界。", "FOLDER PLAYLISTS", "資料夾歌單", "▰", "資料夾索引尚未發布", "索引器會保留 OpenList 原始目錄樹。每個資料夾都能成為播放清單，並可選擇包含子資料夾。"],
+    shows: ["Podcasts", "SHOWS", "好內容，<span>慢慢聽。</span>", "集中管理喜愛的節目，從上次停止的位置繼續收聽。", "SHOWS", "所有節目", "▥", "節目索引尚未發布", "節目索引發布後，這裡會顯示你的 Podcast 節目與單集。"],
+    continue: ["Podcasts", "CONTINUE LISTENING", "好內容，<span>慢慢聽。</span>", "集中管理喜愛的節目，從上次停止的位置繼續收聽。", "CONTINUE LISTENING", "繼續收聽", "◷", "目前沒有收聽紀錄", "Podcast 播放進度會獨立保存，之後可以從上次停止的位置繼續。"]
+  };
+
+  function showView(name) {
+    const view = views[name] || views.music;
+    const ids = ["section", "eyebrow", "title", "description", "kicker", "heading", "icon", "emptytitle", "emptytext"];
+    ids.forEach((id, index) => {
+      const node = document.getElementById(id);
+      if (id === "title") node.innerHTML = view[index];
+      else node.textContent = view[index];
+    });
+    document.querySelectorAll("[data-view]").forEach((button) => button.classList.toggle("active", button.dataset.view === name));
+  }
+
+  function setResult(message, type = "") {
+    resultBox.textContent = message;
+    resultBox.className = "statusbox" + (type ? " " + type : "");
+  }
+
+  function renderDirectory(result) {
+    activePath = result.path;
+    currentPathLabel.textContent = result.path;
+    browser.hidden = false;
+    browseButton.disabled = false;
+    listBox.replaceChildren();
+
+    if (result.items.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "browser-empty";
+      empty.textContent = "這個目錄目前沒有項目。";
+      listBox.append(empty);
+    }
+
+    const sorted = [...result.items].sort((a, b) => Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name, "zh-Hant"));
+    for (const item of sorted) {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "entry";
+      row.disabled = !item.isDir;
+      const icon = document.createElement("span");
+      icon.className = "entry-icon";
+      icon.textContent = item.isDir ? "▰" : "♫";
+      const name = document.createElement("span");
+      name.className = "entry-name";
+      name.textContent = item.name;
+      const size = document.createElement("span");
+      size.className = "entry-size";
+      size.textContent = item.isDir ? "資料夾　›" : formatBytes(item.size);
+      row.append(icon, name, size);
+      if (item.isDir) {
+        row.addEventListener("click", () => loadDirectory(joinOpenListPath(activePath, item.name)));
+      }
+      listBox.append(row);
+    }
+
+    const summary = `連線成功。讀取 ${result.items.length} 個項目（API 回報總數 ${result.total}）。`;
+    setResult(summary, "ok");
+    $("#connection-label").textContent = "OpenList 已連線";
+    $("#connection-dot").style.background = "#78b98d";
+    connected = true;
+  }
+
+  async function loadDirectory(path) {
+    setResult("正在讀取目錄……");
+    try {
+      const result = await listOpenListDirectory({
+        baseUrl: activeBaseUrl,
+        token: activeToken,
+        path,
+        page: 1,
+        perPage: 100
+      });
+      pathInput.value = path;
+      renderDirectory(result);
+    } catch (error) {
+      setResult(error.message || "讀取目錄失敗。", "error");
+    }
+  }
+
+  async function testConnection() {
+    const button = $("#test-connection");
+    activeBaseUrl = urlInput.value.trim();
+    activeToken = tokenInput.value;
+    const path = pathInput.value.trim() || "/";
+    button.disabled = true;
+    browseButton.disabled = true;
+    browser.hidden = true;
+    connected = false;
+    $("#connection-label").textContent = "正在連接 OpenList";
+    $("#connection-dot").style.background = "#b78b75";
+    setResult("正在連接並讀取目錄……");
+    try {
+      const result = await listOpenListDirectory({
+        baseUrl: activeBaseUrl,
+        token: activeToken,
+        path,
+        page: 1,
+        perPage: 100
+      });
+      renderDirectory(result);
+    } catch (error) {
+      $("#connection-label").textContent = "OpenList 尚未連線";
+      $("#connection-dot").style.background = "#b78b75";
+      setResult(error.message || "連線失敗。", "error");
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  document.querySelectorAll("[data-view]").forEach((button) => {
+    button.addEventListener("click", () => showView(button.dataset.view));
+  });
+  $("#open-settings").addEventListener("click", () => dialog.showModal());
+  $("#close-settings").addEventListener("click", () => dialog.close());
+  $("#test-connection").addEventListener("click", testConnection);
+  browseButton.addEventListener("click", () => loadDirectory(pathInput.value.trim() || "/"));
+  $("#choose-current").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(activePath);
+      setResult("已複製目錄路徑：" + activePath, "ok");
+    } catch {
+      pathInput.value = activePath;
+      setResult("目前路徑已填入上方欄位：" + activePath, "ok");
+    }
+  });
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+  tokenInput.addEventListener("input", () => {
+    // Keep credentials only in this page's JavaScript/DOM memory. Never persist them.
+    activeToken = tokenInput.value;
+  });
+
+  showView("music");
+})();
