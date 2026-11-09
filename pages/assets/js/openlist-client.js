@@ -171,7 +171,8 @@ export async function probeOpenListAudioRange({
   baseUrl,
   token,
   path,
-  byteCount = 65536
+  byteCount = 65536,
+  startByte = 0
 }) {
   const normalizedBase = normalizeOpenListUrl(baseUrl);
   const safePath = String(path || "").trim();
@@ -244,7 +245,11 @@ export async function probeOpenListAudioRange({
   if (!["https:", "http:"].includes(target.protocol)) {
     throw new Error("OpenList 回傳的音訊來源網址協定不受支援。");
   }
-  const requestedBytes = Math.min(byteCount, fileSize);
+  if (!Number.isSafeInteger(startByte) || startByte < 0 || startByte >= fileSize) {
+    throw new Error("Range 測試起始位置超出檔案範圍。");
+  }
+  const requestedBytes = Math.min(byteCount, fileSize - startByte);
+  const endByte = startByte + requestedBytes - 1;
   const rangeController = new AbortController();
   let rawResponse;
   try {
@@ -253,7 +258,7 @@ export async function probeOpenListAudioRange({
       mode: "cors",
       credentials: "omit",
       redirect: "follow",
-      headers: { Range: `bytes=0-${requestedBytes - 1}` },
+      headers: { Range: `bytes=${startByte}-${endByte}` },
       signal: rangeController.signal
     });
   } catch {
@@ -271,6 +276,8 @@ export async function probeOpenListAudioRange({
     return {
       path: safePath,
       file_size: fileSize,
+      start_byte: startByte,
+      end_byte: endByte,
       status_code: rawResponse.status,
       range_supported: false,
       content_range: contentRange,
@@ -301,6 +308,8 @@ export async function probeOpenListAudioRange({
   return {
     path: safePath,
     file_size: fileSize,
+    start_byte: startByte,
+    end_byte: endByte,
     status_code: rawResponse.status,
     range_supported: bytesReceived > 0,
     content_range: contentRange,
