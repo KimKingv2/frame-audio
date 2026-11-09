@@ -10,6 +10,8 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   const dialog = $("#connection-dialog");
   const urlInput = $("#openlist-url");
   const tokenInput = $("#openlist-token");
+  const storageTokenInput = $("#cloudflare-admin-token");
+  const storageResultBox = $("#storage-result");
   const pathInput = $("#openlist-path");
   const resultBox = $("#connection-result");
   const browser = $("#directory-browser");
@@ -19,6 +21,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   const browseButton = $("#browse-root");
   let activeBaseUrl = "";
   let activeToken = "";
+  let activeStorageToken = "";
   let activePath = "/";
   let connected = false;
   let activeCoverUrl = "";
@@ -48,6 +51,34 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   function setResult(message, type = "") {
     resultBox.textContent = message;
     resultBox.className = "statusbox" + (type ? " " + type : "");
+  }
+
+  function setStorageResult(message, type = "") {
+    storageResultBox.textContent = message;
+    storageResultBox.className = "statusbox" + (type ? " " + type : "");
+  }
+
+  async function testCloudflareStorage() {
+    const button = $("#test-storage");
+    activeStorageToken = storageTokenInput.value.trim();
+    if (!activeStorageToken) {
+      setStorageResult("請輸入 Cloudflare 儲存管理金鑰。這不是 OpenList API Token。", "error");
+      return;
+    }
+    button.disabled = true;
+    setStorageResult("正在檢查 Cloudflare D1 與 R2……");
+    try {
+      const response = await fetch("/api/catalog/status", {
+        method: "GET", credentials: "same-origin",
+        headers: { Authorization: "Bearer " + activeStorageToken }
+      });
+      let data = {};
+      try { data = await response.json(); } catch {}
+      if (!response.ok || !data.ok) throw new Error(data.error || ("Cloudflare API HTTP " + response.status));
+      setStorageResult("PASS：Cloudflare 儲存已連線。\nD1：已連接；歌曲 " + data.tracks + " 首；資料夾 " + data.folders + " 個。\nR2：已連接。", "ok");
+    } catch (error) {
+      setStorageResult(error.message || "Cloudflare 儲存連線失敗。", "error");
+    } finally { button.disabled = false; }
   }
 
   function clearMetadataPreview() {
@@ -393,6 +424,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   $("#open-settings").addEventListener("click", () => dialog.showModal());
   $("#close-settings").addEventListener("click", () => dialog.close());
   $("#test-connection").addEventListener("click", testConnection);
+  $("#test-storage").addEventListener("click", testCloudflareStorage);
   browseButton.addEventListener("click", () => loadDirectory(pathInput.value.trim() || "/"));
   $("#choose-current").addEventListener("click", async () => {
     try {
@@ -406,6 +438,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) dialog.close();
   });
+  storageTokenInput.addEventListener("input", () => { activeStorageToken = storageTokenInput.value.trim(); });
   tokenInput.addEventListener("input", () => {
     // Keep credentials only in this page's JavaScript/DOM memory. Never persist them.
     activeToken = tokenInput.value;

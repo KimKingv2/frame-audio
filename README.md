@@ -29,3 +29,9 @@ FRAME Audio 是以 OpenList 為音訊來源的私人音訊平台，分為 **Musi
 - Build output directory：pages
 
 Cloudflare Pages 只負責靜態網站；私有音樂索引不會放進公開 Git 倉庫。
+
+
+## Cloudflare 儲存
+Music 曲庫索引使用 Cloudflare D1，內嵌封面使用 Cloudflare R2；網站透過 Pages Functions 存取。OpenList 仍是原始音訊來源，瀏覽器直接以 HTTP Range 讀取標籤，不會將音訊上傳到 Cloudflare。
+
+目前先部署儲存 API 與資料表，待 D1 / R2 Preview bindings 和獨立管理金鑰設定完成後，再啟用網頁端小批次索引。設定說明見 [docs/CLOUDFLARE-STORAGE.md](docs/CLOUDFLARE-STORAGE.md)。

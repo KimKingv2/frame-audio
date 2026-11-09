@@ -39,9 +39,11 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
       <div class="field"><label for="openlist-url">OpenList 網址</label><input id="openlist-url" type="url" value="https://openlist.kimkingv2.top" autocomplete="url" spellcheck="false"></div>
       <div class="field"><label for="openlist-token">API Token</label><input id="openlist-token" type="password" placeholder="貼上 OpenList Token（不會保存）" autocomplete="off" spellcheck="false"><div class="hint">Token 僅在本次頁面開啟期間保留於記憶體，重新整理頁面後需要重新輸入。</div></div>
       <div class="field"><label for="openlist-path">要檢查的目錄路徑</label><input id="openlist-path" type="text" value="/" placeholder="/音樂資料夾" spellcheck="false"></div>
+      <div class="field"><label for="cloudflare-admin-token">Cloudflare 儲存管理金鑰</label><input id="cloudflare-admin-token" type="password" placeholder="輸入 Cloudflare Preview Secret（不會保存）" autocomplete="off" spellcheck="false"><div class="hint">這是 Cloudflare 儲存 API 專用金鑰，與 OpenList Token 不同。只保留在本次頁面記憶體。</div></div>
     </div>
-    <div class="actions"><button class="primary" id="test-connection">測試連線並讀取目錄</button><button class="secondary" id="browse-root" disabled>重新讀取目前路徑</button></div>
+    <div class="actions"><button class="primary" id="test-connection">測試連線並讀取目錄</button><button class="secondary" id="browse-root" disabled>重新讀取目前路徑</button></div><div class="actions"><button class="secondary" id="test-storage">測試 Cloudflare 儲存</button></div>
     <div class="statusbox" id="connection-result" role="status">尚未連線。這個測試只會呼叫 OpenList 的唯讀目錄列表 API，不會修改檔案。</div>
+    <div class="statusbox" id="storage-result" role="status">Cloudflare D1 / R2 尚未測試。設定完成後可在此確認連線。</div>
     <div class="browser" id="directory-browser" hidden>
       <div class="browser-head"><span class="browser-path" id="current-path">/</span><button class="secondary" id="choose-current">複製此路徑</button></div>
       <div class="browser-list" id="directory-list"></div>
