@@ -2,6 +2,8 @@ const PARSER_URL = "https://esm.sh/music-metadata@12.3.5?bundle";
 const CHUNK_SIZE = 64 * 1024;
 const MAX_TRANSFER_BYTES = 16 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 30000;
+const MAX_RANGE_RETRIES = 2;
+const RETRY_DELAY_MS = 700;
 
 const MIME_BY_EXTENSION = {
   mp3: "audio/mpeg",
@@ -49,6 +51,8 @@ class OpenListRangeTokenizer {
     this.maxTransferBytes = maxTransferBytes;
     this.bytesFetched = 0;
     this.rangeRequests = 0;
+    this.requestAttempts = 0;
+    this.retryCount = 0;
     this.cache = new Map();
     this.controllers = new Set();
     this.closed = false;
@@ -78,55 +82,78 @@ class OpenListRangeTokenizer {
     }
 
     const pending = (async () => {
-      const controller = new AbortController();
-      this.controllers.add(controller);
-      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-      try {
-        const end = start + expectedLength - 1;
-        const response = await fetch(this.url, {
-          method: "GET",
-          mode: "cors",
-          credentials: "omit",
-          redirect: "follow",
-          headers: { Range: `bytes=${start}-${end}` },
-          signal: controller.signal
-        });
+      const end = start + expectedLength - 1;
+      let lastError;
 
-        if (response.status !== 206) {
-          const finalUrl = response.url || this.url;
-          let finalHost = "無法判定";
-          try { finalHost = new URL(finalUrl).hostname; } catch {}
-          const contentRange = response.headers.get("content-range") || "未提供／未暴露";
-          try { await response.body?.cancel(); } catch {}
-          throw new Error(
-            (response.status === 200
-              ? "音訊來源忽略 Range"
-              : "音訊來源 Range 請求失敗") +
-            `（HTTP ${response.status}）。要求位元組範圍：${start}-${end}；來源主機：${finalHost}；Content-Range：${contentRange}。此前已成功讀取：${this.bytesFetched} bytes（${this.rangeRequests} 次 Range）。為避免下載整個檔案，解析已停止。`
-          );
-        }
+      for (let attempt = 0; attempt <= MAX_RANGE_RETRIES; attempt += 1) {
+        const controller = new AbortController();
+        this.controllers.add(controller);
+        const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+        this.requestAttempts += 1;
+        try {
+          const response = await fetch(this.url, {
+            method: "GET",
+            mode: "cors",
+            credentials: "omit",
+            redirect: "follow",
+            headers: { Range: `bytes=${start}-${end}` },
+            signal: controller.signal
+          });
 
-        const bytes = new Uint8Array(await response.arrayBuffer());
-        if (bytes.byteLength < expectedLength) {
-          throw new Error(
-            `Range 回應長度不足：預期 ${expectedLength} bytes，實際 ${bytes.byteLength} bytes。`
-          );
+          if (response.status !== 206) {
+            const finalUrl = response.url || this.url;
+            let finalHost = "無法判定";
+            try { finalHost = new URL(finalUrl).hostname; } catch {}
+            const contentRange = response.headers.get("content-range") || "未提供／未暴露";
+            try { await response.body?.cancel(); } catch {}
+
+            const error = new Error(
+              (response.status === 200
+                ? "音訊來源忽略 Range"
+                : "音訊來源 Range 請求失敗") +
+              `（HTTP ${response.status}）。要求位元組範圍：${start}-${end}；來源主機：${finalHost}；Content-Range：${contentRange}。此前已成功讀取：${this.bytesFetched} bytes（${this.rangeRequests} 次 Range）。為避免下載整個檔案，解析已停止。`
+            );
+            error.retryable = [408, 425, 429, 500, 502, 503, 504].includes(response.status);
+            throw error;
+          }
+
+          const bytes = new Uint8Array(await response.arrayBuffer());
+          if (bytes.byteLength !== expectedLength) {
+            const error = new Error(
+              `Range 回應長度不符：要求 ${expectedLength} bytes，實際 ${bytes.byteLength} bytes。位元組範圍：${start}-${end}。`
+            );
+            error.retryable = bytes.byteLength < expectedLength;
+            throw error;
+          }
+
+          this.rangeRequests += 1;
+          this.bytesFetched += bytes.byteLength;
+          return bytes;
+        } catch (error) {
+          lastError = error;
+          const retryable =
+            error?.name === "AbortError" ||
+            error?.name === "TypeError" ||
+            error?.retryable === true;
+
+          if (!retryable || attempt >= MAX_RANGE_RETRIES || this.closed) {
+            if (error?.name === "AbortError") {
+              throw new Error(
+                `音訊 Range 請求逾時（${REQUEST_TIMEOUT_MS / 1000} 秒）。位元組範圍：${start}-${end}；已自動重試 ${this.retryCount} 次。`
+              );
+            }
+            throw error;
+          }
+
+          this.retryCount += 1;
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
+        } finally {
+          clearTimeout(timeout);
+          this.controllers.delete(controller);
         }
-        if (bytes.byteLength > expectedLength) {
-          throw new Error("Range 回應超出要求長度，為避免非預期下載，解析已停止。");
-        }
-        this.rangeRequests += 1;
-        this.bytesFetched += bytes.byteLength;
-        return bytes;
-      } catch (error) {
-        if (error?.name === "AbortError") {
-          throw new Error("音訊 Range 請求逾時。");
-        }
-        throw error;
-      } finally {
-        clearTimeout(timeout);
-        this.controllers.delete(controller);
       }
+
+      throw lastError || new Error("音訊 Range 請求失敗。");
     })();
 
     this.cache.set(start, pending);
@@ -229,6 +256,8 @@ class OpenListRangeTokenizer {
   getStats() {
     return {
       rangeRequests: this.rangeRequests,
+      requestAttempts: this.requestAttempts,
+      retryCount: this.retryCount,
       bytesFetched: this.bytesFetched,
       maxTransferBytes: this.maxTransferBytes
     };
