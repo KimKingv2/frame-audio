@@ -1,31 +1,43 @@
-# FRAME Audio Indexer
+# FRAME Audio Indexer · first milestone
 
-Private Mac-side maintenance tool. It is not part of the Cloudflare Pages build.
+This is a **read-only diagnostic tool** for the private Mac. It is deliberately not a full-library scanner yet.
 
-## Music library target
-- Approx. 7,000+ tracks / 90 GB.
-- Formats: FLAC, MP3, M4A, WAV.
-- Mixed folder layout; embedded tags take priority.
-- Embedded artwork and lyrics should be extracted where supported.
-- User starts updates manually.
+## Why this is staged
 
-## Planned pipeline
-1. Recursively enumerate configured OpenList roots using paginated directory listing.
-2. Compare each file with SQLite state using path, size, modified time, and remote hash where available.
-3. Skip unchanged tracks; inspect only new or changed files.
-4. Read metadata with Mutagen through a seekable/range-aware source where supported.
-5. Deduplicate embedded artwork by content hash and create WebP assets.
-6. Preserve synchronized LRC timing; save plain lyrics as text.
-7. Build tracks, albums, artists, and folder indexes.
-8. Publish a new version only after a successful complete scan/export.
+The Music library contains about 7,000 tracks / 90 GB. Before extracting tags, artwork, and lyrics, verify that OpenList can return file metadata and that its raw file URL honours HTTP Range. If Range is ignored, the tool stops without downloading the full file.
 
-## Safety
-- A failed scan must not delete old index records.
-- Mark missing files first; remove only after a later successful full scan confirms absence.
-- Do not hash all 90 GB by default.
-- Do not download complete audio files just to read tags.
-- WAV tags and artwork are optional and must not fail the whole scan.
-- Keep tokens in environment variables and local configuration outside Git.
+## Supported first checks
 
-## Status
-This is a specification-only scaffold. The OpenList client and metadata scanner are not yet implemented. First verify the user's actual OpenList root paths, auth format, get/download response and Range behaviour with a small sample.
+- Validate private TOML configuration and token environment variable.
+- Read the first page of each configured Music / Podcasts root.
+- Request a small byte range from one sample audio file.
+- Report HTTP status and whether the server returned 206 Partial Content.
+
+## Private setup
+
+1. Copy `indexer/config.example.toml` to `config/local.toml` in a private working copy.
+2. Fill in your real OpenList host and the two private root paths.
+3. Set the token in the environment variable named by `token_env`.
+4. Never commit `config/local.toml`, exported index data, or the token.
+
+Install with Python 3.11+:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ./indexer
+```
+
+Available commands:
+
+```bash
+frame-audio-indexer check-config
+frame-audio-indexer list-roots
+frame-audio-indexer probe-range --path "/完整/音訊/檔案.flac" --bytes 1024
+```
+
+All commands are read-only. The Range probe refuses to read an entire file when the server responds with HTTP 200 instead of 206.
+
+## Next milestone
+
+After a representative FLAC, MP3, M4A, and WAV range test, implement Mutagen metadata extraction, artwork de-duplication, lyric extraction, SQLite incremental state, and JSON export. Do not run a 7,000-track scan before the sample tests pass.
