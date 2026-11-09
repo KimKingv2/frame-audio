@@ -93,11 +93,16 @@ class OpenListRangeTokenizer {
         });
 
         if (response.status !== 206) {
+          const finalUrl = response.url || this.url;
+          let finalHost = "無法判定";
+          try { finalHost = new URL(finalUrl).hostname; } catch {}
+          const contentRange = response.headers.get("content-range") || "未提供／未暴露";
           try { await response.body?.cancel(); } catch {}
           throw new Error(
-            response.status === 200
-              ? "音訊來源忽略 Range。為避免下載整個檔案，解析已停止。"
-              : `音訊來源 Range 請求失敗（HTTP ${response.status}）。`
+            (response.status === 200
+              ? "音訊來源忽略 Range"
+              : "音訊來源 Range 請求失敗") +
+            `（HTTP ${response.status}）。要求位元組範圍：${start}-${end}；來源主機：${finalHost}；Content-Range：${contentRange}。此前已成功讀取：${this.bytesFetched} bytes（${this.rangeRequests} 次 Range）。為避免下載整個檔案，解析已停止。`
           );
         }
 
