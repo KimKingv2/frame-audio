@@ -1,4 +1,5 @@
-import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange } from "./openlist-client.js";
+import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo } from "./openlist-client.js";
+import { inspectAudioMetadata } from "./metadata-inspector.js";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
 
@@ -14,11 +15,13 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   const browser = $("#directory-browser");
   const listBox = $("#directory-list");
   const currentPathLabel = $("#current-path");
+  const metadataPreview = $("#metadata-result");
   const browseButton = $("#browse-root");
   let activeBaseUrl = "";
   let activeToken = "";
   let activePath = "/";
   let connected = false;
+  let activeCoverUrl = "";
 
   const views = {
     music: ["Music", "YOUR MUSIC LIBRARY", "音樂，<span>隨時入場。</span>", "整理你的收藏，讓每一次播放都回到自己的音樂世界。", "MUSIC LIBRARY", "你的音樂收藏", "♫", "音樂庫尚未連接", "先連接 OpenList 並確認音樂根目錄；之後再建立音樂索引。"],
@@ -47,8 +50,148 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     resultBox.className = "statusbox" + (type ? " " + type : "");
   }
 
+  function clearMetadataPreview() {
+    if (activeCoverUrl) {
+      URL.revokeObjectURL(activeCoverUrl);
+      activeCoverUrl = "";
+    }
+    metadataPreview.replaceChildren();
+    metadataPreview.hidden = true;
+  }
+
+  function metadataField(label, value) {
+    if (value === undefined || value === null || value === "") return null;
+    const item = document.createElement("div");
+    item.className = "metadata-field";
+    const name = document.createElement("span");
+    name.className = "metadata-label";
+    name.textContent = label;
+    const data = document.createElement("strong");
+    data.className = "metadata-value";
+    data.textContent = String(value);
+    item.append(name, data);
+    return item;
+  }
+
+  function metadataTagValue(value) {
+    if (Array.isArray(value)) return value.map(metadataTagValue).filter(Boolean).join(" / ");
+    if (value && typeof value === "object") {
+      if ("no" in value) return [value.no, value.of].filter(v => v !== undefined && v !== null).join(" / ");
+      return value.text || value.value || "";
+    }
+    return value === undefined || value === null ? "" : String(value);
+  }
+
+  function renderMetadataResult(path, fileSize, result) {
+    clearMetadataPreview();
+    const { common = {}, format = {}, tagTypes = [] } = result.metadata || {};
+    const stats = result.stats || {};
+    metadataPreview.hidden = false;
+
+    const heading = document.createElement("div");
+    heading.className = "metadata-heading";
+    const headingTitle = document.createElement("strong");
+    headingTitle.textContent = common.title || path.split("/").pop() || "音訊 metadata";
+    const headingPath = document.createElement("span");
+    headingPath.textContent = path;
+    heading.append(headingTitle, headingPath);
+
+    const layout = document.createElement("div");
+    layout.className = "metadata-layout";
+    const picture = Array.isArray(common.picture) ? common.picture[0] : null;
+    if (picture?.data?.byteLength) {
+      const cover = document.createElement("img");
+      cover.className = "metadata-cover";
+      cover.alt = "內嵌封面";
+      activeCoverUrl = URL.createObjectURL(new Blob([picture.data], { type: picture.format || "image/jpeg" }));
+      cover.src = activeCoverUrl;
+      layout.append(cover);
+    }
+
+    const grid = document.createElement("div");
+    grid.className = "metadata-grid";
+    const fields = [
+      ["歌手", common.artist],
+      ["專輯", common.album],
+      ["專輯藝人", common.albumartist],
+      ["年份", common.year || common.date],
+      ["曲目", common.track],
+      ["唱片", common.disk],
+      ["類型", common.genre],
+      ["作曲", common.composer],
+      ["格式", format.container],
+      ["編碼", format.codec],
+      ["取樣率", format.sampleRate ? format.sampleRate + " Hz" : ""],
+      ["位元深度", format.bitsPerSample ? format.bitsPerSample + " bit" : ""],
+      ["聲道", format.numberOfChannels],
+      ["無損", format.lossless === true ? "是" : format.lossless === false ? "否" : ""],
+      ["內嵌封面", Array.isArray(common.picture) ? common.picture.length + " 張" : "無"],
+      ["歌詞", common.lyrics ? "有" : "未讀到"],
+      ["標籤類型", tagTypes]
+    ];
+    for (const [label, value] of fields) {
+      const node = metadataField(label, metadataTagValue(value));
+      if (node) grid.append(node);
+    }
+    layout.append(grid);
+
+    const lyricsValues = Array.isArray(common.lyrics) ? common.lyrics : common.lyrics ? [common.lyrics] : [];
+    const lyricsText = lyricsValues.map(item => typeof item === "string" ? item : item?.text || "").filter(Boolean).join("\n\n");
+    const lyrics = document.createElement("div");
+    lyrics.className = "metadata-lyrics";
+    const lyricsTitle = document.createElement("strong");
+    lyricsTitle.textContent = "歌詞預覽";
+    const lyricsBody = document.createElement("pre");
+    lyricsBody.textContent = lyricsText ? lyricsText.slice(0, 1200) : "檔案標籤中沒有讀到內嵌歌詞。";
+    lyrics.append(lyricsTitle, lyricsBody);
+
+    const footer = document.createElement("div");
+    footer.className = "metadata-footer";
+    footer.textContent = [
+      "檔案大小 " + formatBytes(fileSize),
+      "Range 請求 " + (stats.rangeRequests || 0) + " 次",
+      "實際讀取 " + formatBytes(stats.bytesFetched || 0),
+      "讀取上限 " + formatBytes(stats.maxTransferBytes || 0)
+    ].join("　·　");
+
+    metadataPreview.append(heading, layout, lyrics, footer);
+  }
+
+  async function testAudioMetadata(path, button) {
+    button.disabled = true;
+    clearMetadataPreview();
+    setResult("正在讀取音訊標籤。解析器只會透過 HTTP Range 讀取需要的區段，單檔讀取上限 16 MiB……\n" + path);
+    try {
+      const info = await getOpenListFileInfo({
+        baseUrl: activeBaseUrl,
+        token: activeToken,
+        path
+      });
+      if (info.is_dir) throw new Error("選取的項目是資料夾，請選擇音訊檔案。");
+      const result = await inspectAudioMetadata({
+        rawUrl: info.raw_url,
+        path,
+        fileSize: Number(info.size || 0)
+      });
+      renderMetadataResult(path, Number(info.size || 0), result);
+      const stats = result.stats || {};
+      setResult(
+        "PASS：音訊標籤解析完成。\nRange 請求：" + (stats.rangeRequests || 0) +
+        " 次；實際讀取：" + formatBytes(stats.bytesFetched || 0) +
+        "；檔案大小：" + formatBytes(Number(info.size || 0)) +
+        "。\n未下載完整音訊，未修改 OpenList 原始檔案。",
+        "ok"
+      );
+    } catch (error) {
+      setResult(error.message || "音訊標籤解析失敗。", "error");
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   async function testAudioFile(path, row) {
     row.disabled = true;
+    clearMetadataPreview();
     setResult("正在讀取檔案資訊，並測試最多 64 KiB 的 HTTP Range 回應……\n" + path);
     try {
       const result = await probeOpenListAudioRange({
@@ -59,6 +202,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       });
       const lines = [
         result.range_supported ? "PASS：音訊來源支援 HTTP Range。" : "未通過：音訊來源目前不支援可用的 HTTP Range。",
+        "檔案路徑：" + path,
         "HTTP 狀態：" + result.status_code,
         "檔案大小：" + formatBytes(result.file_size),
         "本次實際讀取：" + formatBytes(result.bytes_received),
@@ -90,11 +234,8 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
 
     const sorted = [...result.items].sort((a, b) => Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name, "zh-Hant"));
     for (const item of sorted) {
-      const row = document.createElement("button");
-      row.type = "button";
-      row.className = "entry";
+      const fullPath = joinOpenListPath(activePath, item.name);
       const isAudio = !item.isDir && AUDIO_FILE_PATTERN.test(item.name);
-      row.disabled = !item.isDir && !isAudio;
       const icon = document.createElement("span");
       icon.className = "entry-icon";
       icon.textContent = item.isDir ? "▰" : "♫";
@@ -103,15 +244,46 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       name.textContent = item.name;
       const size = document.createElement("span");
       size.className = "entry-size";
-      size.textContent = item.isDir ? "資料夾　›" : (isAudio ? formatBytes(item.size) + "　·　Range 測試 ›" : formatBytes(item.size));
-      row.append(icon, name, size);
+      size.textContent = item.isDir ? "資料夾　›" : formatBytes(item.size);
+
       if (item.isDir) {
-        row.addEventListener("click", () => loadDirectory(joinOpenListPath(activePath, item.name)));
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "entry";
+        row.append(icon, name, size);
+        row.addEventListener("click", () => loadDirectory(fullPath));
+        listBox.append(row);
       } else if (isAudio) {
-        row.title = "點選以執行最多 64 KiB 的唯讀 HTTP Range 測試";
-        row.addEventListener("click", () => testAudioFile(joinOpenListPath(activePath, item.name), row));
+        const wrapper = document.createElement("div");
+        wrapper.className = "audio-entry-wrap";
+        const infoRow = document.createElement("div");
+        infoRow.className = "entry audio-info";
+        size.textContent = formatBytes(item.size);
+        infoRow.append(icon, name, size);
+
+        const actions = document.createElement("div");
+        actions.className = "entry-actions";
+        const rangeButton = document.createElement("button");
+        rangeButton.type = "button";
+        rangeButton.className = "entry-action";
+        rangeButton.textContent = "Range 測試";
+        rangeButton.addEventListener("click", () => testAudioFile(fullPath, rangeButton));
+
+        const metadataButton = document.createElement("button");
+        metadataButton.type = "button";
+        metadataButton.className = "entry-action entry-action-primary";
+        metadataButton.textContent = "讀取標籤";
+        metadataButton.addEventListener("click", () => testAudioMetadata(fullPath, metadataButton));
+
+        actions.append(rangeButton, metadataButton);
+        wrapper.append(infoRow, actions);
+        listBox.append(wrapper);
+      } else {
+        const row = document.createElement("div");
+        row.className = "entry";
+        row.append(icon, name, size);
+        listBox.append(row);
       }
-      listBox.append(row);
     }
 
     const summary = `連線成功。讀取 ${result.items.length} 個項目（API 回報總數 ${result.total}）。\n進入資料夾後，點選支援格式的音訊檔即可測試最多 64 KiB 的 Range 回應。`;
