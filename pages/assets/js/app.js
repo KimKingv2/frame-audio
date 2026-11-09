@@ -170,6 +170,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       if (info.is_dir) throw new Error("選取的項目是資料夾，請選擇音訊檔案。");
       const result = await inspectAudioMetadata({
         rawUrl: info.raw_url,
+        baseUrl: activeBaseUrl,
         path,
         fileSize: Number(info.size || 0)
       });
