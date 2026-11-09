@@ -22,6 +22,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   let activeBaseUrl = "";
   let activeToken = "";
   let activeStorageToken = "";
+  let cloudflareStorageReady = false;
   let activePath = "/";
   let connected = false;
   let activeCoverUrl = "";
@@ -66,6 +67,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       return;
     }
     button.disabled = true;
+    cloudflareStorageReady = false;
     setStorageResult("正在檢查 Cloudflare D1 與 R2……");
     try {
       const response = await fetch("/api/catalog/status", {
@@ -75,6 +77,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       let data = {};
       try { data = await response.json(); } catch {}
       if (!response.ok || !data.ok) throw new Error(data.error || ("Cloudflare API HTTP " + response.status));
+      cloudflareStorageReady = true;
       setStorageResult("PASS：Cloudflare 儲存已連線。\nD1：已連接；歌曲 " + data.tracks + " 首；資料夾 " + data.folders + " 個。\nR2：已連接。", "ok");
     } catch (error) {
       setStorageResult(error.message || "Cloudflare 儲存連線失敗。", "error");
@@ -190,6 +193,169 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     ].join("　·　");
 
     metadataPreview.append(heading, layout, lyrics, footer);
+  }
+
+  async function sha256Hex(bytes) {
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+  }
+
+  function metadataStringList(value) {
+    const values = Array.isArray(value) ? value : value == null ? [] : [value];
+    return values.map(item => {
+      if (typeof item === "string") return item.trim();
+      if (item && typeof item === "object") return String(item.text || item.value || item.name || "").trim();
+      return "";
+    }).filter(Boolean);
+  }
+
+  function metadataNumber(value) {
+    const raw = value && typeof value === "object" ? value.no : value;
+    const number = Number(raw);
+    return Number.isSafeInteger(number) && number > 0 ? number : null;
+  }
+
+  async function indexSingleAudioFile(path, button) {
+    if (!connected) {
+      setResult("請先連接 OpenList 並讀取目錄。", "error");
+      return;
+    }
+    if (!cloudflareStorageReady || !activeStorageToken) {
+      setResult("請先輸入 Cloudflare 管理金鑰並成功執行「測試 Cloudflare 儲存」。", "error");
+      return;
+    }
+
+    button.disabled = true;
+    clearMetadataPreview();
+    setResult("正在讀取音訊標籤，完成後會將這一首存入 D1；封面（若有）會去重後存入 R2。\n" + path);
+    try {
+      const info = await getOpenListFileInfo({ baseUrl: activeBaseUrl, token: activeToken, path });
+      if (info.is_dir) throw new Error("選取的項目是資料夾，請選擇音訊檔案。");
+      const fileSize = Number(info.size || 0);
+      if (!Number.isSafeInteger(fileSize) || fileSize <= 0) throw new Error("OpenList 沒有提供有效的檔案大小。");
+
+      const result = await inspectAudioMetadata({
+        rawUrl: info.raw_url,
+        baseUrl: activeBaseUrl,
+        path,
+        fileSize
+      });
+      renderMetadataResult(path, fileSize, result);
+
+      const metadata = result.metadata || {};
+      const common = metadata.common || {};
+      const format = metadata.format || {};
+      const title = String(common.title || path.split("/").pop() || "未命名音訊");
+      const id = await sha256Hex(new TextEncoder().encode(path));
+      let artwork = null;
+      let artworkNote = "沒有內嵌封面";
+
+      const picture = Array.isArray(common.picture) ? common.picture[0] : null;
+      if (picture?.data?.byteLength) {
+        const pictureBytes = picture.data instanceof Uint8Array
+          ? picture.data
+          : picture.data instanceof ArrayBuffer ? new Uint8Array(picture.data) : null;
+        const rawType = String(picture.format || "").toLowerCase();
+        const mimeType = ({
+          jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+          webp: "image/webp", gif: "image/gif"
+        })[rawType] || (["image/jpeg", "image/png", "image/webp", "image/gif"].includes(rawType) ? rawType : "");
+        if (!pictureBytes) {
+          artworkNote = "封面資料格式不支援，已略過封面";
+        } else if (!mimeType) {
+          artworkNote = "封面格式不支援，已略過封面";
+        } else if (pictureBytes.byteLength > 10 * 1024 * 1024) {
+          artworkNote = "封面超過 10 MiB 上限，已略過封面";
+        } else {
+          const sha256 = await sha256Hex(pictureBytes);
+          const coverResponse = await fetch("/api/artwork/" + sha256, {
+            method: "PUT",
+            credentials: "same-origin",
+            headers: {
+              Authorization: "Bearer " + activeStorageToken,
+              "Content-Type": mimeType
+            },
+            body: new Blob([pictureBytes], { type: mimeType })
+          });
+          let coverData = {};
+          try { coverData = await coverResponse.json(); } catch {}
+          if (!coverResponse.ok || !coverData.ok) {
+            throw new Error(coverData.error || ("R2 封面寫入失敗（HTTP " + coverResponse.status + "）。"));
+          }
+          artwork = { sha256, mimeType, sizeBytes: pictureBytes.byteLength };
+          artworkNote = "封面已去重保存至 R2";
+        }
+      }
+
+      const commonSafe = { ...common };
+      delete commonSafe.picture;
+      const yearSource = common.year ?? common.date;
+      const yearMatch = String(yearSource || "").match(/(?:19|20)\d{2}/);
+      const year = yearMatch ? Number(yearMatch[0]) : null;
+      const durationSeconds = Number(format.duration || 0);
+      const durationMs = Number.isFinite(durationSeconds) && durationSeconds > 0
+        ? Math.round(durationSeconds * 1000) : null;
+      const track = {
+        id,
+        file: {
+          path,
+          sizeBytes: fileSize,
+          modifiedAt: info.modified || info.modified_at || null,
+          signature: null
+        },
+        title,
+        artists: metadataStringList(common.artists || common.artist),
+        album: common.album || null,
+        albumArtist: common.albumartist || common.albumArtist || null,
+        trackNumber: metadataNumber(common.track),
+        discNumber: metadataNumber(common.disk),
+        year,
+        genres: metadataStringList(common.genre),
+        durationMs,
+        audio: {
+          container: format.container || null,
+          codec: format.codec || null,
+          bitrate: Number.isFinite(Number(format.bitrate)) ? Number(format.bitrate) : null,
+          sampleRate: Number.isFinite(Number(format.sampleRate)) ? Number(format.sampleRate) : null,
+          bitsPerSample: Number.isFinite(Number(format.bitsPerSample)) ? Number(format.bitsPerSample) : null,
+          channels: Number.isFinite(Number(format.numberOfChannels)) ? Number(format.numberOfChannels) : null,
+          lossless: typeof format.lossless === "boolean" ? format.lossless : null
+        },
+        lyrics: metadataStringList(common.lyrics),
+        artwork,
+        metadata: { tagTypes: metadata.tagTypes || [], common: commonSafe }
+      };
+
+      const response = await fetch("/api/catalog?kind=tracks", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          Authorization: "Bearer " + activeStorageToken,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ track })
+      });
+      let data = {};
+      try { data = await response.json(); } catch {}
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || ("D1 曲目寫入失敗（HTTP " + response.status + "）。"));
+      }
+
+      const stats = result.stats || {};
+      setResult(
+        "PASS：單首索引寫入完成。\n歌曲：" + title +
+        "\nD1：已保存 1 首；路徑：" + path +
+        "\nR2：" + artworkNote +
+        "\nMetadata Range：" + (stats.rangeRequests || 0) + " 次；實際讀取 " +
+        formatBytes(stats.bytesFetched || 0) +
+        "\nOpenList 原始音訊未下載、未修改。",
+        "ok"
+      );
+    } catch (error) {
+      setResult(error.message || "單首索引失敗。", "error");
+    } finally {
+      button.disabled = false;
+    }
   }
 
   async function testAudioMetadata(path, button) {
@@ -353,7 +519,13 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         metadataButton.textContent = "讀取標籤";
         metadataButton.addEventListener("click", () => testAudioMetadata(fullPath, metadataButton));
 
-        actions.append(rangeButton, metadataButton);
+        const indexButton = document.createElement("button");
+        indexButton.type = "button";
+        indexButton.className = "entry-action entry-action-primary";
+        indexButton.textContent = "試存此首至曲庫";
+        indexButton.addEventListener("click", () => indexSingleAudioFile(fullPath, indexButton));
+
+        actions.append(rangeButton, metadataButton, indexButton);
         wrapper.append(infoRow, actions);
         listBox.append(wrapper);
       } else {
