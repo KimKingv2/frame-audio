@@ -1,0 +1,36 @@
+name: Indexer checks
+
+on:
+  push:
+    branches: [cf-preview]
+    paths:
+      - "indexer/**"
+      - ".github/workflows/indexer-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "indexer/**"
+      - ".github/workflows/indexer-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install indexer
+        run: python -m pip install -e ./indexer
+      - name: Compile Python sources
+        run: python -m compileall -q indexer/src
+      - name: Run indexer tests
+        run: python -m unittest discover -s indexer/tests -v
+      - name: Check CLI entry point
+        run: frame-audio-indexer --help
