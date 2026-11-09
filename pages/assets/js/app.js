@@ -149,7 +149,9 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     footer.className = "metadata-footer";
     footer.textContent = [
       "檔案大小 " + formatBytes(fileSize),
-      "Range 請求 " + (stats.rangeRequests || 0) + " 次",
+      "成功 Range " + (stats.rangeRequests || 0) + " 次",
+      "請求嘗試 " + (stats.requestAttempts || stats.rangeRequests || 0) + " 次",
+      "自動重試 " + (stats.retryCount || 0) + " 次",
       "實際讀取 " + formatBytes(stats.bytesFetched || 0),
       "讀取上限 " + formatBytes(stats.maxTransferBytes || 0)
     ].join("　·　");
