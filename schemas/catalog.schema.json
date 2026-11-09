@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://frame-audio.invalid/schemas/catalog.schema.json",
+  "title": "FRAME Audio catalogue data contracts",
+  "$defs": {
+    "musicTrack": {
+      "type": "object",
+      "required": ["id", "title", "file"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "artists": { "type": "array", "items": { "type": "string" } },
+        "album": { "type": ["string", "null"] },
+        "albumArtist": { "type": ["string", "null"] },
+        "trackNumber": { "type": ["integer", "null"] },
+        "discNumber": { "type": ["integer", "null"] },
+        "year": { "type": ["integer", "null"] },
+        "genres": { "type": "array", "items": { "type": "string" } },
+        "durationMs": { "type": ["integer", "null"], "minimum": 0 },
+        "audio": { "type": "object" },
+        "file": {
+          "type": "object",
+          "required": ["path", "sizeBytes"],
+          "properties": {
+            "path": { "type": "string" },
+            "sizeBytes": { "type": "integer", "minimum": 0 },
+            "modifiedAt": { "type": ["string", "null"], "format": "date-time" },
+            "signature": { "type": ["string", "null"] }
+          },
+          "additionalProperties": false
+        },
+        "artwork": { "type": ["object", "null"] },
+        "lyrics": { "type": ["object", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "musicFolder": {
+      "type": "object",
+      "required": ["id", "name", "path", "childFolderIds", "trackIds"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "path": { "type": "string" },
+        "parentId": { "type": ["string", "null"] },
+        "childFolderIds": { "type": "array", "items": { "type": "string" } },
+        "trackIds": { "type": "array", "items": { "type": "string" } },
+        "directTrackCount": { "type": "integer", "minimum": 0 },
+        "recursiveTrackCount": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "podcastShow": {
+      "type": "object",
+      "required": ["id", "title", "episodeIds"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "author": { "type": ["string", "null"] },
+        "description": { "type": ["string", "null"] },
+        "cover": { "type": ["string", "null"] },
+        "folderPath": { "type": ["string", "null"] },
+        "episodeIds": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "podcastEpisode": {
+      "type": "object",
+      "required": ["id", "showId", "title", "file"],
+      "properties": {
+        "id": { "type": "string" },
+        "showId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": ["string", "null"] },
+        "publishedAt": { "type": ["string", "null"], "format": "date-time" },
+        "durationMs": { "type": ["integer", "null"], "minimum": 0 },
+        "file": {
+          "type": "object",
+          "required": ["path", "sizeBytes"],
+          "properties": {
+            "path": { "type": "string" },
+            "sizeBytes": { "type": "integer", "minimum": 0 },
+            "modifiedAt": { "type": ["string", "null"], "format": "date-time" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
