@@ -1,4 +1,6 @@
-import { listOpenListDirectory, joinOpenListPath, formatBytes } from "./openlist-client.js";
+import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange } from "./openlist-client.js";
+
+const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
 
 (() => {
   "use strict";
@@ -45,6 +47,33 @@ import { listOpenListDirectory, joinOpenListPath, formatBytes } from "./openlist
     resultBox.className = "statusbox" + (type ? " " + type : "");
   }
 
+  async function testAudioFile(path, row) {
+    row.disabled = true;
+    setResult("正在讀取檔案資訊，並測試最多 64 KiB 的 HTTP Range 回應……\n" + path);
+    try {
+      const result = await probeOpenListAudioRange({
+        baseUrl: activeBaseUrl,
+        token: activeToken,
+        path,
+        byteCount: 65536
+      });
+      const lines = [
+        result.range_supported ? "PASS：音訊來源支援 HTTP Range。" : "未通過：音訊來源目前不支援可用的 HTTP Range。",
+        "HTTP 狀態：" + result.status_code,
+        "檔案大小：" + formatBytes(result.file_size),
+        "本次實際讀取：" + formatBytes(result.bytes_received),
+        "Content-Range：" + (result.content_range || "未提供，或未對瀏覽器暴露"),
+        "來源主機：" + (result.final_host || "無法判定"),
+        result.warning
+      ].filter(Boolean);
+      setResult(lines.join("\n"), result.range_supported ? "ok" : "error");
+    } catch (error) {
+      setResult(error.message || "音訊 Range 測試失敗。", "error");
+    } finally {
+      row.disabled = false;
+    }
+  }
+
   function renderDirectory(result) {
     activePath = result.path;
     currentPathLabel.textContent = result.path;
@@ -64,7 +93,8 @@ import { listOpenListDirectory, joinOpenListPath, formatBytes } from "./openlist
       const row = document.createElement("button");
       row.type = "button";
       row.className = "entry";
-      row.disabled = !item.isDir;
+      const isAudio = !item.isDir && AUDIO_FILE_PATTERN.test(item.name);
+      row.disabled = !item.isDir && !isAudio;
       const icon = document.createElement("span");
       icon.className = "entry-icon";
       icon.textContent = item.isDir ? "▰" : "♫";
@@ -73,15 +103,18 @@ import { listOpenListDirectory, joinOpenListPath, formatBytes } from "./openlist
       name.textContent = item.name;
       const size = document.createElement("span");
       size.className = "entry-size";
-      size.textContent = item.isDir ? "資料夾　›" : formatBytes(item.size);
+      size.textContent = item.isDir ? "資料夾　›" : (isAudio ? formatBytes(item.size) + "　·　Range 測試 ›" : formatBytes(item.size));
       row.append(icon, name, size);
       if (item.isDir) {
         row.addEventListener("click", () => loadDirectory(joinOpenListPath(activePath, item.name)));
+      } else if (isAudio) {
+        row.title = "點選以執行最多 64 KiB 的唯讀 HTTP Range 測試";
+        row.addEventListener("click", () => testAudioFile(joinOpenListPath(activePath, item.name), row));
       }
       listBox.append(row);
     }
 
-    const summary = `連線成功。讀取 ${result.items.length} 個項目（API 回報總數 ${result.total}）。`;
+    const summary = `連線成功。讀取 ${result.items.length} 個項目（API 回報總數 ${result.total}）。\n進入資料夾後，點選支援格式的音訊檔即可測試最多 64 KiB 的 Range 回應。`;
     setResult(summary, "ok");
     $("#connection-label").textContent = "OpenList 已連線";
     $("#connection-dot").style.background = "#78b98d";
