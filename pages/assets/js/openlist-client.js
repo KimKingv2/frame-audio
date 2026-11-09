@@ -53,7 +53,11 @@ export async function listOpenListDirectory({ baseUrl, token, path = "/", page =
     if (error?.name === "AbortError") {
       throw new Error("連線逾時。請確認 OpenList 網址及網路狀態。");
     }
-    throw new Error("瀏覽器無法連接 OpenList。可能是網址、網路或 CORS 跨網域設定問題。");
+    const pageOrigin = typeof window !== "undefined" ? window.location.origin : "unknown";
+    const browserDetail = error?.message ? ` 瀏覽器訊息：${error.message}` : "";
+    throw new Error(
+      `瀏覽器未取得 OpenList HTTP 回應。請檢查網路及 CORS 設定。\n目前頁面來源（請加入 OpenList CORS 允許清單）：${pageOrigin}\n並允許 POST、OPTIONS 方法，以及 Authorization、Content-Type 標頭。${browserDetail}`
+    );
   } finally {
     clearTimeout(timeout);
   }
