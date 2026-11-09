@@ -189,7 +189,7 @@ class OpenListRangeTokenizer {
       position: position ?? this.position,
       mayBeLess: maybeless
     });
-    if (!maybeless && count < token.len) throw new Error("Unexpected end of audio file while peeking token.");
+    if (count < token.len) throw new Error("Unexpected end of audio file while peeking token.");
     return token.get(bytes, 0);
   }
 
