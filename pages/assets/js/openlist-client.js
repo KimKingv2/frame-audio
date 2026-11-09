@@ -118,6 +118,55 @@ export function formatBytes(bytes) {
   return n.toFixed(n >= 100 ? 0 : 1) + " " + units[i];
 }
 
+export async function getOpenListFileInfo({ baseUrl, token, path }) {
+  const normalizedBase = normalizeOpenListUrl(baseUrl);
+  const safePath = String(path || "").trim();
+  if (!safePath.startsWith("/") || safePath.includes("\0")) {
+    throw new Error("檔案路徑必須是以 / 開頭的完整路徑。");
+  }
+
+  const headers = { "Content-Type": "application/json" };
+  const trimmedToken = String(token || "").trim();
+  if (trimmedToken) headers.Authorization = trimmedToken;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetch(normalizedBase + "/api/fs/get", {
+      method: "POST",
+      mode: "cors",
+      credentials: "omit",
+      redirect: "error",
+      headers,
+      body: JSON.stringify({ path: safePath, password: "" }),
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("讀取 OpenList 檔案資訊逾時。");
+    throw new Error("無法讀取 OpenList /api/fs/get。請確認 CORS、Token 與目錄權限。");
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  let payload;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new Error(`OpenList 檔案資訊不是有效 JSON（HTTP ${response.status}）。`);
+  }
+  if (!response.ok) throw new Error(`OpenList /api/fs/get HTTP ${response.status}。`);
+  if (payload?.code != null && Number(payload.code) !== 200) {
+    const code = Number(payload.code);
+    if (code === 401 || code === 403) throw new Error("OpenList 驗證失敗或沒有檔案讀取權限，請檢查 Token。");
+    throw new Error(`OpenList /api/fs/get API ${code}：${String(payload.message || "未知錯誤")}`);
+  }
+  if (!payload?.data || typeof payload.data !== "object") {
+    throw new Error("OpenList /api/fs/get 缺少檔案資訊。");
+  }
+  return payload.data;
+}
+
 export async function probeOpenListAudioRange({
   baseUrl,
   token,
