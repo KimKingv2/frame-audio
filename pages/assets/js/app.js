@@ -152,6 +152,8 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       "成功 Range " + (stats.rangeRequests || 0) + " 次",
       "請求嘗試 " + (stats.requestAttempts || stats.rangeRequests || 0) + " 次",
       "自動重試 " + (stats.retryCount || 0) + " 次",
+      "重新導向 " + (stats.redirectedRequests || 0) + " 次",
+      "來源 " + (stats.initialHost || "未知") + " → " + (stats.finalHost || "未知"),
       "實際讀取 " + formatBytes(stats.bytesFetched || 0),
       "讀取上限 " + formatBytes(stats.maxTransferBytes || 0)
     ].join("　·　");
