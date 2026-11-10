@@ -378,7 +378,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     }
   }
 
-  function scanProgressText(state, batch) {
+  function scanProgressText(state, batch, finished = false) {
     const lines = [
       "掃描根目錄：" + state.rootPath,
       "已寫入／更新：" + state.indexedCount + " 首",
@@ -388,9 +388,12 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       "待掃描資料夾：" + state.pendingFolders.length + (state.currentFolder ? "；目前：" + state.currentFolder : ""),
       "本批新增／更新：" + batch.indexed + " 首；跳過：" + batch.skipped + " 首；失敗：" + batch.failed + " 首"
     ];
+    if (batch.currentPath) lines.push("正在處理：" + batch.currentPath);
+    if (batch.lastFileInfo) lines.push("最近完成：" + batch.lastFileInfo);
     if (state.completed) lines.push("本輪掃描已完成。再次啟動會重新檢查新增或變更檔案，不會刪除既有資料。");
     else if (scanPauseRequested) lines.push("已要求暫停，正在完成目前項目並保存進度……");
-    else lines.push("進度已保存至 D1，可以關閉頁面，之後重新連接並續作。");
+    else if (finished) lines.push("本批已結束，進度已保存至 D1；可以關閉頁面，之後重新連接並續作。");
+    else lines.push("掃描進行中，請保持此頁面開啟；進度會持續保存至 D1。");
     if (state.errors?.length) {
       const last = state.errors[state.errors.length - 1];
       lines.push("最近錯誤：" + last.path + "｜" + last.message);
@@ -565,14 +568,26 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
               state.skippedCount += 1;
               batch.skipped += 1;
             } else {
+              batch.currentPath = fullPath;
+              setScanProgress(scanProgressText(state, batch), "ok");
+              const trackStartedAt = performance.now();
               const indexed = await indexSingleAudioFile(fullPath, fakeButton, {
                 silent: true,
                 listedFile: item
               });
+              const trackElapsedSeconds = (performance.now() - trackStartedAt) / 1000;
+              batch.currentPath = "";
               if (indexed.ok) {
                 state.indexedCount += 1;
                 batch.indexed += 1;
+                const stats = indexed.stats || {};
+                batch.lastFileInfo =
+                  indexed.title + "｜" + trackElapsedSeconds.toFixed(1) + " 秒｜" +
+                  (stats.rangeRequests || 0) + " 次 Range｜" +
+                  formatBytes(stats.bytesFetched || 0);
               } else {
+                batch.lastFileInfo =
+                  "索引失敗｜" + trackElapsedSeconds.toFixed(1) + " 秒｜" + fullPath;
                 const message = String(indexed.error || "未知索引錯誤").slice(0, 700);
                 if (/管理金鑰不正確|尚未設定 FRAME_AUDIO_ADMIN_TOKEN|HTTP 401|HTTP 403/i.test(message)) {
                   throw new Error(message + " 請重新測試 Cloudflare 儲存連線後再繼續。");
@@ -612,7 +627,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
 
       if (!state.currentFolder && state.pendingFolders.length === 0) state.completed = true;
       await saveScanState(key, state);
-      setScanProgress(scanProgressText(state, batch), "ok");
+      setScanProgress(scanProgressText(state, batch, true), "ok");
     } catch (error) {
       if (state) {
         state.lastError = String(error.message || error).slice(0, 700);
