@@ -4,45 +4,63 @@
 
 ### Music
 - Browse tracks, artists, albums, and the original OpenList folder tree.
-- Each source folder can become a queue; parent-folder playback can include descendants.
-- Extract embedded artwork and lyrics into a private, deduplicated asset store.
-- Store track metadata and resumable scan checkpoints in Cloudflare D1; store artwork in R2.
-- Indexing is user-triggered from the browser. Page load never scans the library.
-- Process up to 500 new or changed tracks per batch, with a 500-entry ceiling, a 500-folder ceiling and a 7,500-second soft time ceiling.
-- Resume from D1 checkpoints after a page reload or interrupted session.
-- Skip unchanged tracks using path, file size and modified time where available.
-- A failed or partial scan never deletes existing catalogue rows. Once a root scan completes, D1 folder records are rebuilt idempotently from the completed folder-path set and indexed track paths.
+- Albums, artists, and folders can launch an ordered playback queue.
+- Extract embedded artwork and lyrics into a private, SHA-256-deduplicated R2 asset store.
+- Store metadata and resumable scan checkpoints in D1.
+- Indexing is user-triggered; normal page load never scans the library.
+- Incremental scan skips unchanged files using path, file size and modification time when available.
+- A partial or failed scan never deletes existing catalogue rows.
 
 ### Podcasts
-- Use a dedicated scan entry and a dedicated root: `/中國移動雲盤/Kim King/13 喜马拉雅`.
-- Each immediate child folder under the Podcast root is exactly one show. All nested folders belong to that show; every supported audio file below it is one episode.
-- Files placed directly in the Podcast root are logged and skipped because they do not belong to a show folder.
-- Store show and episode records in dedicated D1 tables, separate from Music tracks.
-- Keep scan checkpoints and failed-path retries separate using `podcast_scan_` / `podcast_retry_` keys.
-- Reuse bounded HTTP Range metadata parsing, OpenList listing, R2 artwork de-duplication, and the same 20-attempt policy.
-- Unchanged episodes are skipped using path, size, and modification time when available. Missing or partial scans never delete existing Podcast records.
-- Episode resume position, played state, and playback speed are future Podcast playback features. RSS discovery / automatic downloads remain optional future functionality.
+- Dedicated root: `/中國移動雲盤/Kim King/13 喜马拉雅`.
+- Every immediate child directory is one show; nested directories remain part of that show; each supported audio file is one episode.
+- Dedicated D1 tables, scan checkpoints and retry queue, independent from Music.
+- Show cards, show detail, episode lists and ordered show playback.
+- Resume position is saved per episode.
+- Playback speed ranges from 0.5× to 2.0× and is saved per episode.
+- Continue Listening lists unfinished Podcast episodes.
+
+### Playback and listening analytics
+- One shared browser audio player supports Music tracks and Podcast episodes.
+- OpenList file information is requested at playback time; original audio remains in OpenList.
+- Playback position is periodically saved and restored when the same item is opened again.
+- Listening time is accumulated from actual active playback, not from the media duration or a seek operation.
+- One listening event/session contributes one play. Repeated progress writes update the same session rather than incrementing play count repeatedly.
+- Reports are separated by Music and Podcast and support rolling 7-day, 30-day, 365-day and all-time periods.
+- Per-item report fields include play count, total listened seconds, completed sessions and latest play time.
+
+### Index maintenance
+- Music and Podcast retry queues remain independent.
+- The error table allows a user to edit an individual source path and re-run only that item's metadata index.
+- If a corrected path differs, the new catalogue row is written first. The relink transaction then moves old listening events and resume progress to the new item identifier and removes the stale catalogue row.
+- If re-indexing fails, the original item and retry record remain available for another repair attempt.
+- Cumulative scan failures are labelled as historical failure events; they are not presented as current unresolved count.
 
 ## Shared core
-- OpenList API and authenticated file URL resolution.
-- Browser audio playback controller and queue primitives.
-- HTTP Range capability checks and format compatibility handling.
-- Artwork loading, caching, and request de-duplication.
-- Shared error reporting and user settings.
+- OpenList API access and authenticated file URL resolution.
+- Bounded HTTP Range metadata reads.
+- Browser audio playback and ordered queue handling.
+- Artwork retrieval from R2.
+- Same-origin Pages Functions for private D1/R2 access.
+- Retry queues, D1 scan checkpoints and user-visible diagnostic logs.
 
 ## Private data boundary
-The public repository contains source code and schemas only. User library paths, API tokens, D1 contents, R2 objects, tracks/manifests, lyrics, playback history, and audio files must not be committed to GitHub.
+The public repository contains source code, schemas and migrations only. User catalogue data, playback history, file paths, API tokens, R2 artwork objects, and audio files must not be committed to GitHub.
 
-The browser obtains file URLs at playback time. Temporary OpenList signatures and tokens must not be placed in public JSON.
+The browser obtains temporary OpenList playback URLs at playback time. Tokens and temporary URL signatures must not be placed in public JSON.
 
 ## Indexing strategy
-The initial music library is about 7,000 tracks / 90 GB, with FLAC, MP3, M4A, and WAV files stored in mixed folders. Audio tags take priority over folder names; filename parsing is fallback only.
+The initial Music library is approximately 7,000 tracks / 90 GB. The browser reads metadata through bounded 256 KiB HTTP Range requests, with a 16 MiB transfer cap and a 90-second per-file metadata deadline. It does not download complete audio files.
 
-The browser reads metadata through bounded 256 KiB HTTP Range requests, with a 16 MiB transfer cap and a 90-second per-file metadata deadline. It never uploads the original audio file. Each batch has ceilings of 500 successful track writes, 500 directory entries, 500 completed folders and 7,500 seconds. A failed track is retried up to 20 total attempts; authentication and permission failures stop the scan immediately. The cursor, folder queue, counts and recent errors are stored in D1 so a subsequent batch can resume safely. Podcast scans use the same bounded browser approach but a separate state namespace and independent tables.
+Each batch has ceilings of 500 successful writes, 500 directory entries, 500 completed folders and 7,500 seconds. A file is attempted up to 20 times; authentication and permission errors stop immediately. D1 stores the cursor, folder queue, counts and recent errors so later batches can resume.
 
-Incremental comparison uses path, file size and modified time when the source provides it. Files without a usable modification time are re-read rather than assumed unchanged. Repeated writes use the path as the unique track key and therefore update the existing row. Missing paths are not deleted automatically.
+Podcast uses the same bounded browser Range approach but a separate state namespace and independent tables. Missing paths are never automatically deleted from either catalogue.
 
-After the complete directory tree has been scanned, a same-origin Pages Function builds deterministic folder IDs, parent/child folder links, direct track IDs and recursive track counts in D1. Folder rebuilding is idempotent and does not delete old rows. A standalone Mac indexer prototype remains under indexer/, but the current Preview workflow uses the browser and Cloudflare D1/R2 directly.
+## D1 data model
+- `tracks`, `folders`, `catalog_state`: Music and scan state.
+- `podcast_shows`, `podcast_episodes`: Podcast catalogue.
+- `listening_progress`: current per-item resume position and Podcast playback speed.
+- `listening_events`: per-session plays, active listening time and completion state.
 
 ## Deployment boundary
-Cloudflare Pages serves the static application and same-origin Functions API. OpenList remains the source of truth for audio files. D1 stores the private catalogue and scan checkpoints; R2 stores artwork. Only Preview is configured until the workflow has been fully validated.
+Cloudflare Pages serves the static application and same-origin Functions API. The Production deployment uses `main`; `cf-preview` remains the pre-release validation branch. Production and Preview require their own D1/R2 bindings and `FRAME_AUDIO_ADMIN_TOKEN` Secret. Both may point at the same D1/R2 resources only when that is intentional and verified.

@@ -1,44 +1,63 @@
 # FRAME Audio
 
-FRAME Audio 是以 OpenList 為音訊來源的私人音訊平台，分為 **Music** 與 **Podcasts**，共用播放核心、OpenList 存取層與資產快取。
+FRAME Audio 是以 OpenList 為音訊來源的私人音訊平台，包含 **Music** 與 **Podcasts**。兩者有獨立曲庫及掃描進度，共用播放核心、封面資產、續播與收聽統計服務。
 
-## 原則
-- 原始音訊留在 OpenList，不搬移、不修改。
-- Music 與 Podcasts 使用獨立索引及業務資料。
-- 共用音訊播放、串流、快取及安全處理。
-- 正常開啟網站不掃描音樂庫；索引只會在使用者明確啟動後執行。
-- 私人索引、封面、歌詞、播放進度、Token、SQLite 與音訊檔案不提交到 Git。
+## 產品功能
 
-## 目錄
-- pages/：Cloudflare Pages 靜態網站。
-- functions/：Cloudflare Pages Functions，同源 API。
-- migrations/：D1 資料表結構。
-- indexer/：獨立的 Mac 本機唯讀索引器原型。
-- schemas/：Music / Podcasts JSON 資料契約。
-- docs/：架構與實作決策。
+- Music：歌曲、專輯、歌手、資料夾歌單與連續播放。
+- Podcasts：節目卡片、節目詳情、單集列表、播放佇列及續播。
+- Podcast 播放速度：0.5× 至 2.0×，每集分別保存播放速度與續播位置。
+- 收聽報告：Music / Podcasts 分開統計播放次數、實際收聽時長、收聽項目數與完整聽完次數。
+- 報告期間：近 7 日、近 30 日、近 365 日、全部時間。
+- 索引修復：列出 Music 與 Podcast 失敗項目，可編輯檔案路徑後單獨重新索引，不必重掃整個目錄。
+- 掃描進度：獨立保存 Music / Podcast 掃描游標、重試佇列及最近錯誤，可中斷續作。
 
-## Cloudflare 儲存與網頁索引
-Music 曲庫使用 Cloudflare D1 保存曲目資料與索引進度，R2 保存以 SHA-256 去重的封面；原始音訊仍留在 OpenList。Podcast 使用獨立的節目／單集資料表、掃描進度與失敗佇列，不會混入 Music 曲庫。
+## 資料安全原則
 
-網頁索引由使用者手動啟動，遞迴掃描指定目錄樹：
-- 每批最長 7,500 秒（2 小時 5 分鐘），上限為 500 首新增／更新、500 個目錄項目及 500 個完成資料夾。
-- 單首索引最多嘗試 20 次；每次失敗會重新取得檔案資訊並重新讀取 metadata。驗證或權限錯誤會立即停止。
-- 每批進度寫入 D1，重新連接後可從上次游標續作。
-- 以路徑、檔案大小及修改時間跳過未變更曲目。
-- 整個目錄樹掃描完成後，伺服器會依照已掃描的資料夾路徑與 D1 曲目資料建立資料夾階層、子資料夾關係及歌曲關聯。
-- 部分或失敗掃描不會刪除既有曲目或資料夾；原始音訊只透過 HTTP Range 讀取必要區段，不會上傳到 Cloudflare。
-- Podcast 掃描使用獨立入口，固定根目錄為 `/中國移動雲盤/Kim King/13 喜马拉雅`；第一層每個資料夾就是一個節目，其下所有子資料夾中的音訊檔都是該節目的單集。
-- Podcast 以獨立 D1 資料表保存節目與單集，並使用 `podcast_scan_`、`podcast_retry_` 狀態前綴。Music 與 Podcast 不共用失敗重試佇列。
-- 第一次使用 Podcast 掃描前，需在 Cloudflare D1 執行 `migrations/0002_podcasts.sql`。儲存測試會顯示 Podcast 資料表是否已初始化。
+- 原始音訊留在 OpenList，不搬移、不修改，也不把完整音訊上傳到 Cloudflare。
+- 瀏覽器只透過有上限的 HTTP Range 讀取 metadata 所需區段。
+- Music 曲目與 Podcast 節目／單集分開保存。
+- D1 以新增／更新方式寫入；部分掃描、失敗掃描與路徑修復不會清空整個曲庫。
+- R2 封面以 SHA-256 去重保存。
+- 修復路徑時，先成功建立新索引，再將舊路徑的收聽事件及續播資料移轉到新索引。
+- OpenList Token 與 Cloudflare 管理金鑰只保留在當前頁面記憶體，不寫入 GitHub、網址或瀏覽器儲存空間。
 
-設定與測試方式見 [docs/CLOUDFLARE-STORAGE.md](docs/CLOUDFLARE-STORAGE.md)。
+## Cloudflare 資料表
 
-## Cloudflare Pages
-- Repository：KimKingv2/frame-audio
-- Production branch：main
-- Preview branch：cf-preview
-- Root directory：留空
+| Migration | 用途 |
+|---|---|
+| `0001_catalog.sql` | Music 曲目、資料夾、掃描進度 |
+| `0002_podcasts.sql` | Podcast 節目與單集 |
+| `0003_listening.sql` | 播放進度、Podcast 播放速度、收聽事件 |
+
+三個 migration 均採新增資料表／索引方式，不包含清空既有曲庫的操作。現有 D1 資料與 R2 封面應保留。
+
+## 掃描規則
+
+- Music：`/中國移動雲盤/Kim King/03 Music`
+- Podcast：`/中國移動雲盤/Kim King/13 喜马拉雅`
+- Podcast 根目錄的第一層資料夾 = 一個節目；其下所有子資料夾中的支援音訊檔 = 單集。
+- 每批最多處理 500 個目錄項目、500 個新增／更新項目或 500 個資料夾，最長 7,500 秒。
+- 單個檔案最多嘗試 20 次；驗證及權限錯誤會立即停止。
+- 路徑、大小及修改時間未變更時，增量掃描會跳過該項目。
+- 不自動刪除來源中已不存在的曲目或單集。
+
+## 專案結構
+
+- `pages/`：Cloudflare Pages 靜態網站。
+- `functions/`：Cloudflare Pages Functions，同源 API。
+- `migrations/`：D1 資料表結構。
+- `indexer/`：獨立的 Mac 本機唯讀索引器原型。
+- `schemas/`：Music / Podcasts JSON 資料契約。
+- `docs/`：架構、部署與產品規格。
+
+## 部署
+
+- GitHub Repository：`KimKingv2/frame-audio`
+- Production branch：`main`
+- Preview branch：`cf-preview`
+- Pages Root directory：留空
 - Build command：留空
-- Build output directory：pages
+- Build output directory：`pages`
 
-目前只配置並測試 Preview。Production 綁定與 Secret 保持不變。
+正式環境與 Preview 環境應各自設定 `DB`、`ARTWORKS` bindings 及 `FRAME_AUDIO_ADMIN_TOKEN` Secret。詳細步驟見 [docs/CLOUDFLARE-STORAGE.md](docs/CLOUDFLARE-STORAGE.md)。

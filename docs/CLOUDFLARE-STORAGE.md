@@ -1,71 +1,69 @@
-# FRAME Audio · Cloudflare storage setup
+# FRAME Audio · Cloudflare storage and deployment
 
-FRAME Audio uses Pages Functions as its same-origin API, D1 for track/folder records and resumable scan checkpoints, and R2 for deduplicated artwork. OpenList remains the read-only source for original audio files.
+FRAME Audio uses Cloudflare Pages Functions as its same-origin API, D1 for catalogue / scan / listening data, and R2 for deduplicated artwork. OpenList remains the read-only source for original audio files.
 
-## Preview resources
+## Required resources
 
-In the same Cloudflare account as Pages, create:
 - D1 database: `frame-audio-catalog`
 - R2 bucket: `frame-audio-artwork`
+- Pages D1 binding: `DB`
+- Pages R2 binding: `ARTWORKS`
+- Pages Secret: `FRAME_AUDIO_ADMIN_TOKEN`
 
-Configure Preview first. Do not connect these to Production yet.
+Use the same existing D1 database and R2 bucket that contain the scanned Music and Podcast catalogue. Do not create a replacement database for the release and do not run any destructive SQL.
 
-## Initialize D1
+## D1 initialization
 
-Open the D1 database SQL Console and execute all SQL in `migrations/0001_catalog.sql`. It creates `tracks`, `folders`, `catalog_state` and indexes. The migration is safe to re-run.
+Run the migrations in order against the existing `frame-audio-catalog` database:
 
-## Bind to Pages Preview
+1. `migrations/0001_catalog.sql` — Music tracks, folders and scan checkpoints.
+2. `migrations/0002_podcasts.sql` — Podcast shows and episodes.
+3. `migrations/0003_listening.sql` — playback progress, per-episode Podcast playback speed and listening events.
 
-Workers & Pages → frame-audio → Settings → Bindings. Select Preview and add:
+Each migration uses `CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS`. They are additive and can be re-run. Migration 0003 does not alter the existing Music or Podcast catalogue tables and does not clear scan states or artwork.
 
-| Type | Variable name | Resource |
-|---|---|---|
-| D1 database | `DB` | `frame-audio-catalog` |
-| R2 bucket | `ARTWORKS` | `frame-audio-artwork` |
+If 0001 and 0002 have already been applied, execute only the complete SQL in `migrations/0003_listening.sql`.
 
-Save and redeploy Preview for the bindings to take effect.
+## Bindings and Secret
 
-## Add the API secret
+In Cloudflare Dashboard, open Workers & Pages → `frame-audio` → Settings → Bindings.
 
-In the Pages Preview environment, add Secret `FRAME_AUDIO_ADMIN_TOKEN`. Generate a fresh random value of at least 32 random bytes. Do not reuse the OpenList token and do not put this value in GitHub.
+For both Production and Preview, verify the intended resources:
+- D1 database binding named `DB` → `frame-audio-catalog`
+- R2 bucket binding named `ARTWORKS` → `frame-audio-artwork`
 
-The settings dialog holds this key in page memory only. It is not saved to localStorage, cookies or the URL. After editing the Secret, redeploy Preview so the active Pages deployment receives the new value.
+Set Secret `FRAME_AUDIO_ADMIN_TOKEN` separately for Production and Preview. Use a strong random value and do not put it in GitHub. The OpenList API Token is a different credential and is entered in the app at runtime.
 
-## API
+Save the environment settings and redeploy the relevant branch after changing bindings or secrets. Do not assume Preview settings automatically apply to Production.
+
+## Connection check
+
+Open FRAME Audio, choose **連接 OpenList**, enter the OpenList API Token and Cloudflare management secret, then:
+1. Test OpenList access.
+2. Test Cloudflare storage.
+3. Confirm that Music, Podcast and listening schema status are all initialized.
+4. Confirm the Music track count, Podcast show/episode counts and R2 connection are sensible.
+
+The unauthenticated diagnostics endpoint `GET /api/catalog/status?diagnostics=1` returns only the Pages branch and presence flags for the admin token, D1 and R2. It never returns credential values or catalogue content.
+
+## API overview
+
+- `GET /api/catalog?kind=tracks|folders`: paginated Music catalogue.
+- `GET /api/catalog/podcasts?kind=shows|episodes`: paginated Podcast catalogue.
+- `GET /api/catalog/retries` and `GET /api/catalog/podcasts/retries`: independent Music / Podcast error lists.
+- `POST /api/listening`: update playback progress or one listening session.
+- `GET /api/listening?view=continue`: unfinished saved Podcast positions.
+- `GET /api/listening?view=report`: period-based listening analytics.
+- `POST /api/catalog/relink`: move stale path history to a successfully indexed replacement item.
+- `PUT /api/artwork/<sha256>` / `GET /api/artwork/<sha256>`: private R2 artwork.
 
 All private endpoints require `Authorization: Bearer <FRAME_AUDIO_ADMIN_TOKEN>`.
 
-- `GET /api/catalog/status`: check bindings and show current track/folder counts.
-- `GET /api/catalog?kind=tracks&limit=100&offset=0`: paginated tracks.
-- `POST /api/catalog`: upsert up to 100 tracks in one batch.
-- `POST /api/catalog/folders/rebuild`: rebuild the selected completed folder hierarchy from folder paths and existing D1 track paths; upsert is idempotent and does not delete old rows.
-- `POST /api/catalog/lookup`: look up up to 100 paths and return file size / modified time for incremental comparison.
-- `GET /api/catalog/state?key=music_scan_<sha256>`: read one scan checkpoint.
-- `POST /api/catalog/state`: save the scan checkpoint in `catalog_state`.
-- `GET /api/catalog?kind=folders&limit=500&offset=0`: paginated folder hierarchy.
-- `POST /api/catalog?kind=folders`: upsert up to 500 folder records.
-- `PUT /api/artwork/<sha256>`: store a validated image in R2.
-- `GET /api/artwork/<sha256>`: retrieve a stored artwork object.
+## Privacy and retention
 
-There is deliberately no bulk-delete route. A partial scan never erases an existing catalogue.
-
-## Browser batch indexing
-
-1. Open the Preview site and connect the Music root in OpenList.
-2. Test Cloudflare storage using the Preview admin secret.
-3. Navigate to the directory that should be the Music scan root (for example, `/中國移動雲盤/Kim King/03 Music`).
-4. Click **開始／繼續建立歌曲與資料夾索引**.
-5. The browser recursively walks subfolders, reads audio tags with bounded HTTP Range requests, stores track metadata in D1, and stores embedded artwork in R2.
-6. Click the same button again to continue the next batch. The cursor is stored in D1 and survives page reloads. The Pause button stops after the current item and checkpoints the cursor.
-
-Each batch is limited to 500 successful track writes, 500 directory entries, 500 completed folders and 7,500 seconds (2 hours 5 minutes). If a limit is reached while a directory is still active, the current page/item cursor remains saved and the UI shows the exact resume position and stop reason. Unchanged tracks are skipped when the source provides a usable modification time. Each changed/new track is attempted up to 20 times (first attempt plus 19 retries); retries re-fetch file info and restart bounded metadata reading. Authentication and permission errors stop immediately. After the entire selected tree is scanned, the browser calls `POST /api/catalog/folders/rebuild`; the function derives deterministic folder IDs, direct track membership, child-folder links and recursive track counts from the completed folder-path list and D1 track paths. Folder records are upserted in batches and existing rows are never bulk-deleted.
-
-Metadata Range reads use 256 KiB chunks to reduce high-latency request round trips. The total transfer limit remains 16 MiB per audio file, and a per-file time limit is still enforced. Larger chunks can read some bytes beyond the parser's immediate need, so the tradeoff is deliberately bounded. The folder hierarchy is now persisted in D1 after a root scan completes. The folder browsing / playlist UI is a separate follow-up phase.
-
-## Privacy
-
-- Original audio remains in OpenList. The browser reads bounded HTTP Range segments directly; audio files are never uploaded to Cloudflare.
-- Track metadata and embedded artwork are sent to D1/R2 only after the user starts indexing.
-- OpenList token and Cloudflare admin secret are separate and memory-only in the page.
-- Page load does not scan the library. All writes are user-triggered.
-- Only Preview bindings/secrets should be configured now. Keep Production unchanged.
+- Full audio is never uploaded to D1 or R2.
+- Original audio files are not moved, renamed, or modified by FRAME Audio.
+- Indexing is user-triggered; page load does not scan OpenList.
+- Music and Podcast missing files are not automatically deleted from D1.
+- Listening history is retained in D1 until the user explicitly changes the data retention policy.
+- API tokens and temporary playback URLs are not committed to source control.

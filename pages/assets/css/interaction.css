@@ -1,0 +1,5 @@
+/* Responsive navigation and hidden media element for the full player UI. */
+@media (max-width: 760px) {
+  aside .nav.secondary { display: flex; }
+}
+#audio-player { display: none; }

@@ -78,7 +78,7 @@ function progressText(state, batch, finished = false, pauseRequested = false) {
     "節目資料夾：" + (state.showFolders || []).length + " 個",
     "已新增／更新單集：" + state.indexedCount + " 集",
     "未變更而跳過：" + state.skippedCount + " 集",
-    "失敗：" + state.failedCount + " 集",
+    "累計曾失敗：" + state.failedCount + " 集",
     "已完成資料夾：" + state.visitedFolderCount + " 個",
     "待掃描資料夾：" + state.pendingFolders.length + (state.currentFolder ? "；目前：" + state.currentFolder : ""),
     "本批新增／更新：" + batch.indexed + " 集；跳過：" + batch.skipped + " 集；失敗：" + batch.failed + " 集"

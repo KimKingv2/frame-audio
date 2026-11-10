@@ -22,6 +22,7 @@ export async function onRequestGet({request,env}) {
       env.DB.prepare("SELECT COUNT(*) AS count FROM folders").first()
     ]);
     let podcastSchemaReady = false;
+    let listeningSchemaReady = false;
     let podcastShows = 0;
     let podcastEpisodes = 0;
     try {
@@ -35,10 +36,17 @@ export async function onRequestGet({request,env}) {
     } catch {
       // Podcast migration is additive and can be applied separately.
     }
+    try {
+      await env.DB.prepare("SELECT COUNT(*) AS count FROM listening_progress").first();
+      await env.DB.prepare("SELECT COUNT(*) AS count FROM listening_events").first();
+      listeningSchemaReady = true;
+    } catch {
+      // Listening analytics migration is additive and may be applied after the catalogue migrations.
+    }
     return json({
       ok:true,storage:"cloudflare-d1-r2",d1:true,r2:true,
       tracks:Number(tracks?.count||0),folders:Number(folders?.count||0),
-      podcastSchemaReady,podcastShows,podcastEpisodes
+      podcastSchemaReady,podcastShows,podcastEpisodes,listeningSchemaReady
     });
   }catch{return error("D1 已綁定，但尚未初始化資料表。請執行 migrations/0001_catalog.sql。",503);}
 }

@@ -26,6 +26,8 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 @media(max-width:520px){.scan-log-toolbar{align-items:flex-start;flex-direction:column}.scan-log-toolbar>div{width:100%}.scan-log-button{flex:1}}
 </style>
 <link rel="stylesheet" href="/assets/css/metadata.css">
+<link rel="stylesheet" href="/assets/css/library.css">
+<link rel="stylesheet" href="/assets/css/interaction.css">
 </head>
 <body>
 <div class="shell">
@@ -37,16 +39,24 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   <nav class="nav secondary"><button data-view="tracks">♫　所有歌曲</button><button data-view="albums">▣　專輯</button><button data-view="artists">♙　歌手</button><button data-view="folders">▰　資料夾歌單</button></nav>
   <div class="gapline"></div><div class="label">PODCASTS</div>
   <nav class="nav secondary"><button data-view="shows">▥　所有節目</button><button data-view="continue">◷　繼續收聽</button></nav>
+  <div class="gapline"></div><div class="label">ACTIVITY</div>
+  <nav class="nav secondary"><button data-view="reports">▣　收聽報告</button><button data-view="errors">⚠　索引錯誤</button></nav>
   <div class="sidefoot"><span class="dot" id="connection-dot"></span><span id="connection-label">資料來源尚未連接</span></div>
 </aside>
 <main>
-  <header class="top"><span>FRAME Audio　/　<strong id="section">Music</strong></span><div class="topright"><span class="pill">V1 FOUNDATION</span><button class="primary" id="open-settings">連接 OpenList</button></div></header>
+  <header class="top"><span>FRAME Audio　/　<strong id="section">Music</strong></span><div class="topright"><span class="pill">V1.0 PRIVATE RELEASE</span><button class="primary" id="open-settings">連接 OpenList</button></div></header>
   <section class="hero"><div class="hero-copy"><div class="eyebrow" id="eyebrow">YOUR MUSIC LIBRARY</div><h1 id="title">音樂，<span>隨時入場。</span></h1><p id="description">整理你的收藏，讓每一次播放都回到自己的音樂世界。</p></div><div class="disc" aria-hidden="true"></div></section>
-  <section><div class="sectionhead"><div><div class="kicker" id="kicker">MUSIC LIBRARY</div><h2 id="heading">你的音樂收藏</h2></div><span class="count" id="count">等待索引資料</span></div><div class="empty"><div class="emptyicon" id="icon">♫</div><h3 id="emptytitle">音樂庫尚未連接</h3><p id="emptytext">先連接 OpenList 並確認音樂根目錄；之後再建立音樂索引。</p><div class="meta">●　WAITING FOR PRIVATE LIBRARY DATA</div></div></section>
-  <footer class="foot"><span>FRAME AUDIO</span><span>PRIVATE LISTENING SPACE · V1 FOUNDATION</span></footer>
+  <section id="library-content" class="library-content"><div class="empty"><div class="emptyicon">♫</div><h3>正在準備曲庫</h3><p>連接 Cloudflare D1 後，這裡會顯示你的 Music 與 Podcast 收藏。</p></div></section>
+  <footer class="foot"><span>FRAME AUDIO</span><span>PRIVATE LISTENING SPACE · V1.0 PRIVATE RELEASE</span></footer>
 </main>
 </div>
-<div class="dock"><div class="now"><div class="cover">FA</div><div>尚未選擇音訊<small>連接私人音訊庫後即可播放</small></div></div><div class="controls"><button disabled>▶</button><div class="timeline"><span>--:--</span><div class="bar"></div><span>--:--</span></div></div><div class="mode">MUSIC / PODCASTS</div></div>
+<div class="dock">
+  <div class="now"><div class="cover" id="player-cover">FA</div><div><b id="player-title">尚未選擇音訊</b><small id="player-subtitle">連接私人音訊庫後即可播放</small></div></div>
+  <div class="controls"><div class="player-transport"><button id="player-prev" type="button" aria-label="上一首">|◀</button><button id="player-toggle" type="button" aria-label="播放／暫停">▶</button><button id="player-next" type="button" aria-label="下一首">▶|</button><select id="player-speed" aria-label="播放速度"><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1.0×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2.0×</option></select></div>
+    <div class="timeline"><span id="player-current">--:--</span><input id="player-seek" type="range" min="0" max="1000" value="0" aria-label="播放進度"><span id="player-duration">--:--</span></div></div>
+  <div class="mode"><span id="player-type">READY</span><button class="player-stop" id="player-stop" type="button">停止</button></div>
+</div>
+<audio id="audio-player" preload="none"></audio>
 
 <dialog id="connection-dialog">
   <div class="dialog-head"><h2>連接 OpenList</h2><button class="close" id="close-settings" aria-label="關閉">×</button></div>
@@ -55,7 +65,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
       <div class="field"><label for="openlist-url">OpenList 網址</label><input id="openlist-url" type="url" value="https://openlist.kimkingv2.top" autocomplete="url" spellcheck="false"></div>
       <div class="field"><label for="openlist-token">API Token</label><input id="openlist-token" type="password" placeholder="貼上 OpenList Token（不會保存）" autocomplete="off" spellcheck="false"><div class="hint">Token 僅在本次頁面開啟期間保留於記憶體，重新整理頁面後需要重新輸入。</div></div>
       <div class="field"><label for="openlist-path">要檢查的目錄路徑</label><input id="openlist-path" type="text" value="/" placeholder="/音樂資料夾" spellcheck="false"></div>
-      <div class="field"><label for="cloudflare-admin-token">Cloudflare 儲存管理金鑰</label><input id="cloudflare-admin-token" type="password" placeholder="輸入 Cloudflare Preview Secret（不會保存）" autocomplete="off" spellcheck="false"><div class="hint">這是 Cloudflare 儲存 API 專用金鑰，與 OpenList Token 不同。只保留在本次頁面記憶體。</div></div>
+      <div class="field"><label for="cloudflare-admin-token">Cloudflare 儲存管理金鑰</label><input id="cloudflare-admin-token" type="password" placeholder="輸入 Cloudflare 管理金鑰（不會保存）" autocomplete="off" spellcheck="false"><div class="hint">這是 Cloudflare 儲存 API 專用金鑰，與 OpenList Token 不同。只保留在本次頁面記憶體。</div></div>
     </div>
     <div class="actions"><button class="primary" id="test-connection">測試連線並讀取目錄</button><button class="secondary" id="browse-root" disabled>重新讀取目前路徑</button></div><div class="actions"><button class="secondary" id="test-storage">測試 Cloudflare 儲存</button></div>
     <div class="statusbox" id="connection-result" role="status">尚未連線。這個測試只會呼叫 OpenList 的唯讀目錄列表 API，不會修改檔案。</div>
@@ -84,7 +94,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
       </details>
     </div>
     <div class="metadata-result" id="metadata-result" hidden></div>
-    <div class="privacy">安全提醒：請確認網址是你自己的 OpenList 網域。Token 只會傳送到你填寫的網址；不會寫入 GitHub、JSON、網址列或瀏覽器儲存空間。若遇到 CORS 錯誤，需要在 OpenList 允許目前 FRAME Audio Preview 網域。</div>
+    <div class="privacy">安全提醒：請確認網址是你自己的 OpenList 網域。Token 只會傳送到你填寫的網址；不會寫入 GitHub、JSON、網址列或瀏覽器儲存空間。若遇到 CORS 錯誤，需要在 OpenList 允許目前 FRAME Audio 網域。</div>
   </div>
 </dialog>
 <script type="module" src="/assets/js/app.js"></script>

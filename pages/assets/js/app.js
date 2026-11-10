@@ -1,6 +1,7 @@
 import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo } from "./openlist-client.js";
 import { inspectAudioMetadata } from "./metadata-inspector.js";
-import { runPodcastBatch } from "./podcast-scanner.js";
+import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js";
+import { initLibraryUI } from "./library-ui.js";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
 const MUSIC_ROOT_PATH = "/中國移動雲盤/Kim King/03 Music";
@@ -31,6 +32,7 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
   let scanPauseRequested = false;
   let connected = false;
   let activeCoverUrl = "";
+  let libraryUI = null;
 
   const views = {
     music: ["Music", "YOUR MUSIC LIBRARY", "音樂，<span>隨時入場。</span>", "整理你的收藏，讓每一次播放都回到自己的音樂世界。", "MUSIC LIBRARY", "你的音樂收藏", "♫", "音樂庫尚未連接", "先連接 OpenList 並確認音樂根目錄；之後再建立音樂索引。"],
@@ -40,7 +42,9 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
     artists: ["Music", "ARTISTS", "音樂，<span>隨時入場。</span>", "整理你的收藏，讓每一次播放都回到自己的音樂世界。", "ARTISTS", "歌手", "♙", "歌手索引尚未發布", "歌手索引發布後，這裡會整理歌曲與專輯關聯。"],
     folders: ["Music", "FOLDER PLAYLISTS", "音樂，<span>隨時入場。</span>", "整理你的收藏，讓每一次播放都回到自己的音樂世界。", "FOLDER PLAYLISTS", "資料夾歌單", "▰", "資料夾索引尚未發布", "索引器會保留 OpenList 原始目錄樹。每個資料夾都能成為播放清單，並可選擇包含子資料夾。"],
     shows: ["Podcasts", "SHOWS", "好內容，<span>慢慢聽。</span>", "集中管理喜愛的節目，從上次停止的位置繼續收聽。", "SHOWS", "所有節目", "▥", "節目索引尚未發布", "節目索引發布後，這裡會顯示你的 Podcast 節目與單集。"],
-    continue: ["Podcasts", "CONTINUE LISTENING", "好內容，<span>慢慢聽。</span>", "集中管理喜愛的節目，從上次停止的位置繼續收聽。", "CONTINUE LISTENING", "繼續收聽", "◷", "目前沒有收聽紀錄", "Podcast 播放進度會獨立保存，之後可以從上次停止的位置繼續。"]
+    continue: ["Podcasts", "CONTINUE LISTENING", "好內容，<span>慢慢聽。</span>", "集中管理喜愛的節目，從上次停止的位置繼續收聽。", "CONTINUE LISTENING", "繼續收聽", "◷", "目前沒有收聽紀錄", "Podcast 播放進度會獨立保存，之後可以從上次停止的位置繼續。"],
+    reports: ["ACTIVITY", "LISTENING REPORTS", "每一次聆聽，<span>都有回聲。</span>", "依時間範圍檢視 Music 與 Podcast 的播放次數及實際收聽時長。", "LISTENING REPORTS", "收聽報告", "▣", "還沒有收聽紀錄", "開始播放後，這裡會整理你的收聽統計。"],
+    errors: ["MAINTENANCE", "INDEX REPAIR", "讓收藏，<span>保持完整。</span>", "檢視失敗項目，修正路徑後單獨更新索引。", "INDEX REPAIR", "索引錯誤", "⚠", "目前沒有待修復錯誤", "單首修復不會重新掃描整個目錄，也不會修改原始音訊。"]
   };
 
   function showView(name) {
@@ -52,6 +56,7 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
       else node.textContent = view[index];
     });
     document.querySelectorAll("[data-view]").forEach((button) => button.classList.toggle("active", button.dataset.view === name));
+    libraryUI?.showView(name);
   }
 
   function setResult(message, type = "") {
@@ -123,11 +128,15 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
       try { data = await response.json(); } catch {}
       if (!response.ok || !data.ok) throw new Error(data.error || ("Cloudflare API HTTP " + response.status));
       cloudflareStorageReady = true;
+      void libraryUI?.refresh();
       setStorageResult(
         "PASS：Cloudflare 儲存已連線。\nD1：歌曲 " + data.tracks + " 首；資料夾 " + data.folders + " 個。\nR2：已連接。" +
         (data.podcastSchemaReady
           ? "\nPodcast D1：已初始化；節目 " + data.podcastShows + " 個；單集 " + data.podcastEpisodes + " 集。"
-          : "\nPodcast D1：尚未初始化。請在 D1 執行 migrations/0002_podcasts.sql 後再開始 Podcast 掃描。"),
+          : "\nPodcast D1：尚未初始化。請在 D1 執行 migrations/0002_podcasts.sql 後再開始 Podcast 掃描。") +
+        (data.listeningSchemaReady
+          ? "\n收聽進度與報表資料表：已初始化。"
+          : "\n收聽進度與報表資料表：尚未初始化，請執行 migrations/0003_listening.sql。"),
         data.podcastSchemaReady ? "ok" : "");
     } catch (error) {
       setStorageResult(error.message || "Cloudflare 儲存連線失敗。", "error");
@@ -491,7 +500,7 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
       "掃描根目錄：" + state.rootPath,
       "已寫入／更新：" + state.indexedCount + " 首",
       "未變更而跳過：" + state.skippedCount + " 首",
-      "失敗：" + state.failedCount + " 首",
+      "累計曾失敗：" + state.failedCount + " 首",
       "已完成資料夾：" + state.visitedFolderCount + " 個",
       "待掃描資料夾：" + state.pendingFolders.length + (state.currentFolder ? "；目前：" + state.currentFolder : ""),
       "本批新增／更新：" + batch.indexed + " 首；跳過：" + batch.skipped + " 首；失敗：" + batch.failed + " 首"
@@ -1340,6 +1349,7 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
     $("#connection-label").textContent = "OpenList 已連線";
     $("#connection-dot").style.background = "#78b98d";
     connected = true;
+    if (cloudflareStorageReady && activeStorageToken) void libraryUI?.refresh();
   }
 
   async function loadDirectory(path) {
@@ -1441,6 +1451,60 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
   tokenInput.addEventListener("input", () => {
     // Keep credentials only in this page's JavaScript/DOM memory. Never persist them.
     activeToken = tokenInput.value;
+  });
+
+  libraryUI = initLibraryUI({
+    getCredentials: () => ({
+      adminToken: activeStorageToken,
+      openListToken: activeToken,
+      baseUrl: activeBaseUrl,
+      connected
+    }),
+    reindexMusic: path => indexSingleAudioFile(path, { disabled: false }, {
+      silent: true,
+      onLog: appendScanLog
+    }),
+    reindexPodcast: path => indexPodcastEpisode({
+      path,
+      rootPath: PODCAST_ROOT_PATH,
+      baseUrl: activeBaseUrl,
+      openListToken: activeToken,
+      adminToken: activeStorageToken,
+      onLog: appendScanLog
+    }),
+    resolveRetry: async (kind, path) => {
+      const endpoint = kind === "episode"
+        ? "/api/catalog/podcasts/retries"
+        : "/api/catalog/retries";
+      const response = await fetch(endpoint, {
+        method: "DELETE",
+        credentials: "same-origin",
+        headers: {
+          Authorization: "Bearer " + activeStorageToken,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ path })
+      });
+      let data = {};
+      try { data = await response.json(); } catch {}
+      if (!response.ok || !data.ok) throw new Error(data.error || ("解除失敗佇列失敗（HTTP " + response.status + "）。"));
+      return data;
+    },
+    relink: async ({ itemType, oldPath, newPath }) => {
+      const response = await fetch("/api/catalog/relink", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          Authorization: "Bearer " + activeStorageToken,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ itemType, oldPath, newPath })
+      });
+      let data = {};
+      try { data = await response.json(); } catch {}
+      if (!response.ok || !data.ok) throw new Error(data.error || ("舊路徑移轉失敗（HTTP " + response.status + "）。"));
+      return data;
+    }
   });
 
   showView("music");
