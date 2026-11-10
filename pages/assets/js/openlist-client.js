@@ -22,7 +22,17 @@ export function normalizeOpenListUrl(value) {
   return url.origin + url.pathname.replace(/\/+$/, "");
 }
 
-export async function listOpenListDirectory({ baseUrl, token, path = "/", page = 1, perPage = 100 }) {
+export async function listOpenListDirectory({
+  baseUrl,
+  token,
+  path = "/",
+  page = 1,
+  perPage = 100,
+  onEvent
+}) {
+  const emit = (message, level = "info") => {
+    try { onEvent?.({ message, level }); } catch {}
+  };
   const normalizedBase = normalizeOpenListUrl(baseUrl);
   const safePath = String(path || "/").trim();
   if (!safePath.startsWith("/") || safePath.includes("\0")) {
@@ -38,6 +48,9 @@ export async function listOpenListDirectory({ baseUrl, token, path = "/", page =
   for (let attempt = 1; attempt <= DIRECTORY_LIST_MAX_ATTEMPTS; attempt += 1) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), DIRECTORY_LIST_TIMEOUT_MS);
+    const attemptStartedAt = performance.now();
+    emit("OpenList /api/fs/list 第 " + attempt + "/" + DIRECTORY_LIST_MAX_ATTEMPTS +
+      " 次請求開始；第 " + page + " 頁；最長等待 45 秒");
     try {
       response = await fetch(normalizedBase + "/api/fs/list", {
         method: "POST",
@@ -54,12 +67,20 @@ export async function listOpenListDirectory({ baseUrl, token, path = "/", page =
         }),
         signal: controller.signal
       });
+      const elapsedMs = Math.round(performance.now() - attemptStartedAt);
+      emit("OpenList /api/fs/list 已收到 HTTP " + response.status +
+        "；請求耗時 " + elapsedMs + " ms", response.ok ? "success" : "warning");
       lastNetworkError = null;
       break;
     } catch (error) {
+      const elapsedMs = Math.round(performance.now() - attemptStartedAt);
       lastNetworkError = error;
+      emit("OpenList /api/fs/list 請求失敗：" +
+        (error?.name === "AbortError" ? "逾時" : (error?.message || error)) +
+        "；耗時 " + elapsedMs + " ms", "warning");
       const retryable = error?.name === "AbortError" || error?.name === "TypeError";
       if (!retryable || attempt >= DIRECTORY_LIST_MAX_ATTEMPTS) break;
+      emit("等待 " + DIRECTORY_LIST_RETRY_DELAY_MS + " ms 後自動重試", "warning");
       await new Promise(resolve => setTimeout(resolve, DIRECTORY_LIST_RETRY_DELAY_MS));
     } finally {
       clearTimeout(timeout);
@@ -67,6 +88,7 @@ export async function listOpenListDirectory({ baseUrl, token, path = "/", page =
   }
 
   if (!response) {
+    emit("OpenList /api/fs/list 最終失敗；已耗盡自動重試", "error");
     if (lastNetworkError?.name === "AbortError") {
       throw new Error(
         `讀取 OpenList 目錄列表逾時。資料夾：${safePath}；頁碼：${page}；每次等待 ${DIRECTORY_LIST_TIMEOUT_MS / 1000} 秒；已嘗試 ${DIRECTORY_LIST_MAX_ATTEMPTS} 次。進度游標未推進，可以稍後續作。`
@@ -79,8 +101,11 @@ export async function listOpenListDirectory({ baseUrl, token, path = "/", page =
     );
   }
   let payload;
+  const jsonStartedAt = performance.now();
+  emit("解析 OpenList 目錄 JSON 開始");
   try {
     payload = await response.json();
+    emit("解析 OpenList 目錄 JSON 完成：" + Math.round(performance.now() - jsonStartedAt) + " ms", "success");
   } catch {
     throw new Error(`OpenList 回應不是有效 JSON（HTTP ${response.status}）。`);
   }
