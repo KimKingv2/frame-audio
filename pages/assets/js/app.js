@@ -292,15 +292,37 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     try {
       const indexStartedAt = performance.now();
       log("歌曲索引開始：" + path);
-      const fileInfoStartedAt = performance.now();
-      log("OpenList /api/fs/get 開始");
-      const info = await getOpenListFileInfo({ baseUrl: activeBaseUrl, token: activeToken, path });
-      const openListInfoMs = Math.round(performance.now() - fileInfoStartedAt);
-      log("OpenList /api/fs/get 完成：" + openListInfoMs + " ms；檔案大小 " +
-        formatBytes(Number(info.size || 0)), "success");
+      let info = null;
+      let openListInfoMs = 0;
+      const preloadedFileInfo = options.preloadedFileInfo || null;
+      if (preloadedFileInfo && preloadedFileInfo.path === path) {
+        log("等待前瞻預取的 OpenList /api/fs/get：" + path);
+        const preloadResult = await preloadedFileInfo.promise;
+        if (preloadResult?.ok) {
+          info = preloadResult.info;
+          openListInfoMs = Number(preloadResult.elapsedMs || 0);
+          log("已使用前瞻預取的 /api/fs/get 結果；原請求耗時 " +
+            openListInfoMs + " ms；檔案大小 " + formatBytes(Number(info.size || 0)), "success");
+        } else {
+          log("前瞻預取 /api/fs/get 失敗，改為一般請求重試：" +
+            (preloadResult?.error?.message || preloadResult?.error || "未知錯誤"), "warning");
+        }
+      }
+      if (!info) {
+        const fileInfoStartedAt = performance.now();
+        log("OpenList /api/fs/get 開始");
+        info = await getOpenListFileInfo({ baseUrl: activeBaseUrl, token: activeToken, path });
+        openListInfoMs = Math.round(performance.now() - fileInfoStartedAt);
+        log("OpenList /api/fs/get 完成：" + openListInfoMs + " ms；檔案大小 " +
+          formatBytes(Number(info.size || 0)), "success");
+      }
       if (info.is_dir) throw new Error("選取的項目是資料夾，請選擇音訊檔案。");
       const fileSize = Number(info.size || 0);
       if (!Number.isSafeInteger(fileSize) || fileSize <= 0) throw new Error("OpenList 沒有提供有效的檔案大小。");
+      if (typeof options.onFileInfoReady === "function") {
+        try { options.onFileInfoReady(info); }
+        catch (error) { log("啟動下一首檔案資訊預取失敗：" + (error.message || error), "warning"); }
+      }
 
       log("音訊 metadata 解析階段開始");
       const result = await inspectAudioMetadata({
@@ -568,6 +590,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     startButton.disabled = true;
     pauseButton.disabled = false;
     const fakeButton = { disabled: false };
+    let prefetchedFileInfo = null;
     const key = "music_scan_" + await sha256Hex(new TextEncoder().encode(rootPath));
     const batch = {
       indexed: 0, skipped: 0, failed: 0, entries: 0, foldersVisited: 0,
@@ -694,9 +717,52 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
               batch.currentPath = fullPath;
               setScanProgress(scanProgressText(state, batch), "ok");
               const trackStartedAt = performance.now();
+              const nextCandidate = (() => {
+                for (let nextIndex = index + 1; nextIndex < listing.items.length; nextIndex += 1) {
+                  const candidate = listing.items[nextIndex];
+                  if (candidate.isDir || !AUDIO_FILE_PATTERN.test(candidate.name)) continue;
+                  const candidatePath = joinOpenListPath(state.currentFolder, candidate.name);
+                  const existingCandidate = existingByPath.get(candidatePath);
+                  const candidateModified = candidate.modified || null;
+                  const candidateUnchanged = existingCandidate &&
+                    Number(existingCandidate.sizeBytes) === Number(candidate.size) &&
+                    !!candidateModified &&
+                    existingCandidate.modifiedAt === candidateModified;
+                  if (!candidateUnchanged) return { path: candidatePath, item: candidate };
+                }
+                return null;
+              })();
+              const currentPrefetch = prefetchedFileInfo?.path === fullPath
+                ? prefetchedFileInfo : null;
+              if (currentPrefetch) prefetchedFileInfo = null;
               const indexed = await indexSingleAudioFile(fullPath, fakeButton, {
                 silent: true,
                 listedFile: item,
+                preloadedFileInfo: currentPrefetch,
+                onFileInfoReady: () => {
+                  if (!nextCandidate || prefetchedFileInfo || scanPauseRequested ||
+                      batch.indexed >= maxIndexedPerBatch - 1 ||
+                      Date.now() - startedAt >= maxDurationMs) return;
+                  const prefetchStartedAt = performance.now();
+                  appendScanLog("下一首 /api/fs/get 前瞻預取開始：" + nextCandidate.path);
+                  const promise = getOpenListFileInfo({
+                    baseUrl: activeBaseUrl,
+                    token: activeToken,
+                    path: nextCandidate.path
+                  }).then(info => {
+                    const elapsedMs = Math.round(performance.now() - prefetchStartedAt);
+                    appendScanLog("下一首 /api/fs/get 前瞻預取完成：" + nextCandidate.path +
+                      "；耗時 " + elapsedMs + " ms；檔案大小 " +
+                      formatBytes(Number(info.size || 0)), "success");
+                    return { ok: true, info, elapsedMs };
+                  }).catch(error => {
+                    const elapsedMs = Math.round(performance.now() - prefetchStartedAt);
+                    appendScanLog("下一首 /api/fs/get 前瞻預取失敗：" + nextCandidate.path +
+                      "；耗時 " + elapsedMs + " ms；" + (error.message || error), "warning");
+                    return { ok: false, error, elapsedMs };
+                  });
+                  prefetchedFileInfo = { path: nextCandidate.path, promise };
+                },
                 onLog: (message, level) => appendScanLog(message, level)
               });
               const trackElapsedSeconds = (performance.now() - trackStartedAt) / 1000;
