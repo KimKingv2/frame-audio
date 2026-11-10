@@ -65,7 +65,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
       <div class="browser-list" id="directory-list"></div>
       <div class="actions"><button class="primary" id="scan-batch">開始／繼續建立歌曲與資料夾索引</button><button class="secondary" id="scan-pause" disabled>暫停</button></div>
       <div class="statusbox" id="scan-progress" role="status">尚未開始批量索引。以目前目錄為根目錄，會遞迴處理子資料夾；進度保存在 D1。</div>
-      <div class="hint">每批最長 7,500 秒（2 小時 5 分鐘），最多新增／更新 500 首、檢查 500 個項目或完成 500 個資料夾。單首索引最多嘗試 20 次；完成整個目錄樹後會建立 D1 資料夾階層。進度保存於 D1，可暫停後續作；未變更歌曲會跳過，失敗項目會記錄，不會刪除既有資料。</div>
+      <div class="hint">每批最長 7,500 秒（2 小時 5 分鐘），最多新增／更新 500 首、檢查 500 個項目或完成 500 個資料夾。單首索引最多嘗試 20 次；完成整個目錄樹後會建立 D1 資料夾階層。進度保存於 D1，可暫停後續作；未變更歌曲會跳過。失敗歌曲會進入全域重試佇列，下次掃描任何根目錄時優先重試，成功後才解除；不會刪除既有資料。</div>
       <details class="scan-log-panel" id="scan-log-panel" open>
         <summary>
           <span>即時掃描日誌</span>
