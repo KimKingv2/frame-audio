@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#15131d">
+<title>FRAME Audio · 來源速度測試</title>
+<style>
+:root{color-scheme:dark;--bg:#15131d;--panel:#211e2b;--line:rgba(208,190,238,.13);--text:#f0edf6;--muted:#a39bad;--accent:#c5a8ef;--good:#9fc9a9;--warn:#d8b987;--bad:#e39a9a;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--bg);color:var(--text)}button,input{font:inherit}button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{width:min(1100px,calc(100% - 36px));margin:0 auto;padding:25px 0 60px}.top{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:0 0 17px;border-bottom:1px solid var(--line);color:var(--muted);font-size:11px}.top a{color:#d9c7f1;text-decoration:none}.eyebrow{margin-top:32px;color:var(--accent);font-size:9px;font-weight:700;letter-spacing:.2em}.hero h1{margin:11px 0 9px;font-size:clamp(26px,4vw,38px);letter-spacing:-.035em}.hero p{max-width:780px;color:var(--muted);font-size:12px;line-height:1.9;margin:0}.tag{display:inline-block;margin-left:8px;padding:5px 8px;border:1px solid #b99ae844;border-radius:20px;color:#c8afea;font-size:9px;letter-spacing:.12em;vertical-align:middle}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:24px}.card{min-width:0;border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:17px}.card h2{display:flex;align-items:center;gap:9px;margin:0 0 15px;font-size:14px}.mark{width:8px;height:8px;border-radius:50%;background:#a88ad5}.mark.vps{background:#7db79b}.field{display:grid;gap:6px;margin:12px 0}.field label{color:#b7afc3;font-size:10px;font-weight:650}.field input{width:100%;min-width:0;border:1px solid #c7b3df30;border-radius:8px;padding:10px 11px;background:#171520;color:#f3eff9;font-size:11px}.field input::placeholder{color:#6f687b}.hint{color:#81798d;font-size:10px;line-height:1.7}.shared{margin-top:15px;border:1px solid var(--line);border-radius:13px;padding:17px;background:#1b1824}.shared h2{font-size:13px;margin:0 0 7px}.path-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:16px}.btn{border:1px solid #b99ae866;border-radius:8px;padding:10px 13px;color:#eee5ff;background:#8c68b52c;font-size:11px;cursor:pointer}.btn:hover{background:#8c68b54a}.btn.secondary{border-color:#c7b3df33;background:#ffffff08;color:#c9c1d4}.btn:disabled{opacity:.45;cursor:not-allowed}.privacy{margin-top:13px;padding:10px 12px;border-left:2px solid #9f80cc;background:#9f80cc12;color:#aaa1b8;font-size:10px;line-height:1.8}
+.results{margin-top:18px;border:1px solid var(--line);border-radius:13px;background:#1b1824;overflow:hidden}.results-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px 15px;border-bottom:1px solid var(--line)}.results-head h2{font-size:13px;margin:0}.results-body{padding:14px 15px}.status{padding:11px 12px;border-radius:8px;background:#ffffff08;color:var(--muted);font-size:11px;line-height:1.7;white-space:pre-wrap}.status.ok{background:#4f8c6520;color:var(--good)}.status.error{background:#a8535320;color:var(--bad)}
+.table-wrap{overflow-x:auto;margin-top:12px}table{width:100%;border-collapse:collapse;min-width:620px;font-size:10px}th,td{padding:10px 9px;border-bottom:1px solid #ffffff0c;text-align:left;vertical-align:top}th{color:#a89db8;font-weight:650;background:#ffffff05}td{color:#d9d2e4}td:first-child{color:#cbb5e8;font-weight:650}.good{color:var(--good)!important}.warn{color:var(--warn)!important}.bad{color:var(--bad)!important}
+.audio-card{margin-top:18px;border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:16px}.audio-card h2{font-size:13px;margin:0 0 8px}.audio-card audio{width:100%;margin-top:12px}.log{margin-top:18px;border:1px solid var(--line);border-radius:13px;background:#14121b;overflow:hidden}.log summary{padding:12px 14px;cursor:pointer;font-size:11px;color:#c9bfd7}.log pre{max-height:300px;overflow:auto;margin:0;padding:12px 14px;border-top:1px solid var(--line);white-space:pre-wrap;overflow-wrap:anywhere;font:10px/1.75 ui-monospace,SFMono-Regular,Menlo,monospace;color:#b9afc8}.foot{margin-top:25px;color:#625c6d;font-size:9px;letter-spacing:.12em;display:flex;justify-content:space-between}
+@media(max-width:760px){.grid,.path-grid{grid-template-columns:1fr}.wrap{width:calc(100% - 26px);padding-top:15px}.top{font-size:10px}.card,.shared{padding:14px}.foot{flex-direction:column;gap:7px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top"><a href="/">← 返回 FRAME Audio</a><span>PREVIEW LAB · READ ONLY</span></header>
+  <section class="hero">
+    <div class="eyebrow">SOURCE PERFORMANCE LAB</div>
+    <h1>來源速度測試<span class="tag">PREVIEW ONLY</span></h1>
+    <p>用同一首音訊比較目前 Cloudflare OpenList 與 VPS Alist。測試目錄列表、檔案資訊 API、音訊來源 Range 首段與中段回應，並可分別載入 HTML5 Audio。這個頁面只讀取來源，不會寫入 D1、R2 或修改原始檔案。</p>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <h2><span class="mark"></span>現有 Cloudflare OpenList</h2>
+      <div class="field"><label for="cf-url">OpenList 網址</label><input id="cf-url" type="url" value="https://openlist.kimkingv2.top" autocomplete="url" spellcheck="false"></div>
+      <div class="field"><label for="cf-token">OpenList API Token</label><input id="cf-token" type="password" placeholder="貼上目前使用的 OpenList Token" autocomplete="off" spellcheck="false"></div>
+      <div class="field"><label for="cf-dir">目錄路徑</label><input id="cf-dir" type="text" value="/中國移動雲盤/Kim King/03 Music" spellcheck="false"></div>
+      <div class="field"><label for="cf-file">音訊完整路徑</label><input id="cf-file" type="text" placeholder="/中國移動雲盤/.../歌曲.flac" spellcheck="false"></div>
+    </div>
+    <div class="card">
+      <h2><span class="mark vps"></span>VPS 上的 Alist</h2>
+      <div class="field"><label for="vps-url">Alist 網址（建議填 Cloudflare 代理網域）</label><input id="vps-url" type="url" placeholder="https://你的 Alist 網域" autocomplete="url" spellcheck="false"></div>
+      <div class="field"><label for="vps-token">Alist API Token</label><input id="vps-token" type="password" placeholder="貼上 VPS Alist Token" autocomplete="off" spellcheck="false"></div>
+      <div class="field"><label for="vps-dir">目錄路徑</label><input id="vps-dir" type="text" value="/中國移動雲盤/Kim King/03 Music" spellcheck="false"></div>
+      <div class="field"><label for="vps-file">音訊完整路徑</label><input id="vps-file" type="text" placeholder="同一首歌曲的完整路徑，可與左側不同" spellcheck="false"></div>
+    </div>
+  </section>
+
+  <section class="shared">
+    <h2>測試方式</h2>
+    <div class="hint">兩邊請指向同一個實際資料夾及同一首音訊。若 VPS 掛載後多了一層目錄前綴，可分別修改左右路徑。每個來源會測試一次目錄列表、三次 /api/fs/get（交錯先後順序），再測試音訊開頭及中段各最多 64 KiB 的 HTTP Range。Token 僅在本頁記憶體中使用，重新整理即清空。</div>
+    <div class="actions">
+      <button class="btn" id="run-test">開始比較測速</button>
+      <button class="btn secondary" id="copy-results" disabled>複製測試結果</button>
+      <button class="btn secondary" id="clear-credentials">清除兩邊 Token</button>
+    </div>
+    <div class="privacy">安全提示：Token 會由瀏覽器直接送到各自填寫的 Alist / OpenList 網址，不會送到 FRAME Audio 的 Pages Functions，也不會寫入網址、localStorage、D1、R2 或 GitHub。請只填寫你自己的服務網址與 Token。若 VPS Alist 尚未允許 Preview 網域的 CORS，請加入 https://cf-preview.frame-audio.pages.dev，並允許 POST、OPTIONS 及 Authorization、Content-Type 標頭。</div>
+  </section>
+
+  <section class="results">
+    <div class="results-head"><h2>測速結果</h2><span id="run-state" class="hint">尚未開始</span></div>
+    <div class="results-body">
+      <div class="status" id="summary">填入 VPS Alist 網址、Token，以及一首音訊的完整路徑後，開始比較。</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>測試項目</th><th>Cloudflare OpenList</th><th>VPS Alist</th><th>比較</th></tr></thead>
+          <tbody id="result-rows"><tr><td colspan="4" class="hint">尚無測試數據</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="audio-card">
+    <h2>HTML5 Audio 實際播放驗證</h2>
+    <div class="hint">完成上方測速後，可以分別載入兩邊取得的 raw_url。載入後請使用原生播放器按播放，觀察 loadedmetadata、canplay、playing、waiting 事件。這裡不會自動播放。</div>
+    <div class="actions">
+      <button class="btn secondary" id="load-cf" disabled>載入 Cloudflare 音訊</button>
+      <button class="btn secondary" id="load-vps" disabled>載入 VPS Alist 音訊</button>
+    </div>
+    <audio id="test-audio" controls preload="none"></audio>
+    <div class="status" id="audio-state">尚未載入測試音訊。</div>
+  </section>
+
+  <details class="log" open>
+    <summary>詳細測試日誌（可複製）</summary>
+    <pre id="log-output">尚無日誌。</pre>
+  </details>
+  <footer class="foot"><span>FRAME AUDIO · SOURCE LAB</span><span>NO D1 / R2 WRITES · NO AUDIO FILE MODIFICATION</span></footer>
+</div>
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var logLines = [];
+  var lastInfo = {cf:null,vps:null};
+  var latestSummary = "";
+  var audio = $("test-audio");
+  var sourceNames = {cf:"Cloudflare OpenList",vps:"VPS Alist"};
+  var audioEvents = ["loadstart","loadedmetadata","canplay","playing","waiting","stalled","pause","ended","error"];
+  function nowText(){
+    var d = new Date();
+    return [String(d.getHours()).padStart(2,"0"),String(d.getMinutes()).padStart(2,"0"),String(d.getSeconds()).padStart(2,"0")].join(":")+"."+String(d.getMilliseconds()).padStart(3,"0");
+  }
+  function log(message){
+    logLines.push(nowText()+"  "+String(message));
+    if(logLines.length>500) logLines.shift();
+    $("log-output").textContent=logLines.join("\n");
+  }
+  function status(message,kind){
+    $("summary").textContent=message;
+    $("summary").className="status"+(kind?" "+kind:"");
+  }
+  function ms(value){
+    return Number.isFinite(value) ? Math.round(value)+" ms" : "未取得";
+  }
+  function median(values){
+    var a=values.filter(function(v){return Number.isFinite(v);}).slice().sort(function(x,y){return x-y;});
+    if(!a.length) return null;
+    var m=Math.floor(a.length/2);
+    return a.length%2?a[m]:(a[m-1]+a[m])/2;
+  }
+  function fmt(value){
+    return value===null || !Number.isFinite(value) ? "—" : (value<1000?Math.round(value)+" ms":(value/1000).toFixed(2)+" s");
+  }
+  function normalizeBase(value){
+    var u;
+    try{u=new URL(String(value||"").trim());}catch(e){throw new Error("網址格式不正確。");}
+    if(u.protocol!=="https:" && !(u.protocol==="http:" && (u.hostname==="localhost"||u.hostname==="127.0.0.1"))) throw new Error("請使用 HTTPS 網址；一般 HTTP 會被瀏覽器封鎖。");
+    if(u.username||u.password||u.search||u.hash) throw new Error("網址不可包含帳號、密碼、查詢參數或片段。");
+    return u.origin+u.pathname.replace(/\/+$/,"");
+  }
+  function config(key){
+    var base=normalizeBase($(key+"-url").value);
+    var token=$(key+"-token").value.trim();
+    var dir=$(key+"-dir").value.trim()||"/";
+    var file=$(key+"-file").value.trim();
+    if(!dir.startsWith("/")||dir.indexOf("\0")!==-1) throw new Error(sourceNames[key]+"：目錄路徑必須以 / 開頭。");
+    if(!file.startsWith("/")||file.indexOf("\0")!==-1) throw new Error(sourceNames[key]+"：請填寫以 / 開頭的音訊完整路徑。");
+    if(!token) throw new Error(sourceNames[key]+"：尚未填入 API Token。");
+    return {key:key,name:sourceNames[key],base:base,token:token,dir:dir,file:file};
+  }
+  async function postJson(cfg,endpoint,body,timeoutMs){
+    var controller=new AbortController();
+    var timer=setTimeout(function(){controller.abort();},timeoutMs||45000);
+    var started=performance.now();
+    var response;
+    try{
+      response=await fetch(cfg.base+endpoint,{
+        method:"POST",mode:"cors",credentials:"omit",redirect:"error",
+        headers:{"Content-Type":"application/json","Authorization":cfg.token},
+        body:JSON.stringify(body),signal:controller.signal
+      });
+    }catch(error){
+      if(error&&error.name==="AbortError") throw new Error(endpoint+" 逾時（"+Math.round(performance.now()-started)+" ms）。");
+      throw new Error(endpoint+" 網路/CORS 請求失敗："+(error&&error.message?error.message:"未知錯誤"));
+    }finally{clearTimeout(timer);}
+    var headersMs=performance.now()-started;
+    var payload;
+    try{payload=await response.json();}catch(e){throw new Error(endpoint+" 回應不是有效 JSON（HTTP "+response.status+"）。");}
+    var totalMs=performance.now()-started;
+    if(!response.ok) throw new Error(endpoint+" HTTP "+response.status+"。");
+    if(payload&&payload.code!=null&&Number(payload.code)!==200){
+      var code=Number(payload.code);
+      throw new Error(endpoint+" API "+code+"："+String(payload.message||"未知 API 錯誤"));
+    }
+    if(!payload||typeof payload.data!=="object"||payload.data===null) throw new Error(endpoint+" 回應缺少 data 物件。");
+    return {data:payload.data,httpStatus:response.status,headersMs:headersMs,totalMs:totalMs};
+  }
+  async function listTest(cfg){
+    var r=await postJson(cfg,"/api/fs/list",{path:cfg.dir,password:"",page:1,per_page:30,refresh:false},60000);
+    var items=Array.isArray(r.data.content)?r.data.content:[];
+    return {headersMs:r.headersMs,totalMs:r.totalMs,count:items.length,total:Number(r.data.total||items.length)};
+  }
+  async function getTest(cfg){
+    var r=await postJson(cfg,"/api/fs/get",{path:cfg.file,password:""},40000);
+    var d=r.data;
+    var raw=d.raw_url||d.rawUrl||d.url||"";
+    if(!raw) throw new Error("/api/fs/get 成功，但 data 中沒有 raw_url。");
+    var rawUrl;
+    try{rawUrl=new URL(String(raw),cfg.base+"/");}catch(e){throw new Error("取得的播放網址格式不正確。");}
+    var size=Number(d.size||0);
+    lastInfo[cfg.key]={rawUrl:rawUrl.href,size:size,file:cfg.file,name:cfg.name};
+    return {headersMs:r.headersMs,totalMs:r.totalMs,size:size,rawHost:rawUrl.hostname};
+  }
+  async function rangeTest(info,startByte){
+    var size=Number(info.size||0);
+    if(!Number.isFinite(size)||size<=0) throw new Error("檔案大小無效，無法測試 Range。");
+    var start=Math.max(0,Math.min(Math.floor(startByte),size-1));
+    var count=Math.min(65536,size-start);
+    var end=start+count-1;
+    var controller=new AbortController();
+    var timer=setTimeout(function(){controller.abort();},40000);
+    var began=performance.now();
+    var response;
+    try{
+      response=await fetch(info.rawUrl,{
+        method:"GET",mode:"cors",credentials:"omit",redirect:"follow",
+        headers:{Range:"bytes="+start+"-"+end},signal:controller.signal
+      });
+    }catch(error){
+      if(error&&error.name==="AbortError") throw new Error("Range 請求逾時。");
+      throw new Error("音訊來源 Range 請求失敗（可能是來源 CORS 或網路限制）。");
+    }
+    var headersMs=performance.now()-began;
+    var finalHost="";
+    try{finalHost=new URL(response.url||info.rawUrl).hostname;}catch(e){}
+    var redirected=Boolean(response.redirected);
+    var contentRange=response.headers.get("Content-Range")||"（CORS 未暴露此標頭）";
+    var contentType=response.headers.get("Content-Type")||"未暴露";
+    if(response.status!==206){
+      try{await response.body&&response.body.cancel();}catch(e){}
+      clearTimeout(timer);
+      return {status:response.status,headersMs:headersMs,firstByteMs:null,totalMs:performance.now()-began,bytes:0,finalHost:finalHost,redirected:redirected,contentRange:contentRange,contentType:contentType,warning:response.status===200?"來源忽略 Range，已取消回應，未下載完整音訊。":"來源回傳非預期狀態。"};
+    }
+    var received=0,firstByteMs=null;
+    var reader=response.body?response.body.getReader():null;
+    try{
+      while(reader&&received<count){
+        var part=await reader.read();
+        if(part.done) break;
+        if(firstByteMs===null) firstByteMs=performance.now()-began;
+        received+=Math.min(part.value?part.value.byteLength:0,count-received);
+      }
+    }finally{
+      try{if(reader) await reader.cancel();}catch(e){}
+      try{if(reader) reader.releaseLock();}catch(e){}
+      clearTimeout(timer);
+    }
+    return {status:response.status,headersMs:headersMs,firstByteMs:firstByteMs,totalMs:performance.now()-began,bytes:received,finalHost:finalHost,redirected:redirected,contentRange:contentRange,contentType:contentType,warning:received?"":"HTTP 206 但沒有讀到資料。"};
+  }
+  function addRow(label,a,b,mode){
+    var tbody=$("result-rows");
+    if(tbody.children.length===1&&tbody.children[0].children.length===1) tbody.replaceChildren();
+    var tr=document.createElement("tr");
+    var cells=[label,a,b,mode||""];
+    cells.forEach(function(value,index){
+      var td=document.createElement("td");
+      td.textContent=String(value);
+      if(index===3 && typeof mode==="string"){
+        if(mode.indexOf("VPS")===0) td.className="good";
+        else if(mode.indexOf("Cloudflare")===0) td.className="warn";
+      }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  }
+  function resetRows(){
+    $("result-rows").replaceChildren();
+  }
+  function compareCell(a,b){
+    if(a===null||b===null||!Number.isFinite(a)||!Number.isFinite(b)) return "—";
+    var delta=a-b;
+    if(Math.abs(delta)<1) return "接近";
+    var faster=delta>0?"VPS Alist":"Cloudflare";
+    var percent=Math.round(Math.abs(delta)/Math.max(a,b)*100);
+    return faster+" 快約 "+percent+"%";
+  }
+  function setBusy(busy){
+    $("run-test").disabled=busy;
+    $("run-state").textContent=busy?"測試進行中…":"測試完成";
+  }
+  async function run(){
+    $("copy-results").disabled=true;
+    resetRows();
+    lastInfo={cf:null,vps:null};
+    $("load-cf").disabled=true;
+    $("load-vps").disabled=true;
+    var cfgs;
+    try{cfgs=[config("cf"),config("vps")];}catch(e){status(e.message,"error");return;}
+    var listResults={cf:null,vps:null},getResults={cf:[],vps:[]},rangeResults={cf:[],vps:[]},errors=[];
+    setBusy(true);
+    status("開始測試。先測目錄列表，再以交錯順序執行三輪 /api/fs/get，最後測試 Range。\n"+cfgs[0].file+"\n"+cfgs[1].file);
+    log("====== 測速開始：3 輪交錯 /api/fs/get ======");
+    try{
+      for(var li=0;li<cfgs.length;li++){
+        var lc=cfgs[li];
+        try{
+          log(lc.name+" /api/fs/list 開始；path="+lc.dir);
+          listResults[lc.key]=await listTest(lc);
+          log(lc.name+" /api/fs/list 完成；HTTP 200；headers="+ms(listResults[lc.key].headersMs)+"；total="+ms(listResults[lc.key].totalMs)+"；items="+listResults[lc.key].count+"/"+listResults[lc.key].total);
+        }catch(e){errors.push(lc.name+" 目錄列表："+e.message);log(lc.name+" /api/fs/list 失敗："+e.message);}
+      }
+      for(var round=0;round<3;round++){
+        var order=round%2===0?cfgs:[cfgs[1],cfgs[0]];
+        for(var oi=0;oi<order.length;oi++){
+          var cfg=order[oi];
+          try{
+            log(cfg.name+" /api/fs/get 第 "+(round+1)+"/3+" 開始；path="+cfg.file);
+            var result=await getTest(cfg);
+            getResults[cfg.key].push(result);
+            log(cfg.name+" /api/fs/get 第 "+(round+1)+" 完成；headers="+ms(result.headersMs)+"；total="+ms(result.totalMs)+"；size="+result.size+"；raw host="+result.rawHost);
+          }catch(e){errors.push(cfg.name+" /api/fs/get 第 "+(round+1)+"："+e.message);log(cfg.name+" /api/fs/get 失敗："+e.message);}
+        }
+      }
+      for(var ri=0;ri<cfgs.length;ri++){
+        var rc=cfgs[ri],info=lastInfo[rc.key];
+        if(!info) continue;
+        var offsets=[0];
+        if(info.size>131072){
+          var mid=Math.floor((info.size/2)/65536)*65536;
+          if(mid>0&&mid<info.size) offsets.push(mid);
+        }
+        for(var oi2=0;oi2<offsets.length;oi2++){
+          try{
+            log(rc.name+" Range bytes="+offsets[oi2]+" 開始；最多 64 KiB");
+            var rr=await rangeTest(info,offsets[oi2]);
+            rangeResults[rc.key].push(rr);
+            log(rc.name+" Range 完成；HTTP "+rr.status+"；headers="+ms(rr.headersMs)+"；firstByte="+ms(rr.firstByteMs)+"；64KiB="+ms(rr.totalMs)+"；read="+rr.bytes+"；redirect="+(rr.redirected?"是":"否")+"；final host="+(rr.finalHost||"未知"));
+            if(rr.warning) log(rc.name+" Range 提示："+rr.warning);
+          }catch(e){errors.push(rc.name+" Range："+e.message);log(rc.name+" Range 失敗："+e.message);}
+        }
+      }
+      renderResults(listResults,getResults,rangeResults,errors);
+      $("load-cf").disabled=!lastInfo.cf;
+      $("load-vps").disabled=!lastInfo.vps;
+      $("copy-results").disabled=false;
+      var message="測試完成。";
+      if(errors.length) message+="\n有 "+errors.length+" 個項目未完成，詳情請看日誌。";
+      message+="\n目前測試只讀取兩端 API 及音訊 Range，沒有變更任何曲庫資料。";
+      status(message,errors.length?"error":"ok");
+      latestSummary=buildCopyText(listResults,getResults,rangeResults,errors);
+      log("====== 測速完成 ======");
+    }finally{setBusy(false);}
+  }
+  function renderResults(lists,gets,ranges,errors){
+    var labels=["Cloudflare OpenList","VPS Alist"];
+    var keys=["cf","vps"];
+    for(var i=0;i<2;i++){
+      var k=keys[i],l=lists[k],g=gets[k],r=ranges[k];
+      addRow(labels[i]+" · /api/fs/list",l?("HTTP 200 · "+fmt(l.totalMs)+" · "+l.count+"/"+l.total+" 項"):"失敗／未完成","", "");
+      if(l){
+        var cell=$("result-rows").lastElementChild.children[2];
+        cell.textContent="headers "+fmt(l.headersMs);
+      }
+      var totals=g.map(function(x){return x.totalMs;}),headers=g.map(function(x){return x.headersMs;});
+      addRow(labels[i]+" · /api/fs/get 中位數",g.length?fmt(median(totals))+"（"+g.length+"/3 次）":"失敗／未完成",g.length?"headers "+fmt(median(headers)):"","");
+      var sizes=g.filter(function(x){return x.size>0;}).map(function(x){return x.size;});
+      var hosts=g.map(function(x){return x.rawHost;}).filter(Boolean);
+      addRow(labels[i]+" · 檔案資訊","檔案大小 "+(sizes.length?bytes(median(sizes)):"未取得"),"raw_url host："+(hosts.length?hosts[hosts.length-1]:"未取得"),"");
+      var zero=r.length?r[0]:null,mid=r.length>1?r[1]:null;
+      addRow(labels[i]+" · 開頭 Range",zero?("HTTP "+zero.status+" · "+zero.bytes+" bytes · first byte "+fmt(zero.firstByteMs)):"未完成",zero?("final "+zero.finalHost+" · redirect "+(zero.redirected?"是":"否")):"","");
+      if(mid) addRow(labels[i]+" · 中段 Range","HTTP "+mid.status+" · "+mid.bytes+" bytes · first byte "+fmt(mid.firstByteMs),"final "+mid.finalHost+" · redirect "+(mid.redirected?"是":"否"),"");
+    }
+    var gcf=median(gets.cf.map(function(x){return x.totalMs;})),gvps=median(gets.vps.map(function(x){return x.totalMs;}));
+    var rcf=ranges.cf.length?ranges.cf[0].firstByteMs:null,rvps=ranges.vps.length?ranges.vps[0].firstByteMs:null;
+    addRow("API /api/fs/get 中位數比較",fmt(gcf),fmt(gvps),compareCell(gcf,gvps));
+    addRow("開頭 Range 首位元組",fmt(rcf),fmt(rvps),compareCell(rcf,rvps));
+    if(errors.length) addRow("錯誤摘要",errors.join("；"),"","請看日誌");
+  }
+  function bytes(n){
+    if(!Number.isFinite(n)) return "—";
+    if(n<1024)return Math.round(n)+" B";
+    if(n<1024*1024)return (n/1024).toFixed(1)+" KB";
+    return (n/1024/1024).toFixed(2)+" MB";
+  }
+  function buildCopyText(lists,gets,ranges,errors){
+    var lines=["FRAME Audio 來源速度測試",new Date().toLocaleString(),"注意：只讀測試，未修改 D1/R2/原始音訊。"];
+    ["cf","vps"].forEach(function(k){
+      lines.push("",sourceNames[k]);
+      if(lists[k]) lines.push("/api/fs/list total="+Math.round(lists[k].totalMs)+"ms; headers="+Math.round(lists[k].headersMs)+"ms; items="+lists[k].count+"/"+lists[k].total);
+      lines.push("/api/fs/get total(ms)="+gets[k].map(function(x){return Math.round(x.totalMs);}).join(",")+"; headers(ms)="+gets[k].map(function(x){return Math.round(x.headersMs);}).join(","));
+      gets[k].slice(-1).forEach(function(x){lines.push("fileSize="+x.size+"; rawHost="+x.rawHost);});
+      ranges[k].forEach(function(x){lines.push("Range HTTP "+x.status+"; bytes="+x.bytes+"; headers="+Math.round(x.headersMs)+"ms; firstByte="+(x.firstByteMs===null?"n/a":Math.round(x.firstByteMs)+"ms")+"; total="+Math.round(x.totalMs)+"ms; redirect="+x.redirected+"; finalHost="+x.finalHost+"; Content-Range="+x.contentRange);});
+    });
+    if(errors.length) lines.push("Errors: "+errors.join(" | "));
+    return lines.join("\n");
+  }
+  function loadAudio(key){
+    var info=lastInfo[key];
+    if(!info){$("audio-state").textContent="請先完成該來源的 API 測試。";return;}
+    try{audio.pause();}catch(e){}
+    audio.src=info.rawUrl;
+    audio.preload="metadata";
+    audio.load();
+    $("audio-state").textContent="已將 "+sourceNames[key]+" 的 raw_url 交給 HTML5 Audio。請按下播放器的播放鍵。\n檔案大小："+bytes(info.size)+"；網址 host："+new URL(info.rawUrl).hostname+"。完整簽名網址不會顯示。";
+    log("HTML5 Audio 已載入 "+sourceNames[key]+" raw_url；尚未自動播放。");
+  }
+  audioEvents.forEach(function(eventName){
+    audio.addEventListener(eventName,function(){
+      var extra="";
+      if(eventName==="loadedmetadata") extra="；duration="+(Number.isFinite(audio.duration)?audio.duration.toFixed(2)+"s":"未知");
+      if(eventName==="error") extra="；MediaError code="+(audio.error?audio.error.code:"未知");
+      $("audio-state").textContent="Audio "+eventName+extra;
+      log("HTML5 Audio "+eventName+extra);
+    });
+  });
+  $("run-test").addEventListener("click",run);
+  $("load-cf").addEventListener("click",function(){loadAudio("cf");});
+  $("load-vps").addEventListener("click",function(){loadAudio("vps");});
+  $("clear-credentials").addEventListener("click",function(){
+    $("cf-token").value="";
+    $("vps-token").value="";
+    lastInfo={cf:null,vps:null};
+    $("load-cf").disabled=true;
+    $("load-vps").disabled=true;
+    audio.pause();audio.removeAttribute("src");audio.load();
+    status("兩邊 Token 與暫存播放網址已清除。","ok");
+    log("使用者手動清除 Token 與暫存 raw_url。");
+  });
+  $("copy-results").addEventListener("click",async function(){
+    try{await navigator.clipboard.writeText(latestSummary||logLines.join("\n"));$("run-state").textContent="結果已複製";}catch(e){$("run-state").textContent="複製失敗，請手動選取日誌。";}
+  });
+  window.addEventListener("pagehide",function(){
+    $("cf-token").value="";$("vps-token").value="";
+    lastInfo={cf:null,vps:null};
+  });
+  log("測試頁就緒。Token 僅存於本頁記憶體。");
+})();
+</script>
+</body>
+</html>
