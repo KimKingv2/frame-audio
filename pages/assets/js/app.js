@@ -582,7 +582,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     }
     if (!window.confirm(
       "即將以目前目錄作為索引根目錄：\n" + rootPath +
-      "\n\n每批最長執行 7,500 秒（2 小時 5 分鐘），最多檢查 500 個項目；單首索引失敗最多自動重試 2 次。會遞迴讀取子資料夾。原始音訊不會上傳或修改。確定開始／繼續？"
+      "\n\n每批最長執行 7,500 秒（2 小時 5 分鐘），最多檢查 500 個項目；單首索引最多嘗試 20 次（首次加 19 次重試）。會遞迴讀取子資料夾。原始音訊不會上傳或修改。確定開始／繼續？"
     )) return;
 
     scanRunning = true;
@@ -623,7 +623,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       const maxEntriesPerBatch = 500;
       const maxFoldersPerBatch = 500;
       const maxDurationMs = 7500000;
-      const maxFileAttempts = 3;
+      const maxFileAttempts = 20;
 
       while (!state.completed &&
              batch.indexed < maxIndexedPerBatch &&
