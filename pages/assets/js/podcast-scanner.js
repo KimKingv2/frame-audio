@@ -165,7 +165,7 @@ async function savePodcastShow(show, adminToken) {
   });
 }
 
-async function indexPodcastEpisode({
+export async function indexPodcastEpisode({
   path, rootPath, baseUrl, openListToken, adminToken, listedFile, onLog
 }) {
   const showFolderPath = childShowFolder(rootPath, path);
