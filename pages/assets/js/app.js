@@ -68,6 +68,39 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     box.className = "statusbox" + (type ? " " + type : "");
   }
 
+  const scanLogEntries = [];
+  function appendScanLog(message, level = "info") {
+    const now = new Date();
+    const timestamp = [
+      String(now.getHours()).padStart(2, "0"),
+      String(now.getMinutes()).padStart(2, "0"),
+      String(now.getSeconds()).padStart(2, "0")
+    ].join(":") + "." + String(now.getMilliseconds()).padStart(3, "0");
+    const line = timestamp + "  " + String(message || "");
+    scanLogEntries.push(line);
+    if (scanLogEntries.length > 300) scanLogEntries.shift();
+
+    const output = $("#scan-log-output");
+    if (output) {
+      const placeholder = output.querySelector(".scan-log-placeholder");
+      if (placeholder) placeholder.remove();
+      const row = document.createElement("div");
+      row.className = "scan-log-line";
+      row.dataset.level = ["success", "warning", "error"].includes(level) ? level : "info";
+      row.textContent = line;
+      output.append(row);
+      while (output.children.length > 300) output.firstElementChild.remove();
+      output.scrollTop = output.scrollHeight;
+    }
+    const count = $("#scan-log-count");
+    if (count) count.textContent = scanLogEntries.length + " 筆";
+  }
+
+  function appendModuleLog(event, prefix = "") {
+    if (!event) return;
+    appendScanLog((prefix ? prefix + "｜" : "") + (event.message || String(event)), event.level || "info");
+  }
+
   async function testCloudflareStorage() {
     const button = $("#test-storage");
     activeStorageToken = storageTokenInput.value.trim();
@@ -236,6 +269,10 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   async function indexSingleAudioFile(path, button, options = {}) {
     const silent = options.silent === true;
     const listedFile = options.listedFile || null;
+    const onLog = typeof options.onLog === "function" ? options.onLog : appendScanLog;
+    const log = (message, level = "info") => {
+      try { onLog(message, level); } catch {}
+    };
     if (!connected) {
       const message = "請先連接 OpenList 並讀取目錄。";
       if (!silent) setResult(message, "error");
@@ -254,19 +291,29 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     }
     try {
       const indexStartedAt = performance.now();
+      log("歌曲索引開始：" + path);
       const fileInfoStartedAt = performance.now();
+      log("OpenList /api/fs/get 開始");
       const info = await getOpenListFileInfo({ baseUrl: activeBaseUrl, token: activeToken, path });
       const openListInfoMs = Math.round(performance.now() - fileInfoStartedAt);
+      log("OpenList /api/fs/get 完成：" + openListInfoMs + " ms；檔案大小 " +
+        formatBytes(Number(info.size || 0)), "success");
       if (info.is_dir) throw new Error("選取的項目是資料夾，請選擇音訊檔案。");
       const fileSize = Number(info.size || 0);
       if (!Number.isSafeInteger(fileSize) || fileSize <= 0) throw new Error("OpenList 沒有提供有效的檔案大小。");
 
+      log("音訊 metadata 解析階段開始");
       const result = await inspectAudioMetadata({
         rawUrl: info.raw_url,
         baseUrl: activeBaseUrl,
         path,
-        fileSize
+        fileSize,
+        onEvent: (event) => log(event.message, event.level)
       });
+      log("音訊 metadata 解析階段完成：" +
+        (result.stats?.parseElapsedMs ?? "?") + " ms；Range " +
+        (result.stats?.rangeRequests || 0) + " 次；讀取 " +
+        formatBytes(result.stats?.bytesFetched || 0), "success");
       if (!silent) renderMetadataResult(path, fileSize, result);
 
       const metadata = result.metadata || {};
@@ -296,6 +343,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
           artworkNote = "封面超過 10 MiB 上限，已略過封面";
         } else {
           const sha256 = await sha256Hex(pictureBytes);
+          log("R2 封面上傳開始：" + formatBytes(pictureBytes.byteLength));
           const artworkStartedAt = performance.now();
           const coverResponse = await fetch("/api/artwork/" + sha256, {
             method: "PUT",
@@ -310,8 +358,10 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
           try { coverData = await coverResponse.json(); } catch {}
           artworkUploadMs = Math.round(performance.now() - artworkStartedAt);
           if (!coverResponse.ok || !coverData.ok) {
+            log("R2 封面上傳失敗：" + (coverData.error || ("HTTP " + coverResponse.status)), "error");
             throw new Error(coverData.error || ("R2 封面寫入失敗（HTTP " + coverResponse.status + "）。"));
           }
+          log("R2 封面上傳完成：" + artworkUploadMs + " ms", "success");
           artwork = { sha256, mimeType, sizeBytes: pictureBytes.byteLength };
           artworkNote = "封面已去重保存至 R2";
         }
@@ -356,6 +406,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         metadata: { tagTypes: metadata.tagTypes || [], common: commonSafe }
       };
 
+      log("D1 曲目寫入開始");
       const catalogWriteStartedAt = performance.now();
       const response = await fetch("/api/catalog?kind=tracks", {
         method: "POST",
@@ -370,8 +421,10 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       try { data = await response.json(); } catch {}
       const catalogWriteMs = Math.round(performance.now() - catalogWriteStartedAt);
       if (!response.ok || !data.ok) {
+        log("D1 曲目寫入失敗：" + (data.error || ("HTTP " + response.status)), "error");
         throw new Error(data.error || ("D1 曲目寫入失敗（HTTP " + response.status + "）。"));
       }
+      log("D1 曲目寫入完成：" + catalogWriteMs + " ms", "success");
 
       const stats = result.stats || {};
       stats.openListInfoMs = openListInfoMs;
@@ -393,6 +446,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       return { ok: true, title, artworkNote, stats };
     } catch (error) {
       const message = error.message || "單首索引失敗。";
+      log("歌曲索引失敗：" + message, "error");
       if (!silent) setResult(message, "error");
       return { ok: false, error: message };
     } finally {
