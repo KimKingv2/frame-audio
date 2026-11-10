@@ -492,6 +492,10 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     if (batch.currentPath) lines.push("正在處理：" + batch.currentPath);
     if (batch.lastFileInfo) lines.push("最近完成：" + batch.lastFileInfo);
     if (batch.stopReason) lines.push("本批停止原因：" + batch.stopReason);
+    if (state.folderIndexCompleted) {
+      lines.push("資料夾階層：已建立 " + Number(state.folderIndexCount || 0) +
+        " 個資料夾；關聯歌曲 " + Number(state.folderTrackCount || 0) + " 首。");
+    }
     if (state.currentFolder) {
       lines.push(
         "目前資料夾尚未掃完；續作游標：第 " + state.page +
@@ -559,6 +563,9 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       scannedEntryCount: 0,
       errors: [],
       completed: false,
+      folderIndexCompleted: false,
+      folderIndexCount: 0,
+      folderTrackCount: 0,
       updatedAt: new Date().toISOString()
     };
   }
@@ -609,9 +616,11 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       if (!state) {
         state = newScanState(rootPath);
         await saveScanState(key, state);
+      } else if (state.completed && state.folderIndexCompleted !== true) {
+        appendScanLog("曲目掃描已完成；尚未建立資料夾階層，將補做資料夾索引。", "warning");
       } else if (state.completed) {
         if (!window.confirm(
-          "這個目錄的上一輪掃描已完成。重新執行會跳過未變更歌曲，只索引新增或變更項目，不會刪除任何資料。要開始新一輪嗎？"
+          "這個目錄的上一輪掃描與資料夾階層索引都已完成。重新執行會跳過未變更歌曲，只索引新增或變更項目，不會刪除任何資料。要開始新一輪嗎？"
         )) return;
         state = newScanState(rootPath);
         await saveScanState(key, state);
@@ -842,6 +851,36 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       }
 
       if (!state.currentFolder && state.pendingFolders.length === 0) state.completed = true;
+      if (state.completed && state.folderIndexCompleted !== true) {
+        appendScanLog("========== 資料夾階層索引開始 ==========");
+        appendScanLog("根目錄：" + state.rootPath + "；資料夾路徑 " +
+          (state.seenFolders || []).length + " 個");
+        const folderIndexStartedAt = performance.now();
+        const folderResponse = await fetch("/api/catalog/folders/rebuild", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            Authorization: "Bearer " + activeStorageToken,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            rootPath: state.rootPath,
+            folderPaths: Array.isArray(state.seenFolders) ? state.seenFolders : [state.rootPath]
+          })
+        });
+        let folderData = {};
+        try { folderData = await folderResponse.json(); } catch {}
+        if (!folderResponse.ok || !folderData.ok) {
+          throw new Error(folderData.error || ("資料夾階層索引失敗（HTTP " + folderResponse.status + "）。"));
+        }
+        state.folderIndexCompleted = true;
+        state.folderIndexCount = Number(folderData.savedFolders || 0);
+        state.folderTrackCount = Number(folderData.indexedTracks || 0);
+        await saveScanState(key, state);
+        appendScanLog("資料夾階層索引完成：" + state.folderIndexCount +
+          " 個資料夾；關聯歌曲 " + state.folderTrackCount + " 首；耗時 " +
+          Math.round(performance.now() - folderIndexStartedAt) + " ms", "success");
+      }
       const batchElapsedMs = Date.now() - startedAt;
       if (state.completed) {
         batch.stopReason = "整個指定根目錄已掃完";
