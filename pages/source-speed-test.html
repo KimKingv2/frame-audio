@@ -281,7 +281,7 @@
         for(var oi=0;oi<order.length;oi++){
           var cfg=order[oi];
           try{
-            log(cfg.name+" /api/fs/get 第 "+(round+1)+"/3+" 開始；path="+cfg.file);
+            log(cfg.name+" /api/fs/get 第 "+(round+1)+"/3 次開始；path="+cfg.file);
             var result=await getTest(cfg);
             getResults[cfg.key].push(result);
             log(cfg.name+" /api/fs/get 第 "+(round+1)+" 完成；headers="+ms(result.headersMs)+"；total="+ms(result.totalMs)+"；size="+result.size+"；raw host="+result.rawHost);
@@ -319,29 +319,39 @@
     }finally{setBusy(false);}
   }
   function renderResults(lists,gets,ranges,errors){
-    var labels=["Cloudflare OpenList","VPS Alist"];
-    var keys=["cf","vps"];
-    for(var i=0;i<2;i++){
-      var k=keys[i],l=lists[k],g=gets[k],r=ranges[k];
-      addRow(labels[i]+" · /api/fs/list",l?("HTTP 200 · "+fmt(l.totalMs)+" · "+l.count+"/"+l.total+" 項"):"失敗／未完成","", "");
-      if(l){
-        var cell=$("result-rows").lastElementChild.children[2];
-        cell.textContent="headers "+fmt(l.headersMs);
-      }
-      var totals=g.map(function(x){return x.totalMs;}),headers=g.map(function(x){return x.headersMs;});
-      addRow(labels[i]+" · /api/fs/get 中位數",g.length?fmt(median(totals))+"（"+g.length+"/3 次）":"失敗／未完成",g.length?"headers "+fmt(median(headers)):"","");
-      var sizes=g.filter(function(x){return x.size>0;}).map(function(x){return x.size;});
-      var hosts=g.map(function(x){return x.rawHost;}).filter(Boolean);
-      addRow(labels[i]+" · 檔案資訊","檔案大小 "+(sizes.length?bytes(median(sizes)):"未取得"),"raw_url host："+(hosts.length?hosts[hosts.length-1]:"未取得"),"");
-      var zero=r.length?r[0]:null,mid=r.length>1?r[1]:null;
-      addRow(labels[i]+" · 開頭 Range",zero?("HTTP "+zero.status+" · "+zero.bytes+" bytes · first byte "+fmt(zero.firstByteMs)):"未完成",zero?("final "+zero.finalHost+" · redirect "+(zero.redirected?"是":"否")):"","");
-      if(mid) addRow(labels[i]+" · 中段 Range","HTTP "+mid.status+" · "+mid.bytes+" bytes · first byte "+fmt(mid.firstByteMs),"final "+mid.finalHost+" · redirect "+(mid.redirected?"是":"否"),"");
+    function listCell(x){
+      return x ? "HTTP 200 · "+fmt(x.totalMs)+" · "+x.count+"/"+x.total+" 項" : "失敗／未完成";
     }
-    var gcf=median(gets.cf.map(function(x){return x.totalMs;})),gvps=median(gets.vps.map(function(x){return x.totalMs;}));
-    var rcf=ranges.cf.length?ranges.cf[0].firstByteMs:null,rvps=ranges.vps.length?ranges.vps[0].firstByteMs:null;
-    addRow("API /api/fs/get 中位數比較",fmt(gcf),fmt(gvps),compareCell(gcf,gvps));
-    addRow("開頭 Range 首位元組",fmt(rcf),fmt(rvps),compareCell(rcf,rvps));
-    if(errors.length) addRow("錯誤摘要",errors.join("；"),"","請看日誌");
+    function getCell(arr,field){
+      return arr.length ? fmt(median(arr.map(function(x){return x[field];})))+"（"+arr.length+"/3 次）" : "失敗／未完成";
+    }
+    function rangeCell(item){
+      return item ? "HTTP "+item.status+" · "+item.bytes+" bytes · 首位元組 "+fmt(item.firstByteMs)+" · 傳輸 "+fmt(item.totalMs) : "未完成";
+    }
+    function hostCell(key){
+      var arr=gets[key];
+      var last=arr.length?arr[arr.length-1]:null;
+      var range=ranges[key]&&ranges[key].length?ranges[key][0]:null;
+      var pieces=[];
+      if(last) pieces.push("raw_url："+last.rawHost+"；"+bytes(last.size));
+      if(range) pieces.push("最終來源："+range.finalHost+"；redirect："+(range.redirected?"是":"否"));
+      return pieces.length?pieces.join("；"):"未取得";
+    }
+    var cfList=lists.cf,vpsList=lists.vps;
+    var cfGet=gets.cf,vpsGet=gets.vps;
+    var cfRange=ranges.cf,vpsRange=ranges.vps;
+    addRow("目錄列表 /api/fs/list",listCell(cfList),listCell(vpsList),
+      compareCell(cfList?cfList.totalMs:null,vpsList?vpsList.totalMs:null));
+    addRow("/api/fs/get 回應標頭時間（中位數）",getCell(cfGet,"headersMs"),getCell(vpsGet,"headersMs"),
+      compareCell(cfGet.length?median(cfGet.map(function(x){return x.headersMs;})):null,vpsGet.length?median(vpsGet.map(function(x){return x.headersMs;})):null));
+    addRow("/api/fs/get 完整回應時間（中位數）",getCell(cfGet,"totalMs"),getCell(vpsGet,"totalMs"),
+      compareCell(cfGet.length?median(cfGet.map(function(x){return x.totalMs;})):null,vpsGet.length?median(vpsGet.map(function(x){return x.totalMs;})):null));
+    addRow("檔案大小與 raw_url 主機",hostCell("cf"),hostCell("vps"),"");
+    addRow("音訊開頭 Range（最多 64 KiB）",rangeCell(cfRange[0]),rangeCell(vpsRange[0]),
+      compareCell(cfRange[0]?cfRange[0].firstByteMs:null,vpsRange[0]?vpsRange[0].firstByteMs:null));
+    addRow("音訊中段 Range（最多 64 KiB）",rangeCell(cfRange[1]),rangeCell(vpsRange[1]),
+      compareCell(cfRange[1]?cfRange[1].firstByteMs:null,vpsRange[1]?vpsRange[1].firstByteMs:null));
+    if(errors.length) addRow("錯誤摘要",errors.join("；"),"","請看詳細日誌");
   }
   function bytes(n){
     if(!Number.isFinite(n)) return "—";
