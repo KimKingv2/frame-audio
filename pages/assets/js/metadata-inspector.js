@@ -1,5 +1,5 @@
 const PARSER_URL = "https://esm.sh/music-metadata@12.3.5?bundle";
-const CHUNK_SIZE = 64 * 1024;
+const CHUNK_SIZE = 256 * 1024;
 const MAX_TRANSFER_BYTES = 16 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 30000;
 const PARSER_LOAD_TIMEOUT_MS = 30000;
