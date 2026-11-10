@@ -92,8 +92,8 @@ export async function onRequestPost({ request, env }) {
     const pageSize = 500;
     while (true) {
       const result = await env.DB.prepare(
-        "SELECT id,path FROM tracks WHERE substr(path,1,?)=? ORDER BY path LIMIT ? OFFSET ?"
-      ).bind(trackPrefix.length, trackPrefix, pageSize, trackOffset).all();
+        "SELECT id,path FROM tracks WHERE substr(path,1,length(?))=? ORDER BY path LIMIT ? OFFSET ?"
+      ).bind(trackPrefix, trackPrefix, pageSize, trackOffset).all();
       const rows = result.results || [];
       for (const row of rows) {
         const path = String(row.path || "");
