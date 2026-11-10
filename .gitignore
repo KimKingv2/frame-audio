@@ -1,0 +1,43 @@
+# Secrets / local config
+.env
+.env.*
+!.env.example
+config/local.toml
+config/*.secret.toml
+
+# Private library data
+*.sqlite
+*.sqlite3
+*.db
+state/
+private-data/
+private-export/
+export/
+*.lrc
+*.flac
+*.mp3
+*.m4a
+*.wav
+*.ape
+*.webp
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Tooling / OS
+node_modules/
+.DS_Store
+.AppleDouble
+.idea/
+.vscode/

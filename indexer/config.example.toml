@@ -1,0 +1,19 @@
+# Copy this file to config/local.toml on the Mac.
+# Keep the real file out of Git. Keep the API token in the environment variable below.
+
+[openlist]
+base_url = "https://YOUR-OPENLIST-HOST"
+token_env = "FRAME_AUDIO_OPENLIST_TOKEN"
+
+[library]
+# Fill these paths in your private local copy only.
+music_roots = ["/YOUR/PRIVATE/MUSIC/ROOT"]
+podcast_roots = ["/YOUR/PRIVATE/PODCASTS/ROOT"]
+
+[scan]
+page_size = 200
+request_timeout_seconds = 30
+range_probe_bytes = 1024
+
+[output]
+directory = "./private-export"
