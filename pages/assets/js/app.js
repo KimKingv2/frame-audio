@@ -15,6 +15,8 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
   const urlInput = $("#openlist-url");
   const tokenInput = $("#openlist-token");
   const storageTokenInput = $("#cloudflare-admin-token");
+  const musicRootInput = $("#music-root-path");
+  const podcastRootInput = $("#podcast-root-path");
   const storageResultBox = $("#storage-result");
   const pathInput = $("#openlist-path");
   const resultBox = $("#connection-result");
@@ -75,6 +77,23 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
   function setStorageResult(message, type = "") {
     storageResultBox.textContent = message;
     storageResultBox.className = "statusbox" + (type ? " " + type : "");
+  }
+
+  function getConfiguredRoot(input, label) {
+    const raw = String(input?.value || "").trim();
+    if (!raw.startsWith("/") || raw.includes("\0")) {
+      throw new Error(label + " 根目錄必須以 / 開頭，且不能包含空字元。");
+    }
+    return raw === "/" ? "/" : raw.replace(/\/+$/, "");
+  }
+
+  function setCurrentFolderAsRoot(input, label) {
+    if (!activePath || !activePath.startsWith("/")) {
+      setResult("請先在 OpenList 瀏覽器中開啟要設定的資料夾。", "error");
+      return;
+    }
+    input.value = activePath;
+    setResult("已將目前資料夾設為 " + label + " 根目錄：\n" + activePath, "ok");
   }
 
   function setScanProgress(message, type = "") {
@@ -660,13 +679,15 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
       setResult("請先輸入 Cloudflare 管理金鑰並成功測試 D1 / R2。", "error");
       return;
     }
-    const rootPath = MUSIC_ROOT_PATH;
-    if (!rootPath.startsWith("/") || rootPath.includes("\\0")) {
-      setResult("音樂根目錄路徑無效。", "error");
+    let rootPath;
+    try {
+      rootPath = getConfiguredRoot(musicRootInput, "Music");
+    } catch (error) {
+      setResult(error.message || "Music 根目錄路徑無效。", "error");
       return;
     }
     if (!window.confirm(
-      "即將掃描固定的音樂根目錄：\n" + rootPath +
+      "即將掃描 Music 根目錄：\n" + rootPath +
       "\n\n每批最長執行 7,500 秒（2 小時 5 分鐘），最多檢查 500 個項目；單首索引最多嘗試 20 次（首次加 19 次重試）。會遞迴讀取子資料夾。原始音訊不會上傳或修改。確定開始／繼續？"
     )) return;
 
@@ -1129,8 +1150,15 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
       setResult("請先輸入 Cloudflare 管理金鑰並成功測試 D1 / R2。", "error");
       return;
     }
+    let rootPath;
+    try {
+      rootPath = getConfiguredRoot(podcastRootInput, "Podcast");
+    } catch (error) {
+      setResult(error.message || "Podcast 根目錄路徑無效。", "error");
+      return;
+    }
     if (!window.confirm(
-      "即將掃描 Podcast 根目錄：\n" + PODCAST_ROOT_PATH +
+      "即將掃描 Podcast 根目錄：\n" + rootPath +
       "\n\n第一層每個資料夾視為一個節目；其下所有子資料夾中的音訊檔視為單集。每批最多檢查 500 個項目，單集最多嘗試 20 次。原始音訊不會上傳或修改。確定開始／繼續？"
     )) return;
 
@@ -1146,7 +1174,7 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
         baseUrl: activeBaseUrl,
         openListToken: activeToken,
         adminToken: activeStorageToken,
-        rootPath: PODCAST_ROOT_PATH,
+        rootPath,
         onLog: appendScanLog,
         onProgress: setScanProgress,
         shouldPause: () => scanPauseRequested
@@ -1445,6 +1473,12 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
     $("#scan-pause").disabled = true;
     setScanProgress("已要求暫停，完成目前單曲／單集的索引後會保存進度……", "ok");
   });
+  $("#use-current-music-root").addEventListener("click", () => {
+    setCurrentFolderAsRoot(musicRootInput, "Music");
+  });
+  $("#use-current-podcast-root").addEventListener("click", () => {
+    setCurrentFolderAsRoot(podcastRootInput, "Podcast");
+  });
   $("#choose-current").addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(activePath);
@@ -1477,14 +1511,17 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
       silent: true,
       onLog: appendScanLog
     }),
-    reindexPodcast: path => indexPodcastEpisode({
-      path,
-      rootPath: PODCAST_ROOT_PATH,
-      baseUrl: activeBaseUrl,
-      openListToken: activeToken,
-      adminToken: activeStorageToken,
-      onLog: appendScanLog
-    }),
+    reindexPodcast: path => {
+      const rootPath = getConfiguredRoot(podcastRootInput, "Podcast");
+      return indexPodcastEpisode({
+        path,
+        rootPath,
+        baseUrl: activeBaseUrl,
+        openListToken: activeToken,
+        adminToken: activeStorageToken,
+        onLog: appendScanLog
+      });
+    },
     resolveRetry: async (kind, path) => {
       const endpoint = kind === "episode"
         ? "/api/catalog/podcasts/retries"

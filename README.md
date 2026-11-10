@@ -42,6 +42,8 @@ FRAME Audio 是以 OpenList 為音訊來源的私人音訊平台，包含 **Musi
 - 路徑、大小及修改時間未變更時，增量掃描會跳過該項目。
 - 不自動刪除來源中已不存在的曲目或單集。
 
+- OpenList CORS：正式版與 Preview 的跨域來源、方法及標頭設定見 [docs/OPENLIST-CORS.md](docs/OPENLIST-CORS.md)。
+
 ## 專案結構
 
 - `pages/`：Cloudflare Pages 靜態網站。

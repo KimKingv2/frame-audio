@@ -67,3 +67,8 @@ All private endpoints require `Authorization: Bearer <FRAME_AUDIO_ADMIN_TOKEN>`.
 - Music and Podcast missing files are not automatically deleted from D1.
 - Listening history is retained in D1 until the user explicitly changes the data retention policy.
 - API tokens and temporary playback URLs are not committed to source control.
+
+
+## OpenList CORS
+
+Before the browser can read the OpenList directory, configure the exact Production origin, allowed methods and request headers in the OpenList server's CORS policy. See [OPENLIST-CORS.md](OPENLIST-CORS.md). OpenList config changes require a service/container restart.
