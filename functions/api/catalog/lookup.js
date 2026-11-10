@@ -1,4 +1,4 @@
-import { error, json, requireAdmin, readJson, isObject } from "../../_lib/api.js";
+import { error, json, requireAdmin, readJson } from "../../_lib/api.js";
 
 export async function onRequestPost({ request, env }) {
   const denied = await requireAdmin(request, env);
@@ -11,7 +11,7 @@ export async function onRequestPost({ request, env }) {
 
   const paths = body?.paths;
   if (!Array.isArray(paths) || paths.length < 1 || paths.length > 100 ||
-      !paths.every(path => typeof path === "string" && path.startsWith("/") && path.length <= 4096 && !path.includes("\\0"))) {
+      !paths.every(path => typeof path === "string" && path.startsWith("/") && path.length <= 4096 && path.indexOf(String.fromCharCode(0)) === -1)) {
     return error("每次查詢必須包含 1 至 100 個有效檔案路徑。");
   }
 
