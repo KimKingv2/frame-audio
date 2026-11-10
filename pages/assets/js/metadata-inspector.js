@@ -75,6 +75,8 @@ class OpenListRangeTokenizer {
     this.finalHost = this.initialHost;
     this.lastRequestMs = 0;
     this.lastRequestRange = "";
+    this.totalRequestMs = 0;
+    this.slowestRequestMs = 0;
     this.cache = new Map();
     this.controllers = new Set();
     this.closed = false;
@@ -198,6 +200,10 @@ class OpenListRangeTokenizer {
           this.retryCount += 1;
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
         } finally {
+          const attemptElapsedMs = Math.round(performance.now() - requestStartedAt);
+          this.lastRequestMs = attemptElapsedMs;
+          this.totalRequestMs += attemptElapsedMs;
+          this.slowestRequestMs = Math.max(this.slowestRequestMs, attemptElapsedMs);
           clearTimeout(timeout);
           this.controllers.delete(controller);
         }
@@ -313,6 +319,10 @@ class OpenListRangeTokenizer {
       finalHost: this.finalHost,
       lastRequestMs: this.lastRequestMs,
       lastRequestRange: this.lastRequestRange,
+      totalRequestMs: this.totalRequestMs,
+      slowestRequestMs: this.slowestRequestMs,
+      averageRequestMs: this.requestAttempts
+        ? Math.round(this.totalRequestMs / this.requestAttempts) : 0,
       elapsedMs: Math.round(performance.now() - this.startedAt),
       bytesFetched: this.bytesFetched,
       maxTransferBytes: this.maxTransferBytes
@@ -347,7 +357,9 @@ export async function inspectAudioMetadata({
   }
   if (!rawUrl) throw new Error("OpenList 沒有提供音訊來源網址。");
 
+  const parserLoadStartedAt = performance.now();
   const parser = await loadParser();
+  const parserLoadMs = Math.round(performance.now() - parserLoadStartedAt);
   const normalizedBase = String(baseUrl || "").trim().replace(/\/+$/, "");
   if (!/^https?:\/\//i.test(normalizedBase)) {
     throw new Error("OpenList 基礎網址無效，無法解析音訊來源。");
@@ -365,17 +377,23 @@ export async function inspectAudioMetadata({
   });
 
   try {
+    const parseStartedAt = performance.now();
     const metadata = await parser.parseFromTokenizer(tokenizer, {
       duration: false,
       skipCovers: false
     });
+    const parseElapsedMs = Math.round(performance.now() - parseStartedAt);
     return {
       metadata: {
         common: metadata.common || {},
         format: metadata.format || {},
         tagTypes: metadata.format?.tagTypes || []
       },
-      stats: tokenizer.getStats()
+      stats: {
+        ...tokenizer.getStats(),
+        parserLoadMs,
+        parseElapsedMs
+      }
     };
   } finally {
     await tokenizer.close();
