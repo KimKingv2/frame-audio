@@ -410,6 +410,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       "待掃描資料夾：" + state.pendingFolders.length + (state.currentFolder ? "；目前：" + state.currentFolder : ""),
       "本批新增／更新：" + batch.indexed + " 首；跳過：" + batch.skipped + " 首；失敗：" + batch.failed + " 首"
     ];
+    if (batch.phase) lines.push(batch.phase);
     if (batch.currentPath) lines.push("正在處理：" + batch.currentPath);
     if (batch.lastFileInfo) lines.push("最近完成：" + batch.lastFileInfo);
     if (batch.stopReason) lines.push("本批停止原因：" + batch.stopReason);
@@ -548,6 +549,9 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
           await saveScanState(key, state);
         }
 
+        batch.phase = "正在讀取目錄列表：" + state.currentFolder +
+          "（第 " + state.page + " 頁；單次最長 45 秒，最多自動重試 1 次）";
+        setScanProgress(scanProgressText(state, batch), "ok");
         const directoryListStartedAt = performance.now();
         const listing = await listOpenListDirectory({
           baseUrl: activeBaseUrl,
@@ -557,6 +561,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
           perPage: 100
         });
         batch.directoryListMs += Math.round(performance.now() - directoryListStartedAt);
+        batch.phase = "";
         const audioItems = listing.items.filter(item => !item.isDir && AUDIO_FILE_PATTERN.test(item.name));
         const existingByPath = new Map();
         if (audioItems.length) {
