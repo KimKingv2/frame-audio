@@ -34,6 +34,13 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
   let activeCoverUrl = "";
   let libraryUI = null;
 
+  // Register connection controls before the rest of the UI initializes.
+  // This keeps the essential setup actions available even if another view
+  // component encounters an initialization problem.
+  $("#test-connection")?.addEventListener("click", testConnection);
+  $("#test-storage")?.addEventListener("click", testCloudflareStorage);
+  browseButton?.addEventListener("click", () => loadDirectory(pathInput.value.trim() || "/"));
+
   const views = {
     music: ["Music", "YOUR MUSIC LIBRARY", "音樂，<span>隨時入場。</span>", "整理你的收藏，讓每一次播放都回到自己的音樂世界。", "MUSIC LIBRARY", "你的音樂收藏", "♫", "音樂庫尚未連接", "先連接 OpenList 並確認音樂根目錄；之後再建立音樂索引。"],
     podcasts: ["Podcasts", "YOUR PODCAST LIBRARY", "好內容，<span>慢慢聽。</span>", "集中管理喜愛的節目，從上次停止的位置繼續收聽。", "PODCAST LIBRARY", "你的節目收藏", "▤", "Podcast 尚未連接", "接入節目資料後，節目封面、單集、收聽進度與播放速度控制就會出現在這裡。"],
@@ -52,6 +59,7 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
     const ids = ["section", "eyebrow", "title", "description", "kicker", "heading", "icon", "emptytitle", "emptytext"];
     ids.forEach((id, index) => {
       const node = document.getElementById(id);
+      if (!node) return;
       if (id === "title") node.innerHTML = view[index];
       else node.textContent = view[index];
     });
@@ -1374,6 +1382,16 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
     activeBaseUrl = urlInput.value.trim();
     activeToken = tokenInput.value;
     const path = pathInput.value.trim() || "/";
+    if (!activeToken.trim()) {
+      setResult("請先輸入 OpenList API Token。", "error");
+      tokenInput.focus();
+      return;
+    }
+    if (!activeBaseUrl) {
+      setResult("請先填寫 OpenList 網址。", "error");
+      urlInput.focus();
+      return;
+    }
     button.disabled = true;
     browseButton.disabled = true;
     browser.hidden = true;
@@ -1402,8 +1420,6 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => showView(button.dataset.view));
   });
-  $("#test-connection").addEventListener("click", testConnection);
-  $("#test-storage").addEventListener("click", testCloudflareStorage);
   $("#scan-music-batch").addEventListener("click", batchIndexCurrentTree);
   $("#scan-podcast-batch").addEventListener("click", batchIndexPodcastTree);
   $("#scan-log-copy").addEventListener("click", async () => {
@@ -1429,7 +1445,6 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
     $("#scan-pause").disabled = true;
     setScanProgress("已要求暫停，完成目前單曲／單集的索引後會保存進度……", "ok");
   });
-  browseButton.addEventListener("click", () => loadDirectory(pathInput.value.trim() || "/"));
   $("#choose-current").addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(activePath);
