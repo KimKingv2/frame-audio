@@ -198,6 +198,15 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       "重新導向 " + (stats.redirectedRequests || 0) + " 次",
       "來源 " + (stats.initialHost || "未知") + " → " + (stats.finalHost || "未知"),
       "實際讀取 " + formatBytes(stats.bytesFetched || 0),
+      "Range 累計耗時 " + (stats.totalRequestMs ?? "未提供") + " ms",
+      "Range 平均耗時 " + (stats.averageRequestMs ?? "未提供") + " ms",
+      "Range 最慢一次 " + (stats.slowestRequestMs ?? "未提供") + " ms",
+      "解析器載入 " + (stats.parserLoadMs ?? "未提供") + " ms",
+      "標籤解析 " + (stats.parseElapsedMs ?? "未提供") + " ms",
+      "檔案資訊 API " + (stats.openListInfoMs ?? "未提供") + " ms",
+      "R2 封面上傳 " + (stats.artworkUploadMs ?? "未提供") + " ms",
+      "D1 曲目寫入 " + (stats.catalogWriteMs ?? "未提供") + " ms",
+      "整首索引 " + (stats.totalIndexMs ?? "未提供") + " ms",
       "讀取上限 " + formatBytes(stats.maxTransferBytes || 0)
     ].join("　·　");
 
@@ -244,7 +253,10 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       setResult("正在讀取音訊標籤，完成後會將這一首存入 D1；封面（若有）會去重後存入 R2。\n" + path);
     }
     try {
+      const indexStartedAt = performance.now();
+      const fileInfoStartedAt = performance.now();
       const info = await getOpenListFileInfo({ baseUrl: activeBaseUrl, token: activeToken, path });
+      const openListInfoMs = Math.round(performance.now() - fileInfoStartedAt);
       if (info.is_dir) throw new Error("選取的項目是資料夾，請選擇音訊檔案。");
       const fileSize = Number(info.size || 0);
       if (!Number.isSafeInteger(fileSize) || fileSize <= 0) throw new Error("OpenList 沒有提供有效的檔案大小。");
@@ -264,6 +276,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       const id = await sha256Hex(new TextEncoder().encode(path));
       let artwork = null;
       let artworkNote = "沒有內嵌封面";
+      let artworkUploadMs = 0;
 
       const picture = Array.isArray(common.picture) ? common.picture[0] : null;
       if (picture?.data?.byteLength) {
@@ -283,6 +296,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
           artworkNote = "封面超過 10 MiB 上限，已略過封面";
         } else {
           const sha256 = await sha256Hex(pictureBytes);
+          const artworkStartedAt = performance.now();
           const coverResponse = await fetch("/api/artwork/" + sha256, {
             method: "PUT",
             credentials: "same-origin",
@@ -294,6 +308,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
           });
           let coverData = {};
           try { coverData = await coverResponse.json(); } catch {}
+          artworkUploadMs = Math.round(performance.now() - artworkStartedAt);
           if (!coverResponse.ok || !coverData.ok) {
             throw new Error(coverData.error || ("R2 封面寫入失敗（HTTP " + coverResponse.status + "）。"));
           }
@@ -341,6 +356,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         metadata: { tagTypes: metadata.tagTypes || [], common: commonSafe }
       };
 
+      const catalogWriteStartedAt = performance.now();
       const response = await fetch("/api/catalog?kind=tracks", {
         method: "POST",
         credentials: "same-origin",
@@ -352,11 +368,17 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       });
       let data = {};
       try { data = await response.json(); } catch {}
+      const catalogWriteMs = Math.round(performance.now() - catalogWriteStartedAt);
       if (!response.ok || !data.ok) {
         throw new Error(data.error || ("D1 曲目寫入失敗（HTTP " + response.status + "）。"));
       }
 
       const stats = result.stats || {};
+      stats.openListInfoMs = openListInfoMs;
+      stats.artworkUploadMs = artworkUploadMs;
+      stats.catalogWriteMs = catalogWriteMs;
+      stats.totalIndexMs = Math.round(performance.now() - indexStartedAt);
+      if (!silent) renderMetadataResult(path, fileSize, result);
       if (!silent) {
         setResult(
           "PASS：單首索引寫入完成。\n歌曲：" + title +
@@ -582,9 +604,16 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
                 batch.indexed += 1;
                 const stats = indexed.stats || {};
                 batch.lastFileInfo =
-                  indexed.title + "｜" + trackElapsedSeconds.toFixed(1) + " 秒｜" +
-                  (stats.rangeRequests || 0) + " 次 Range｜" +
-                  formatBytes(stats.bytesFetched || 0);
+                  indexed.title + "｜總 " + trackElapsedSeconds.toFixed(1) + " 秒｜" +
+                  "Range " + (stats.rangeRequests || 0) + " 次／" +
+                  formatBytes(stats.bytesFetched || 0) + "／" +
+                  (stats.totalRequestMs ?? "?") + " ms" +
+                  "（最慢 " + (stats.slowestRequestMs ?? "?") + " ms）｜" +
+                  "CDN " + (stats.parserLoadMs ?? "?") + " ms｜" +
+                  "解析 " + (stats.parseElapsedMs ?? "?") + " ms｜" +
+                  "資訊 API " + (stats.openListInfoMs ?? "?") + " ms｜" +
+                  "R2 " + (stats.artworkUploadMs ?? "?") + " ms｜" +
+                  "D1 " + (stats.catalogWriteMs ?? "?") + " ms";
               } else {
                 batch.lastFileInfo =
                   "索引失敗｜" + trackElapsedSeconds.toFixed(1) + " 秒｜" + fullPath;
