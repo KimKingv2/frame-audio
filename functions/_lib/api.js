@@ -7,7 +7,8 @@ export function json(data, status = 200) {
 }
 export function error(message, status = 400) { return json({ ok: false, error: message }, status); }
 export async function requireAdmin(request, env) {
-  const expected = env.FRAME_AUDIO_ADMIN_TOKEN;
+  // Match the client-side trim: pasted secrets can carry a trailing newline.
+  const expected = String(env.FRAME_AUDIO_ADMIN_TOKEN || "").trim();
   if (!expected) return error("Cloudflare Preview 尚未設定 FRAME_AUDIO_ADMIN_TOKEN。", 503);
   const supplied = (request.headers.get("authorization") || "").match(/^Bearer\s+(.+)$/i)?.[1] || "";
   if (!supplied || supplied.length !== expected.length) return error("Cloudflare 管理金鑰不正確。", 401);
