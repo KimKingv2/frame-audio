@@ -401,14 +401,32 @@ export async function inspectAudioMetadata({
   });
 
   try {
-    emitLog(onEvent, "music-metadata parseFromTokenizer 開始");
+    let metadataPrefetchMs = 0;
     const parseStartedAt = performance.now();
+    if (/\.flac$/i.test(String(path)) && fileSize > tokenizer.chunkSize) {
+      const prefetchStartedAt = performance.now();
+      const firstChunkStart = 0;
+      const lastChunkStart = Math.floor((fileSize - 1) / tokenizer.chunkSize) * tokenizer.chunkSize;
+      emitLog(onEvent,
+        "FLAC 首尾 metadata 區塊並行預取開始：bytes=" + firstChunkStart +
+        " 與 bytes=" + lastChunkStart + "；每區塊最多 " +
+        Math.round(tokenizer.chunkSize / 1024) + " KiB");
+      await Promise.all([
+        tokenizer.getChunk(firstChunkStart),
+        tokenizer.getChunk(lastChunkStart)
+      ]);
+      metadataPrefetchMs = Math.round(performance.now() - prefetchStartedAt);
+      emitLog(onEvent, "FLAC 首尾 metadata 區塊並行預取完成：" + metadataPrefetchMs + " ms", "success");
+    }
+    emitLog(onEvent, "music-metadata parseFromTokenizer 開始");
     const metadata = await parser.parseFromTokenizer(tokenizer, {
       duration: false,
       skipCovers: false
     });
-    const parseElapsedMs = Math.round(performance.now() - parseStartedAt);
-    emitLog(onEvent, "music-metadata parseFromTokenizer 完成：" + parseElapsedMs + " ms", "success");
+    const parseElapsedMs = Math.round(performance.now() - parseStartedAt - metadataPrefetchMs);
+    const metadataReadElapsedMs = Math.round(performance.now() - parseStartedAt);
+    emitLog(onEvent, "music-metadata parseFromTokenizer 完成：" + parseElapsedMs + " ms；首尾預取 " +
+      metadataPrefetchMs + " ms；metadata 總耗時 " + metadataReadElapsedMs + " ms", "success");
     return {
       metadata: {
         common: metadata.common || {},
@@ -418,7 +436,9 @@ export async function inspectAudioMetadata({
       stats: {
         ...tokenizer.getStats(),
         parserLoadMs,
-        parseElapsedMs
+        metadataPrefetchMs,
+        parseElapsedMs,
+        metadataReadElapsedMs
       }
     };
   } finally {
