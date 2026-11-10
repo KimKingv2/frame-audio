@@ -504,8 +504,11 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     } else if (state.pendingFolders.length) {
       lines.push("目前資料夾已掃完，尚有 " + state.pendingFolders.length + " 個子資料夾待處理。");
     }
-    if (state.completed) lines.push("本輪掃描已完成。再次啟動會重新檢查新增或變更檔案，不會刪除既有資料。");
-    else if (scanPauseRequested) lines.push("已要求暫停，進度已保存；可以關閉頁面，之後重新連接並續作。");
+    if (state.completed && state.folderIndexCompleted === true) {
+      lines.push("歌曲與資料夾階層索引已完成。再次啟動會重新檢查新增或變更檔案，不會刪除既有資料。");
+    } else if (state.completed) {
+      lines.push("歌曲掃描已完成；資料夾階層索引尚未完成。重新啟動會自動補做，不會重掃歌曲。");
+    } else if (scanPauseRequested) lines.push("已要求暫停，進度已保存；可以關閉頁面，之後重新連接並續作。");
     else if (finished) lines.push("本批已結束，進度已保存至 D1；可以關閉頁面，之後重新連接並續作。");
     else lines.push("掃描進行中，請保持此頁面開啟；進度會持續保存至 D1。");
     if (state.errors?.length) {
