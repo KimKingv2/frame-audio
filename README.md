@@ -18,7 +18,7 @@ FRAME Audio 是以 OpenList 為音訊來源的私人音訊平台，分為 **Musi
 - docs/：架構與實作決策。
 
 ## Cloudflare 儲存與網頁索引
-Music 曲庫使用 Cloudflare D1 保存曲目資料與索引進度，R2 保存以 SHA-256 去重的封面；原始音訊仍留在 OpenList。
+Music 曲庫使用 Cloudflare D1 保存曲目資料與索引進度，R2 保存以 SHA-256 去重的封面；原始音訊仍留在 OpenList。Podcast 使用獨立的節目／單集資料表、掃描進度與失敗佇列，不會混入 Music 曲庫。
 
 網頁索引由使用者手動啟動，遞迴掃描指定目錄樹：
 - 每批最長 7,500 秒（2 小時 5 分鐘），上限為 500 首新增／更新、500 個目錄項目及 500 個完成資料夾。
@@ -27,7 +27,9 @@ Music 曲庫使用 Cloudflare D1 保存曲目資料與索引進度，R2 保存�
 - 以路徑、檔案大小及修改時間跳過未變更曲目。
 - 整個目錄樹掃描完成後，伺服器會依照已掃描的資料夾路徑與 D1 曲目資料建立資料夾階層、子資料夾關係及歌曲關聯。
 - 部分或失敗掃描不會刪除既有曲目或資料夾；原始音訊只透過 HTTP Range 讀取必要區段，不會上傳到 Cloudflare。
-- Podcast 目錄不會因 Music 根目錄掃描而納入索引。
+- Podcast 掃描使用獨立入口，固定根目錄為 `/中國移動雲盤/Kim King/13 喜马拉雅`；第一層每個資料夾就是一個節目，其下所有子資料夾中的音訊檔都是該節目的單集。
+- Podcast 以獨立 D1 資料表保存節目與單集，並使用 `podcast_scan_`、`podcast_retry_` 狀態前綴。Music 與 Podcast 不共用失敗重試佇列。
+- 第一次使用 Podcast 掃描前，需在 Cloudflare D1 執行 `migrations/0002_podcasts.sql`。儲存測試會顯示 Podcast 資料表是否已初始化。
 
 設定與測試方式見 [docs/CLOUDFLARE-STORAGE.md](docs/CLOUDFLARE-STORAGE.md)。
 

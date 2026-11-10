@@ -51,15 +51,14 @@
     },
     "podcastShow": {
       "type": "object",
-      "required": ["id", "title", "episodeIds"],
+      "required": ["id", "title", "folderPath"],
       "properties": {
         "id": { "type": "string" },
         "title": { "type": "string" },
         "author": { "type": ["string", "null"] },
         "description": { "type": ["string", "null"] },
-        "cover": { "type": ["string", "null"] },
-        "folderPath": { "type": ["string", "null"] },
-        "episodeIds": { "type": "array", "items": { "type": "string" } }
+        "coverHash": { "type": ["string", "null"] },
+        "folderPath": { "type": "string" }
       },
       "additionalProperties": false
     },
@@ -71,18 +70,23 @@
         "showId": { "type": "string" },
         "title": { "type": "string" },
         "description": { "type": ["string", "null"] },
-        "publishedAt": { "type": ["string", "null"], "format": "date-time" },
+        "episodeNumber": { "type": ["integer", "null"], "minimum": 1 },
+        "seasonNumber": { "type": ["integer", "null"], "minimum": 1 },
+        "publishedAt": { "type": ["string", "null"] },
         "durationMs": { "type": ["integer", "null"], "minimum": 0 },
+        "audio": { "type": "object" },
+        "artwork": { "type": ["object", "null"] },
         "file": {
           "type": "object",
           "required": ["path", "sizeBytes"],
           "properties": {
             "path": { "type": "string" },
             "sizeBytes": { "type": "integer", "minimum": 0 },
-            "modifiedAt": { "type": ["string", "null"], "format": "date-time" }
+            "modifiedAt": { "type": ["string", "null"] }
           },
           "additionalProperties": false
-        }
+        },
+        "metadata": { "type": "object" }
       },
       "additionalProperties": false
     }

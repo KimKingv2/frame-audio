@@ -1,7 +1,10 @@
 import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo } from "./openlist-client.js";
 import { inspectAudioMetadata } from "./metadata-inspector.js";
+import { runPodcastBatch } from "./podcast-scanner.js";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
+const MUSIC_ROOT_PATH = "/中國移動雲盤/Kim King/03 Music";
+const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
 
 (() => {
   "use strict";
@@ -120,7 +123,12 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       try { data = await response.json(); } catch {}
       if (!response.ok || !data.ok) throw new Error(data.error || ("Cloudflare API HTTP " + response.status));
       cloudflareStorageReady = true;
-      setStorageResult("PASS：Cloudflare 儲存已連線。\nD1：已連接；歌曲 " + data.tracks + " 首；資料夾 " + data.folders + " 個。\nR2：已連接。", "ok");
+      setStorageResult(
+        "PASS：Cloudflare 儲存已連線。\nD1：歌曲 " + data.tracks + " 首；資料夾 " + data.folders + " 個。\nR2：已連接。" +
+        (data.podcastSchemaReady
+          ? "\nPodcast D1：已初始化；節目 " + data.podcastShows + " 個；單集 " + data.podcastEpisodes + " 集。"
+          : "\nPodcast D1：尚未初始化。請在 D1 執行 migrations/0002_podcasts.sql 後再開始 Podcast 掃描。"),
+        data.podcastSchemaReady ? "ok" : "");
     } catch (error) {
       setStorageResult(error.message || "Cloudflare 儲存連線失敗。", "error");
     } finally { button.disabled = false; }
@@ -624,7 +632,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   }
 
   async function batchIndexCurrentTree() {
-    const startButton = $("#scan-batch");
+    const startButton = $("#scan-music-batch");
     const pauseButton = $("#scan-pause");
     if (scanRunning) return;
     if (!connected) {
@@ -635,19 +643,20 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       setResult("請先輸入 Cloudflare 管理金鑰並成功測試 D1 / R2。", "error");
       return;
     }
-    const rootPath = String(activePath || "").trim();
+    const rootPath = MUSIC_ROOT_PATH;
     if (!rootPath.startsWith("/") || rootPath.includes("\\0")) {
-      setResult("目前目錄路徑無效，請重新讀取目錄。", "error");
+      setResult("音樂根目錄路徑無效。", "error");
       return;
     }
     if (!window.confirm(
-      "即將以目前目錄作為索引根目錄：\n" + rootPath +
+      "即將掃描固定的音樂根目錄：\n" + rootPath +
       "\n\n每批最長執行 7,500 秒（2 小時 5 分鐘），最多檢查 500 個項目；單首索引最多嘗試 20 次（首次加 19 次重試）。會遞迴讀取子資料夾。原始音訊不會上傳或修改。確定開始／繼續？"
     )) return;
 
     scanRunning = true;
     scanPauseRequested = false;
     startButton.disabled = true;
+    $("#scan-podcast-batch").disabled = true;
     pauseButton.disabled = false;
     const fakeButton = { disabled: false };
     let prefetchedFileInfo = null;
@@ -1085,6 +1094,65 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     } finally {
       scanRunning = false;
       startButton.disabled = false;
+      $("#scan-podcast-batch").disabled = false;
+      pauseButton.disabled = true;
+    }
+  }
+
+  async function batchIndexPodcastTree() {
+    const startButton = $("#scan-podcast-batch");
+    const musicButton = $("#scan-music-batch");
+    const pauseButton = $("#scan-pause");
+    if (scanRunning) return;
+    if (!connected) {
+      setResult("請先連接 OpenList，並確認 Podcast 根目錄可讀取。", "error");
+      return;
+    }
+    if (!cloudflareStorageReady || !activeStorageToken) {
+      setResult("請先輸入 Cloudflare 管理金鑰並成功測試 D1 / R2。", "error");
+      return;
+    }
+    if (!window.confirm(
+      "即將掃描 Podcast 根目錄：\n" + PODCAST_ROOT_PATH +
+      "\n\n第一層每個資料夾視為一個節目；其下所有子資料夾中的音訊檔視為單集。每批最多檢查 500 個項目，單集最多嘗試 20 次。原始音訊不會上傳或修改。確定開始／繼續？"
+    )) return;
+
+    scanRunning = true;
+    scanPauseRequested = false;
+    startButton.disabled = true;
+    musicButton.disabled = true;
+    pauseButton.disabled = false;
+    appendScanLog("========== Podcast 獨立掃描入口 ==========");
+    appendScanLog("節目規則：Podcast 根目錄第一層資料夾 = 一個節目；子資料夾仍屬於該節目。");
+    try {
+      const result = await runPodcastBatch({
+        baseUrl: activeBaseUrl,
+        openListToken: activeToken,
+        adminToken: activeStorageToken,
+        rootPath: PODCAST_ROOT_PATH,
+        onLog: appendScanLog,
+        onProgress: setScanProgress,
+        shouldPause: () => scanPauseRequested
+      });
+      if (result?.cancelled) {
+        appendScanLog("Podcast 已完成掃描；使用者取消新一輪掃描。", "warning");
+      } else if (result?.ok) {
+        setResult(
+          "Podcast 掃描本批完成。\n根目錄：" + PODCAST_ROOT_PATH +
+          "\n節目資料夾：" + (result.state?.showFolders || []).length +
+          "\n本批新增／更新：" + (result.batch?.indexed || 0) +
+          " 集；跳過：" + (result.batch?.skipped || 0) +
+          " 集；失敗：" + (result.batch?.failed || 0) + " 集。",
+          "ok"
+        );
+      }
+    } catch (error) {
+      appendScanLog("Podcast 掃描入口錯誤：" + (error.message || error), "error");
+      setScanProgress(error.message || "Podcast 掃描失敗。", "error");
+    } finally {
+      scanRunning = false;
+      startButton.disabled = false;
+      musicButton.disabled = false;
       pauseButton.disabled = true;
     }
   }
@@ -1328,7 +1396,8 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   $("#close-settings").addEventListener("click", () => dialog.close());
   $("#test-connection").addEventListener("click", testConnection);
   $("#test-storage").addEventListener("click", testCloudflareStorage);
-  $("#scan-batch").addEventListener("click", batchIndexCurrentTree);
+  $("#scan-music-batch").addEventListener("click", batchIndexCurrentTree);
+  $("#scan-podcast-batch").addEventListener("click", batchIndexPodcastTree);
   $("#scan-log-copy").addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(scanLogEntries.join("\n"));
@@ -1350,7 +1419,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   $("#scan-pause").addEventListener("click", () => {
     scanPauseRequested = true;
     $("#scan-pause").disabled = true;
-    setScanProgress("已要求暫停，完成目前音訊的索引後會保存進度……", "ok");
+    setScanProgress("已要求暫停，完成目前單曲／單集的索引後會保存進度……", "ok");
   });
   browseButton.addEventListener("click", () => loadDirectory(pathInput.value.trim() || "/"));
   $("#choose-current").addEventListener("click", async () => {

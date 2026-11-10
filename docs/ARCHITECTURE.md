@@ -14,11 +14,14 @@
 - A failed or partial scan never deletes existing catalogue rows. Once a root scan completes, D1 folder records are rebuilt idempotently from the completed folder-path set and indexed track paths.
 
 ### Podcasts
-- Keep shows, episodes, and listening progress separate from Music.
-- First target: audio files already stored in OpenList.
-- Episode resume position, played state, and playback speed are podcast-specific.
-- RSS discovery / automatic downloads remain optional future functionality.
-- Podcast folders are not included when the user starts a Music-root scan.
+- Use a dedicated scan entry and a dedicated root: `/中國移動雲盤/Kim King/13 喜马拉雅`.
+- Each immediate child folder under the Podcast root is exactly one show. All nested folders belong to that show; every supported audio file below it is one episode.
+- Files placed directly in the Podcast root are logged and skipped because they do not belong to a show folder.
+- Store show and episode records in dedicated D1 tables, separate from Music tracks.
+- Keep scan checkpoints and failed-path retries separate using `podcast_scan_` / `podcast_retry_` keys.
+- Reuse bounded HTTP Range metadata parsing, OpenList listing, R2 artwork de-duplication, and the same 20-attempt policy.
+- Unchanged episodes are skipped using path, size, and modification time when available. Missing or partial scans never delete existing Podcast records.
+- Episode resume position, played state, and playback speed are future Podcast playback features. RSS discovery / automatic downloads remain optional future functionality.
 
 ## Shared core
 - OpenList API and authenticated file URL resolution.
@@ -35,7 +38,7 @@ The browser obtains file URLs at playback time. Temporary OpenList signatures an
 ## Indexing strategy
 The initial music library is about 7,000 tracks / 90 GB, with FLAC, MP3, M4A, and WAV files stored in mixed folders. Audio tags take priority over folder names; filename parsing is fallback only.
 
-The browser reads metadata through bounded 256 KiB HTTP Range requests, with a 16 MiB transfer cap and a 90-second per-file metadata deadline. It never uploads the original audio file. Each batch has ceilings of 500 successful track writes, 500 directory entries, 500 completed folders and 7,500 seconds. A failed track is retried up to 20 total attempts; authentication and permission failures stop the scan immediately. The cursor, folder queue, counts and recent errors are stored in D1 so a subsequent batch can resume safely.
+The browser reads metadata through bounded 256 KiB HTTP Range requests, with a 16 MiB transfer cap and a 90-second per-file metadata deadline. It never uploads the original audio file. Each batch has ceilings of 500 successful track writes, 500 directory entries, 500 completed folders and 7,500 seconds. A failed track is retried up to 20 total attempts; authentication and permission failures stop the scan immediately. The cursor, folder queue, counts and recent errors are stored in D1 so a subsequent batch can resume safely. Podcast scans use the same bounded browser approach but a separate state namespace and independent tables.
 
 Incremental comparison uses path, file size and modified time when the source provides it. Files without a usable modification time are re-read rather than assumed unchanged. Repeated writes use the path as the unique track key and therefore update the existing row. Missing paths are not deleted automatically.
 

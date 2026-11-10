@@ -1,6 +1,6 @@
 import { error, json, requireAdmin, readJson, isObject } from "../../_lib/api.js";
 
-const KEY_PATTERN = /^music_scan_[a-f0-9]{64}$/;
+const KEY_PATTERN = /^(?:music_scan|podcast_scan)_[a-f0-9]{64}$/;
 
 export async function onRequest({ request, env }) {
   const denied = await requireAdmin(request, env);
