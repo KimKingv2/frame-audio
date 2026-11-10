@@ -582,7 +582,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     }
     if (!window.confirm(
       "即將以目前目錄作為索引根目錄：\n" + rootPath +
-      "\n\n每批最多新增／更新 10 首，會遞迴讀取子資料夾。原始音訊不會上傳或修改。確定開始／繼續？"
+      "\n\n每批最長執行 7,500 秒（2 小時 5 分鐘），最多檢查 500 個項目；單首索引失敗最多自動重試 2 次。會遞迴讀取子資料夾。原始音訊不會上傳或修改。確定開始／繼續？"
     )) return;
 
     scanRunning = true;
@@ -619,10 +619,11 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
 
       setScanProgress("批量索引已啟動。\n" + scanProgressText(state, batch), "ok");
       const startedAt = Date.now();
-      const maxIndexedPerBatch = 10;
+      const maxIndexedPerBatch = 500;
       const maxEntriesPerBatch = 500;
       const maxFoldersPerBatch = 40;
-      const maxDurationMs = 75000;
+      const maxDurationMs = 7500000;
+      const maxFileAttempts = 3;
 
       while (!state.completed &&
              batch.indexed < maxIndexedPerBatch &&
@@ -732,39 +733,59 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
                 }
                 return null;
               })();
-              const currentPrefetch = prefetchedFileInfo?.path === fullPath
-                ? prefetchedFileInfo : null;
-              if (currentPrefetch) prefetchedFileInfo = null;
-              const indexed = await indexSingleAudioFile(fullPath, fakeButton, {
-                silent: true,
-                listedFile: item,
-                preloadedFileInfo: currentPrefetch,
-                onFileInfoReady: () => {
-                  if (!nextCandidate || prefetchedFileInfo || scanPauseRequested ||
-                      batch.indexed >= maxIndexedPerBatch - 1 ||
-                      Date.now() - startedAt >= maxDurationMs) return;
-                  const prefetchStartedAt = performance.now();
-                  appendScanLog("下一首 /api/fs/get 前瞻預取開始：" + nextCandidate.path);
-                  const promise = getOpenListFileInfo({
-                    baseUrl: activeBaseUrl,
-                    token: activeToken,
-                    path: nextCandidate.path
-                  }).then(info => {
-                    const elapsedMs = Math.round(performance.now() - prefetchStartedAt);
-                    appendScanLog("下一首 /api/fs/get 前瞻預取完成：" + nextCandidate.path +
-                      "；耗時 " + elapsedMs + " ms；檔案大小 " +
-                      formatBytes(Number(info.size || 0)), "success");
-                    return { ok: true, info, elapsedMs };
-                  }).catch(error => {
-                    const elapsedMs = Math.round(performance.now() - prefetchStartedAt);
-                    appendScanLog("下一首 /api/fs/get 前瞻預取失敗：" + nextCandidate.path +
-                      "；耗時 " + elapsedMs + " ms；" + (error.message || error), "warning");
-                    return { ok: false, error, elapsedMs };
-                  });
-                  prefetchedFileInfo = { path: nextCandidate.path, promise };
-                },
-                onLog: (message, level) => appendScanLog(message, level)
-              });
+              let indexed = null;
+              for (let attempt = 1; attempt <= maxFileAttempts; attempt += 1) {
+                const currentPrefetch = attempt === 1 && prefetchedFileInfo?.path === fullPath
+                  ? prefetchedFileInfo : null;
+                if (currentPrefetch) prefetchedFileInfo = null;
+                appendScanLog("歌曲索引嘗試 " + attempt + "/" + maxFileAttempts + "：" + fullPath);
+                indexed = await indexSingleAudioFile(fullPath, fakeButton, {
+                  silent: true,
+                  listedFile: item,
+                  preloadedFileInfo: currentPrefetch,
+                  onFileInfoReady: () => {
+                    if (!nextCandidate || prefetchedFileInfo || scanPauseRequested ||
+                        batch.indexed >= maxIndexedPerBatch - 1 ||
+                        Date.now() - startedAt >= maxDurationMs) return;
+                    const prefetchStartedAt = performance.now();
+                    appendScanLog("下一首 /api/fs/get 前瞻預取開始：" + nextCandidate.path);
+                    const promise = getOpenListFileInfo({
+                      baseUrl: activeBaseUrl,
+                      token: activeToken,
+                      path: nextCandidate.path
+                    }).then(info => {
+                      const elapsedMs = Math.round(performance.now() - prefetchStartedAt);
+                      appendScanLog("下一首 /api/fs/get 前瞻預取完成：" + nextCandidate.path +
+                        "；耗時 " + elapsedMs + " ms；檔案大小 " +
+                        formatBytes(Number(info.size || 0)), "success");
+                      return { ok: true, info, elapsedMs };
+                    }).catch(error => {
+                      const elapsedMs = Math.round(performance.now() - prefetchStartedAt);
+                      appendScanLog("下一首 /api/fs/get 前瞻預取失敗：" + nextCandidate.path +
+                        "；耗時 " + elapsedMs + " ms；" + (error.message || error), "warning");
+                      return { ok: false, error, elapsedMs };
+                    });
+                    prefetchedFileInfo = { path: nextCandidate.path, promise };
+                  },
+                  onLog: (message, level) => appendScanLog(message, level)
+                });
+                if (indexed.ok) {
+                  if (attempt > 1) appendScanLog("歌曲重試後索引成功：" + fullPath, "success");
+                  break;
+                }
+
+                const failureMessage = String(indexed.error || "未知索引錯誤").slice(0, 700);
+                if (/管理金鑰不正確|尚未設定 FRAME_AUDIO_ADMIN_TOKEN|HTTP 401|HTTP 403|驗證失敗|沒有.*權限/i.test(failureMessage)) {
+                  throw new Error(failureMessage + " 請重新測試 Cloudflare 儲存連線或檢查 OpenList Token 後再繼續。");
+                }
+                if (attempt < maxFileAttempts) {
+                  const retryDelayMs = 1500 * attempt;
+                  appendScanLog("歌曲索引失敗，" + retryDelayMs +
+                    " ms 後重新取得檔案資訊並重試（" + (attempt + 1) + "/" +
+                    maxFileAttempts + "）：" + failureMessage, "warning");
+                  await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+                }
+              }
               const trackElapsedSeconds = (performance.now() - trackStartedAt) / 1000;
               batch.currentPath = "";
               if (indexed.ok) {
@@ -787,9 +808,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
                 batch.lastFileInfo =
                   "索引失敗｜" + trackElapsedSeconds.toFixed(1) + " 秒｜" + fullPath;
                 const message = String(indexed.error || "未知索引錯誤").slice(0, 700);
-                if (/管理金鑰不正確|尚未設定 FRAME_AUDIO_ADMIN_TOKEN|HTTP 401|HTTP 403/i.test(message)) {
-                  throw new Error(message + " 請重新測試 Cloudflare 儲存連線後再繼續。");
-                }
                 state.failedCount += 1;
                 batch.failed += 1;
                 state.errors.push({ path: fullPath, message, at: new Date().toISOString() });
