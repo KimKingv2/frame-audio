@@ -4,9 +4,6 @@ import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js";
 import { initLibraryUI } from "./library-ui.js";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
-const MUSIC_ROOT_PATH = "/中國移動雲盤/Kim King/03 Music";
-const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
-
 (() => {
   "use strict";
 
@@ -1183,7 +1180,7 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
         appendScanLog("Podcast 已完成掃描；使用者取消新一輪掃描。", "warning");
       } else if (result?.ok) {
         setResult(
-          "Podcast 掃描本批完成。\n根目錄：" + PODCAST_ROOT_PATH +
+          "Podcast 掃描本批完成。\n根目錄：" + rootPath +
           "\n節目資料夾：" + (result.state?.showFolders || []).length +
           "\n本批新增／更新：" + (result.batch?.indexed || 0) +
           " 集；跳過：" + (result.batch?.skipped || 0) +
