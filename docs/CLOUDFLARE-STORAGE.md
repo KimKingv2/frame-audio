@@ -57,7 +57,9 @@ There is deliberately no bulk-delete route. A partial scan never erases an exist
 5. The browser recursively walks subfolders, reads audio tags with bounded HTTP Range requests, stores track metadata in D1, and stores embedded artwork in R2.
 6. Click the same button again to continue the next batch. The cursor is stored in D1 and survives page reloads. The Pause button stops after the current item and checkpoints the cursor.
 
-Each batch is limited to 10 successful track writes, 500 directory entries, 40 completed folders and approximately 75 seconds. Unchanged tracks are skipped when the source provides a usable modification time; failed items are recorded and can be retried in a later full pass. Folder playlist rows are handled in a separate follow-up phase; the current batch stage indexes tracks only.
+Each batch is limited to 10 successful track writes, 500 directory entries, 40 completed folders and approximately 75 seconds. If the time limit is reached while a directory is still active, the current page/item cursor remains saved and the UI shows the exact resume position and stop reason. Unchanged tracks are skipped when the source provides a usable modification time; failed items are recorded and can be retried in a later full pass.
+
+Metadata Range reads use 256 KiB chunks to reduce high-latency request round trips. The total transfer limit remains 16 MiB per audio file, and a per-file time limit is still enforced. Larger chunks can read some bytes beyond the parser's immediate need, so the tradeoff is deliberately bounded. Folder playlist rows are handled in a separate follow-up phase; the current batch stage indexes tracks only.
 
 ## Privacy
 
