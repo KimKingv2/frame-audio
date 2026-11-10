@@ -170,3 +170,7 @@ export async function onRequestPost({ request, env }) {
     return error("資料夾階層建立或 D1 寫入失敗。請保留目前掃描進度後重試。", 503);
   }
 }
+
+export async function onRequestGet() {
+  return error("Method Not Allowed", 405);
+}
