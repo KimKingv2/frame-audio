@@ -61,6 +61,13 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     storageResultBox.className = "statusbox" + (type ? " " + type : "");
   }
 
+  function setScanProgress(message, type = "") {
+    const box = $("#scan-progress");
+    if (!box) return;
+    box.textContent = message;
+    box.className = "statusbox" + (type ? " " + type : "");
+  }
+
   async function testCloudflareStorage() {
     const button = $("#test-storage");
     activeStorageToken = storageTokenInput.value.trim();
@@ -463,7 +470,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     pauseButton.disabled = false;
     const fakeButton = { disabled: false };
     const key = "music_scan_" + await sha256Hex(new TextEncoder().encode(rootPath));
-    const batch = { indexed: 0, skipped: 0, failed: 0, entries: 0 };
+    const batch = { indexed: 0, skipped: 0, failed: 0, entries: 0, foldersVisited: 0 };
     let state = null;
 
     try {
@@ -480,7 +487,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         await saveScanState(key, state);
       }
 
-      setResult("批量索引已啟動。\n" + scanProgressText(state, batch), "ok");
+      setScanProgress("批量索引已啟動。\n" + scanProgressText(state, batch), "ok");
       const startedAt = Date.now();
       const maxIndexedPerBatch = 10;
       const maxEntriesPerBatch = 500;
@@ -490,7 +497,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       while (!state.completed &&
              batch.indexed < maxIndexedPerBatch &&
              batch.entries < maxEntriesPerBatch &&
-             state.visitedFolderCount < Number.MAX_SAFE_INTEGER &&
+             batch.foldersVisited < maxFoldersPerBatch &&
              Date.now() - startedAt < maxDurationMs &&
              !scanPauseRequested) {
         if (!state.currentFolder) {
@@ -585,7 +592,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
           if (checkpointNow || batch.entries % 10 === 0) {
             await saveScanState(key, state);
           }
-          setResult(scanProgressText(state, batch), "ok");
+          setScanProgress(scanProgressText(state, batch), "ok");
         }
 
         if (state.itemIndex >= listing.items.length) {
@@ -597,6 +604,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
             state.page = 1;
             state.itemIndex = 0;
             state.visitedFolderCount += 1;
+            batch.foldersVisited += 1;
           }
           await saveScanState(key, state);
         }
@@ -604,29 +612,13 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
 
       if (!state.currentFolder && state.pendingFolders.length === 0) state.completed = true;
       await saveScanState(key, state);
-      setResult(scanProgressText(state, batch), "ok");
-      if (state.completed) {
-        setStorageResult(
-          "批量索引完成。本輪新增／更新 " + batch.indexed + " 首；跳過 " + batch.skipped +
-          " 首；失敗 " + batch.failed + " 首。累計曲目 " + state.indexedCount +
-          " 首。原始音訊未上傳、未修改。",
-          "ok"
-        );
-      } else if (scanPauseRequested) {
-        setStorageResult("已暫停批量索引，進度已保存至 D1。再次點擊「開始／繼續」即可續作。", "ok");
-      } else {
-        setStorageResult(
-          "本批完成：新增／更新 " + batch.indexed + " 首；跳過 " + batch.skipped +
-          " 首；失敗 " + batch.failed + " 首。再次點擊即可從 D1 保存的進度續作。",
-          "ok"
-        );
-      }
+      setScanProgress(scanProgressText(state, batch), "ok");
     } catch (error) {
       if (state) {
         state.lastError = String(error.message || error).slice(0, 700);
         try { await saveScanState(key, state); } catch {}
       }
-      setResult(
+      setScanProgress(
         (error.message || "批量索引失敗。") +
         (state ? "\n已保留目前進度；修復問題後可以重新點擊續作。" : ""),
         "error"
@@ -881,7 +873,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   $("#scan-pause").addEventListener("click", () => {
     scanPauseRequested = true;
     $("#scan-pause").disabled = true;
-    setResult("已要求暫停，完成目前音訊的索引後會保存進度……", "ok");
+    setScanProgress("已要求暫停，完成目前音訊的索引後會保存進度……", "ok");
   });
   browseButton.addEventListener("click", () => loadDirectory(pathInput.value.trim() || "/"));
   $("#choose-current").addEventListener("click", async () => {
