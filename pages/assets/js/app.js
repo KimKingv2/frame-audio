@@ -621,7 +621,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       const startedAt = Date.now();
       const maxIndexedPerBatch = 500;
       const maxEntriesPerBatch = 500;
-      const maxFoldersPerBatch = 40;
+      const maxFoldersPerBatch = 500;
       const maxDurationMs = 7500000;
       const maxFileAttempts = 3;
 
