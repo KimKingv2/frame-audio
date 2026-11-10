@@ -689,6 +689,92 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       const maxFoldersPerBatch = 500;
       const maxDurationMs = 7500000;
       const maxFileAttempts = 20;
+      const recoveredPaths = new Set();
+      const retryRootPrefix = rootPath === "/" ? "/" : rootPath + "/";
+      const rootRetryPaths = [...retryPaths]
+        .filter(path => path.startsWith(retryRootPrefix) && AUDIO_FILE_PATTERN.test(path))
+        .sort((a, b) => a.localeCompare(b, "en"));
+
+      if (rootRetryPaths.length) {
+        appendScanLog("目前掃描根目錄內有 " + rootRetryPaths.length +
+          " 首待重試歌曲；先直接依完整路徑處理，不受原目錄分頁游標影響。", "warning");
+      }
+
+      for (const retryPath of rootRetryPaths) {
+        if (scanPauseRequested || batch.indexed >= maxIndexedPerBatch ||
+            batch.entries >= maxEntriesPerBatch ||
+            Date.now() - startedAt >= maxDurationMs) break;
+        if (!retryPaths.has(retryPath)) continue;
+
+        batch.currentPath = retryPath;
+        batch.phase = "優先重試先前失敗歌曲";
+        setScanProgress(scanProgressText(state, batch), "warning");
+        appendScanLog("全域失敗佇列優先重試開始：" + retryPath, "warning");
+        const retryStartedAt = performance.now();
+        let indexed = null;
+
+        for (let attempt = 1; attempt <= maxFileAttempts; attempt += 1) {
+          appendScanLog("失敗佇列歌曲索引嘗試 " + attempt + "/" +
+            maxFileAttempts + "：" + retryPath);
+          indexed = await indexSingleAudioFile(retryPath, fakeButton, {
+            silent: true,
+            onLog: (message, level) => appendScanLog(message, level)
+          });
+          if (indexed.ok) {
+            if (attempt > 1) appendScanLog("失敗佇列歌曲重試後索引成功：" + retryPath, "success");
+            break;
+          }
+
+          const failureMessage = String(indexed.error || "未知索引錯誤").slice(0, 700);
+          if (/管理金鑰不正確|尚未設定 FRAME_AUDIO_ADMIN_TOKEN|HTTP 401|HTTP 403|驗證失敗|沒有.*權限/i.test(failureMessage)) {
+            throw new Error(failureMessage + " 請重新測試 Cloudflare 儲存連線或檢查 OpenList Token 後再繼續。");
+          }
+          if (attempt < maxFileAttempts) {
+            const retryDelayMs = 1500 * attempt;
+            appendScanLog("失敗佇列歌曲索引失敗，" + retryDelayMs +
+              " ms 後重新取得檔案資訊並重試（" + (attempt + 1) + "/" +
+              maxFileAttempts + "）：" + failureMessage, "warning");
+            await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+          }
+        }
+
+        const retryElapsedSeconds = (performance.now() - retryStartedAt) / 1000;
+        batch.currentPath = "";
+        batch.phase = "";
+        batch.entries += 1;
+
+        if (indexed?.ok) {
+          await resolveRetryPath(retryPath);
+          retryPaths.delete(retryPath);
+          recoveredPaths.add(retryPath);
+          state.errors = (state.errors || []).filter(item => item?.path !== retryPath);
+          state.indexedCount += 1;
+          batch.indexed += 1;
+          appendScanLog("歌曲已成功重試，從全域失敗佇列解除：" + retryPath +
+            "；耗時 " + retryElapsedSeconds.toFixed(1) + " 秒", "success");
+          const stats = indexed.stats || {};
+          batch.lastFileInfo = indexed.title + "｜失敗佇列重試成功｜總 " +
+            retryElapsedSeconds.toFixed(1) + " 秒｜Range " +
+            (stats.rangeRequests || 0) + " 次";
+        } else {
+          const message = String(indexed?.error || "未知索引錯誤").slice(0, 700);
+          state.failedCount += 1;
+          batch.failed += 1;
+          try {
+            await saveRetryPath(retryPath, message);
+            appendScanLog("失敗佇列歌曲仍未成功，保留待重試狀態：" + retryPath, "warning");
+          } catch (queueError) {
+            appendScanLog("更新失敗佇列項目失敗：" +
+              (queueError.message || queueError), "error");
+          }
+          state.errors = (state.errors || []).filter(item => item?.path !== retryPath);
+          state.errors.push({ path: retryPath, message, at: new Date().toISOString() });
+          if (state.errors.length > 20) state.errors.shift();
+        }
+
+        await saveScanState(key, state);
+        setScanProgress(scanProgressText(state, batch), "ok");
+      }
 
       while (!state.completed &&
              batch.indexed < maxIndexedPerBatch &&
@@ -772,10 +858,14 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
             const existing = existingByPath.get(fullPath);
             const listedModified = item.modified || null;
             const queuedForRetry = retryPaths.has(fullPath);
-            const unchanged = !queuedForRetry && existing &&
+            const alreadyRecovered = recoveredPaths.has(fullPath);
+            const unchanged = alreadyRecovered || (!queuedForRetry && existing &&
               Number(existing.sizeBytes) === Number(item.size) &&
               !!listedModified &&
-              existing.modifiedAt === listedModified;
+              existing.modifiedAt === listedModified);
+            if (alreadyRecovered) {
+              appendScanLog("本批已在全域失敗佇列優先階段成功索引，略過重複處理：" + fullPath, "success");
+            }
             if (queuedForRetry) {
               appendScanLog("此歌曲在全域失敗佇列中，本輪強制重試，不因既有 D1 紀錄而跳過：" + fullPath, "warning");
             }
