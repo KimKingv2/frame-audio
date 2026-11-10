@@ -310,8 +310,10 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         fileSize,
         onEvent: (event) => log(event.message, event.level)
       });
-      log("音訊 metadata 解析階段完成：" +
-        (result.stats?.parseElapsedMs ?? "?") + " ms；Range " +
+      log("音訊 metadata 解析階段完成：總 " +
+        (result.stats?.metadataReadElapsedMs ?? result.stats?.parseElapsedMs ?? "?") +
+        " ms（首尾預取 " + (result.stats?.metadataPrefetchMs ?? 0) +
+        " ms；解析 " + (result.stats?.parseElapsedMs ?? "?") + " ms）；Range " +
         (result.stats?.rangeRequests || 0) + " 次；讀取 " +
         formatBytes(result.stats?.bytesFetched || 0), "success");
       if (!silent) renderMetadataResult(path, fileSize, result);
@@ -710,6 +712,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
                   (stats.totalRequestMs ?? "?") + " ms" +
                   "（最慢 " + (stats.slowestRequestMs ?? "?") + " ms）｜" +
                   "CDN " + (stats.parserLoadMs ?? "?") + " ms｜" +
+                  "首尾預取 " + (stats.metadataPrefetchMs ?? 0) + " ms｜" +
                   "解析 " + (stats.parseElapsedMs ?? "?") + " ms｜" +
                   "資訊 API " + (stats.openListInfoMs ?? "?") + " ms｜" +
                   "R2 " + (stats.artworkUploadMs ?? "?") + " ms｜" +
