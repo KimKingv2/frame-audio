@@ -508,7 +508,15 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
 
   async function saveScanState(key, state) {
     state.updatedAt = new Date().toISOString();
-    await scanStateRequest(key, "POST", state);
+    const startedAt = performance.now();
+    appendScanLog("D1 掃描進度保存開始");
+    try {
+      await scanStateRequest(key, "POST", state);
+      appendScanLog("D1 掃描進度保存完成：" + Math.round(performance.now() - startedAt) + " ms", "success");
+    } catch (error) {
+      appendScanLog("D1 掃描進度保存失敗：" + (error.message || error), "error");
+      throw error;
+    }
   }
 
   function newScanState(rootPath) {
@@ -566,7 +574,12 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     let state = null;
 
     try {
+      appendScanLog("========== 批次索引開始 ==========");
+      appendScanLog("掃描根目錄：" + rootPath);
+      appendScanLog("D1 讀取掃描進度開始");
+      const stateReadStartedAt = performance.now();
       const stored = await scanStateRequest(key);
+      appendScanLog("D1 讀取掃描進度完成：" + Math.round(performance.now() - stateReadStartedAt) + " ms", "success");
       state = stored.state;
       if (!state) {
         state = newScanState(rootPath);
@@ -600,6 +613,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
           state.currentFolder = state.pendingFolders.shift();
           state.page = 1;
           state.itemIndex = 0;
+          appendScanLog("進入資料夾：" + state.currentFolder);
           await saveScanState(key, state);
         }
 
@@ -612,13 +626,18 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
           token: activeToken,
           path: state.currentFolder,
           page: state.page,
-          perPage: 100
+          perPage: 100,
+          onEvent: (event) => appendModuleLog(event, state.currentFolder)
         });
-        batch.directoryListMs += Math.round(performance.now() - directoryListStartedAt);
+        const directoryElapsedMs = Math.round(performance.now() - directoryListStartedAt);
+        batch.directoryListMs += directoryElapsedMs;
+        appendScanLog("目錄列表完成：" + state.currentFolder + "；第 " + state.page +
+          " 頁；本頁 " + listing.items.length + "/" + listing.total + " 項；耗時 " + directoryElapsedMs + " ms", "success");
         batch.phase = "";
         const audioItems = listing.items.filter(item => !item.isDir && AUDIO_FILE_PATTERN.test(item.name));
         const existingByPath = new Map();
         if (audioItems.length) {
+          appendScanLog("D1 增量查詢開始：" + audioItems.length + " 個音訊路徑");
           const catalogLookupStartedAt = performance.now();
           const lookupResponse = await fetch("/api/catalog/lookup", {
             method: "POST",
@@ -637,7 +656,10 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
             throw new Error(lookupData.error || ("D1 增量查詢失敗（HTTP " + lookupResponse.status + "）。"));
           }
           for (const item of lookupData.items || []) existingByPath.set(item.path, item);
-          batch.catalogLookupMs += Math.round(performance.now() - catalogLookupStartedAt);
+          const lookupElapsedMs = Math.round(performance.now() - catalogLookupStartedAt);
+          batch.catalogLookupMs += lookupElapsedMs;
+          appendScanLog("D1 增量查詢完成：" + lookupElapsedMs + " ms；找到既有 " +
+            (lookupData.items || []).length + " 首", "success");
         }
 
         if (state.itemIndex > listing.items.length) state.itemIndex = 0;
@@ -653,6 +675,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
             if (!state.seenFolders.includes(fullPath)) {
               state.seenFolders.push(fullPath);
               state.pendingFolders.push(fullPath);
+              appendScanLog("發現子資料夾：" + fullPath);
             }
           } else if (AUDIO_FILE_PATTERN.test(item.name)) {
             const existing = existingByPath.get(fullPath);
@@ -664,13 +687,15 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
             if (unchanged) {
               state.skippedCount += 1;
               batch.skipped += 1;
+              appendScanLog("跳過未變更歌曲：" + fullPath, "success");
             } else {
               batch.currentPath = fullPath;
               setScanProgress(scanProgressText(state, batch), "ok");
               const trackStartedAt = performance.now();
               const indexed = await indexSingleAudioFile(fullPath, fakeButton, {
                 silent: true,
-                listedFile: item
+                listedFile: item,
+                onLog: (message, level) => appendScanLog(message, level)
               });
               const trackElapsedSeconds = (performance.now() - trackStartedAt) / 1000;
               batch.currentPath = "";
@@ -749,8 +774,10 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       batch.stopReason += "；目錄列表 API " + batch.directoryListMs +
         " ms；D1 增量查詢 " + batch.catalogLookupMs + " ms";
       await saveScanState(key, state);
+      appendScanLog("========== 本批結束：" + batch.stopReason + " ==========", state.completed ? "success" : "warning");
       setScanProgress(scanProgressText(state, batch, true), "ok");
     } catch (error) {
+      appendScanLog("批次索引發生錯誤：" + (error.message || error), "error");
       if (state) {
         state.lastError = String(error.message || error).slice(0, 700);
         try { await saveScanState(key, state); } catch {}
@@ -1007,6 +1034,24 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   $("#test-connection").addEventListener("click", testConnection);
   $("#test-storage").addEventListener("click", testCloudflareStorage);
   $("#scan-batch").addEventListener("click", batchIndexCurrentTree);
+  $("#scan-log-copy").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(scanLogEntries.join("\n"));
+      appendScanLog("日誌已複製到剪貼簿", "success");
+    } catch (error) {
+      appendScanLog("複製日誌失敗：" + (error.message || error), "error");
+    }
+  });
+  $("#scan-log-clear").addEventListener("click", () => {
+    scanLogEntries.length = 0;
+    const output = $("#scan-log-output");
+    output.replaceChildren();
+    const placeholder = document.createElement("div");
+    placeholder.className = "scan-log-placeholder";
+    placeholder.textContent = "日誌已清空。下一個掃描事件會顯示於此。";
+    output.append(placeholder);
+    $("#scan-log-count").textContent = "0 筆";
+  });
   $("#scan-pause").addEventListener("click", () => {
     scanPauseRequested = true;
     $("#scan-pause").disabled = true;
