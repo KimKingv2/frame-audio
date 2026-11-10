@@ -68,7 +68,8 @@ export async function onRequestPost({ request, env }) {
         id: await folderId(path),
         path,
         name: nameOf(path),
-        parentPath: path === rootPath ? null : parentPathOf(path),
+        parentPath: path === "/" ? null : parentPathOf(path),
+        parentId: path === "/" ? null : await folderId(parentPathOf(path)),
         childPaths: [],
         childFolderIds: [],
         trackIds: [],
@@ -127,12 +128,11 @@ export async function onRequestPost({ request, env }) {
     const records = [...folders.values()].sort((a, b) => a.path.localeCompare(b.path, "en"));
     for (let offset = 0; offset < records.length; offset += 100) {
       const batch = records.slice(offset, offset + 100).map(folder => {
-        const parent = folder.parentPath ? folders.get(folder.parentPath) : null;
         const record = {
           id: folder.id,
           path: folder.path,
           name: folder.name,
-          parentId: parent?.id || null,
+          parentId: folder.parentId || null,
           childFolderIds: folder.childFolderIds,
           trackIds: folder.trackIds,
           directTrackCount: folder.directTrackCount,
