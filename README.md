@@ -6,19 +6,29 @@ FRAME Audio 是以 OpenList 為音訊來源的私人音訊平台，分為 **Musi
 - 原始音訊留在 OpenList，不搬移、不修改。
 - Music 與 Podcasts 使用獨立索引及業務資料。
 - 共用音訊播放、串流、快取及安全處理。
-- 正常開啟網站不掃描音樂庫；索引更新由使用者在 Mac 手動啟動。
+- 正常開啟網站不掃描音樂庫；索引只會在使用者明確啟動後執行。
 - 私人索引、封面、歌詞、播放進度、Token、SQLite 與音訊檔案不提交到 Git。
 
 ## 目錄
-- pages/：Cloudflare Pages 靜態網站輸出。
-- indexer/：Mac 本機手動執行的唯讀索引器。
+- pages/：Cloudflare Pages 靜態網站。
+- functions/：Cloudflare Pages Functions，同源 API。
+- migrations/：D1 資料表結構。
+- indexer/：獨立的 Mac 本機唯讀索引器原型。
 - schemas/：Music / Podcasts JSON 資料契約。
 - docs/：架構與實作決策。
 
-## 索引器
-索引器預設只處理 20 首歌曲，使用最多 64 KiB HTTP Range 讀取標籤，每首上限 16 MiB，且不超過檔案大小的 40%；若來源忽略 Range 並回傳 HTTP 200，會取消請求，不會下載完整檔案。索引結果、SQLite 與封面只寫入本機 private-export/。
+## Cloudflare 儲存與網頁索引
+Music 曲庫使用 Cloudflare D1 保存曲目資料與索引進度，R2 保存以 SHA-256 去重的封面；原始音訊仍留在 OpenList。
 
-安裝及使用方式見 indexer/README.md。完整曲庫掃描必須由使用者明確指定 scan-music --full，不會自動執行。
+網頁索引採使用者手動啟動的遞迴小批次方式：
+- 每批最多新增／更新 10 首，並設有項目數、資料夾數與執行時間上限。
+- 每批進度寫入 D1，重新連接後可從上次游標續作。
+- 以路徑、檔案大小及修改時間跳過未變更曲目。
+- 失敗項目會留下最近錯誤記錄；部分或失敗掃描不會刪除既有曲目。
+- 只讀取必要的 HTTP Range 區段；音訊本體不會上傳到 Cloudflare。
+- Podcast 目錄不會因 Music 根目錄掃描而納入索引。
+
+設定與測試方式見 [docs/CLOUDFLARE-STORAGE.md](docs/CLOUDFLARE-STORAGE.md)。
 
 ## Cloudflare Pages
 - Repository：KimKingv2/frame-audio
@@ -28,10 +38,4 @@ FRAME Audio 是以 OpenList 為音訊來源的私人音訊平台，分為 **Musi
 - Build command：留空
 - Build output directory：pages
 
-Cloudflare Pages 只負責靜態網站；私有音樂索引不會放進公開 Git 倉庫。
-
-
-## Cloudflare 儲存
-Music 曲庫索引使用 Cloudflare D1，內嵌封面使用 Cloudflare R2；網站透過 Pages Functions 存取。OpenList 仍是原始音訊來源，瀏覽器直接以 HTTP Range 讀取標籤，不會將音訊上傳到 Cloudflare。
-
-目前先部署儲存 API 與資料表，待 D1 / R2 Preview bindings 和獨立管理金鑰設定完成後，再啟用網頁端小批次索引。設定說明見 [docs/CLOUDFLARE-STORAGE.md](docs/CLOUDFLARE-STORAGE.md)。
+目前只配置並測試 Preview。Production 綁定與 Secret 保持不變。
