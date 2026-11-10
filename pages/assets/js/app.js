@@ -24,6 +24,8 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   let activeStorageToken = "";
   let cloudflareStorageReady = false;
   let activePath = "/";
+  let scanRunning = false;
+  let scanPauseRequested = false;
   let connected = false;
   let activeCoverUrl = "";
 
@@ -215,19 +217,25 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     return Number.isSafeInteger(number) && number > 0 ? number : null;
   }
 
-  async function indexSingleAudioFile(path, button) {
+  async function indexSingleAudioFile(path, button, options = {}) {
+    const silent = options.silent === true;
+    const listedFile = options.listedFile || null;
     if (!connected) {
-      setResult("請先連接 OpenList 並讀取目錄。", "error");
-      return;
+      const message = "請先連接 OpenList 並讀取目錄。";
+      if (!silent) setResult(message, "error");
+      return { ok: false, error: message };
     }
     if (!cloudflareStorageReady || !activeStorageToken) {
-      setResult("請先輸入 Cloudflare 管理金鑰並成功執行「測試 Cloudflare 儲存」。", "error");
-      return;
+      const message = "請先輸入 Cloudflare 管理金鑰並成功執行「測試 Cloudflare 儲存」。";
+      if (!silent) setResult(message, "error");
+      return { ok: false, error: message };
     }
 
     button.disabled = true;
-    clearMetadataPreview();
-    setResult("正在讀取音訊標籤，完成後會將這一首存入 D1；封面（若有）會去重後存入 R2。\n" + path);
+    if (!silent) {
+      clearMetadataPreview();
+      setResult("正在讀取音訊標籤，完成後會將這一首存入 D1；封面（若有）會去重後存入 R2。\n" + path);
+    }
     try {
       const info = await getOpenListFileInfo({ baseUrl: activeBaseUrl, token: activeToken, path });
       if (info.is_dir) throw new Error("選取的項目是資料夾，請選擇音訊檔案。");
@@ -240,7 +248,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         path,
         fileSize
       });
-      renderMetadataResult(path, fileSize, result);
+      if (!silent) renderMetadataResult(path, fileSize, result);
 
       const metadata = result.metadata || {};
       const common = metadata.common || {};
@@ -300,7 +308,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         file: {
           path,
           sizeBytes: fileSize,
-          modifiedAt: info.modified || info.modified_at || null,
+          modifiedAt: listedFile?.modified || info.modified || info.modified_at || null,
           signature: null
         },
         title,
@@ -342,19 +350,291 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       }
 
       const stats = result.stats || {};
-      setResult(
-        "PASS：單首索引寫入完成。\n歌曲：" + title +
-        "\nD1：已保存 1 首；路徑：" + path +
-        "\nR2：" + artworkNote +
-        "\nMetadata Range：" + (stats.rangeRequests || 0) + " 次；實際讀取 " +
-        formatBytes(stats.bytesFetched || 0) +
-        "\nOpenList 原始音訊未下載、未修改。",
-        "ok"
-      );
+      if (!silent) {
+        setResult(
+          "PASS：單首索引寫入完成。\n歌曲：" + title +
+          "\nD1：已保存 1 首；路徑：" + path +
+          "\nR2：" + artworkNote +
+          "\nMetadata Range：" + (stats.rangeRequests || 0) + " 次；實際讀取 " +
+          formatBytes(stats.bytesFetched || 0) +
+          "\nOpenList 原始音訊未下載、未修改。",
+          "ok"
+        );
+      }
+      return { ok: true, title, artworkNote, stats };
     } catch (error) {
-      setResult(error.message || "單首索引失敗。", "error");
+      const message = error.message || "單首索引失敗。";
+      if (!silent) setResult(message, "error");
+      return { ok: false, error: message };
     } finally {
       button.disabled = false;
+    }
+  }
+
+  function scanProgressText(state, batch) {
+    const lines = [
+      "掃描根目錄：" + state.rootPath,
+      "已寫入／更新：" + state.indexedCount + " 首",
+      "未變更而跳過：" + state.skippedCount + " 首",
+      "失敗：" + state.failedCount + " 首",
+      "已完成資料夾：" + state.visitedFolderCount + " 個",
+      "待掃描資料夾：" + state.pendingFolders.length + (state.currentFolder ? "；目前：" + state.currentFolder : ""),
+      "本批新增／更新：" + batch.indexed + " 首；跳過：" + batch.skipped + " 首；失敗：" + batch.failed + " 首"
+    ];
+    if (state.completed) lines.push("本輪掃描已完成。再次啟動會重新檢查新增或變更檔案，不會刪除既有資料。");
+    else if (scanPauseRequested) lines.push("已要求暫停，正在完成目前項目並保存進度……");
+    else lines.push("進度已保存至 D1，可以關閉頁面，之後重新連接並續作。");
+    if (state.errors?.length) {
+      const last = state.errors[state.errors.length - 1];
+      lines.push("最近錯誤：" + last.path + "｜" + last.message);
+    }
+    return lines.join("\n");
+  }
+
+  async function scanStateRequest(key, method = "GET", state = null) {
+    const url = method === "GET"
+      ? "/api/catalog/state?key=" + encodeURIComponent(key)
+      : "/api/catalog/state";
+    const response = await fetch(url, {
+      method,
+      credentials: "same-origin",
+      headers: {
+        Authorization: "Bearer " + activeStorageToken,
+        ...(method === "POST" ? { "Content-Type": "application/json" } : {})
+      },
+      ...(method === "POST" ? { body: JSON.stringify({ key, state }) } : {})
+    });
+    let data = {};
+    try { data = await response.json(); } catch {}
+    if (!response.ok || !data.ok) throw new Error(data.error || ("索引進度 API HTTP " + response.status));
+    return data;
+  }
+
+  async function saveScanState(key, state) {
+    state.updatedAt = new Date().toISOString();
+    await scanStateRequest(key, "POST", state);
+  }
+
+  function newScanState(rootPath) {
+    return {
+      version: 1,
+      rootPath,
+      pendingFolders: [rootPath],
+      currentFolder: null,
+      page: 1,
+      itemIndex: 0,
+      seenFolders: [rootPath],
+      indexedCount: 0,
+      skippedCount: 0,
+      failedCount: 0,
+      visitedFolderCount: 0,
+      scannedEntryCount: 0,
+      errors: [],
+      completed: false,
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  async function batchIndexCurrentTree() {
+    const startButton = $("#scan-batch");
+    const pauseButton = $("#scan-pause");
+    if (scanRunning) return;
+    if (!connected) {
+      setResult("請先連接 OpenList，並讀取要索引的音樂根目錄。", "error");
+      return;
+    }
+    if (!cloudflareStorageReady || !activeStorageToken) {
+      setResult("請先輸入 Cloudflare 管理金鑰並成功測試 D1 / R2。", "error");
+      return;
+    }
+    const rootPath = String(activePath || "").trim();
+    if (!rootPath.startsWith("/") || rootPath.includes("\\0")) {
+      setResult("目前目錄路徑無效，請重新讀取目錄。", "error");
+      return;
+    }
+    if (!window.confirm(
+      "即將以目前目錄作為索引根目錄：\n" + rootPath +
+      "\n\n每批最多新增／更新 10 首，會遞迴讀取子資料夾。原始音訊不會上傳或修改。確定開始／繼續？"
+    )) return;
+
+    scanRunning = true;
+    scanPauseRequested = false;
+    startButton.disabled = true;
+    pauseButton.disabled = false;
+    const fakeButton = { disabled: false };
+    const key = "music_scan_" + await sha256Hex(new TextEncoder().encode(rootPath));
+    const batch = { indexed: 0, skipped: 0, failed: 0, entries: 0 };
+    let state = null;
+
+    try {
+      const stored = await scanStateRequest(key);
+      state = stored.state;
+      if (!state) {
+        state = newScanState(rootPath);
+        await saveScanState(key, state);
+      } else if (state.completed) {
+        if (!window.confirm(
+          "這個目錄的上一輪掃描已完成。重新執行會跳過未變更歌曲，只索引新增或變更項目，不會刪除任何資料。要開始新一輪嗎？"
+        )) return;
+        state = newScanState(rootPath);
+        await saveScanState(key, state);
+      }
+
+      setResult("批量索引已啟動。\n" + scanProgressText(state, batch), "ok");
+      const startedAt = Date.now();
+      const maxIndexedPerBatch = 10;
+      const maxEntriesPerBatch = 500;
+      const maxFoldersPerBatch = 40;
+      const maxDurationMs = 75000;
+
+      while (!state.completed &&
+             batch.indexed < maxIndexedPerBatch &&
+             batch.entries < maxEntriesPerBatch &&
+             state.visitedFolderCount < Number.MAX_SAFE_INTEGER &&
+             Date.now() - startedAt < maxDurationMs &&
+             !scanPauseRequested) {
+        if (!state.currentFolder) {
+          if (state.pendingFolders.length === 0) {
+            state.completed = true;
+            break;
+          }
+          state.currentFolder = state.pendingFolders.shift();
+          state.page = 1;
+          state.itemIndex = 0;
+          await saveScanState(key, state);
+        }
+
+        const listing = await listOpenListDirectory({
+          baseUrl: activeBaseUrl,
+          token: activeToken,
+          path: state.currentFolder,
+          page: state.page,
+          perPage: 100
+        });
+        const audioItems = listing.items.filter(item => !item.isDir && AUDIO_FILE_PATTERN.test(item.name));
+        const existingByPath = new Map();
+        if (audioItems.length) {
+          const lookupResponse = await fetch("/api/catalog/lookup", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+              Authorization: "Bearer " + activeStorageToken,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              paths: audioItems.map(item => joinOpenListPath(state.currentFolder, item.name))
+            })
+          });
+          let lookupData = {};
+          try { lookupData = await lookupResponse.json(); } catch {}
+          if (!lookupResponse.ok || !lookupData.ok) {
+            throw new Error(lookupData.error || ("D1 增量查詢失敗（HTTP " + lookupResponse.status + "）。"));
+          }
+          for (const item of lookupData.items || []) existingByPath.set(item.path, item);
+        }
+
+        if (state.itemIndex > listing.items.length) state.itemIndex = 0;
+        for (let index = state.itemIndex; index < listing.items.length; index += 1) {
+          if (scanPauseRequested || batch.indexed >= maxIndexedPerBatch ||
+              batch.entries >= maxEntriesPerBatch || Date.now() - startedAt >= maxDurationMs) break;
+
+          const item = listing.items[index];
+          const fullPath = joinOpenListPath(state.currentFolder, item.name);
+          let checkpointNow = false;
+
+          if (item.isDir) {
+            if (!state.seenFolders.includes(fullPath)) {
+              state.seenFolders.push(fullPath);
+              state.pendingFolders.push(fullPath);
+            }
+          } else if (AUDIO_FILE_PATTERN.test(item.name)) {
+            const existing = existingByPath.get(fullPath);
+            const listedModified = item.modified || null;
+            const unchanged = existing &&
+              Number(existing.sizeBytes) === Number(item.size) &&
+              !!listedModified &&
+              existing.modifiedAt === listedModified;
+            if (unchanged) {
+              state.skippedCount += 1;
+              batch.skipped += 1;
+            } else {
+              const indexed = await indexSingleAudioFile(fullPath, fakeButton, {
+                silent: true,
+                listedFile: item
+              });
+              if (indexed.ok) {
+                state.indexedCount += 1;
+                batch.indexed += 1;
+              } else {
+                const message = String(indexed.error || "未知索引錯誤").slice(0, 700);
+                if (/管理金鑰不正確|尚未設定 FRAME_AUDIO_ADMIN_TOKEN|HTTP 401|HTTP 403/i.test(message)) {
+                  throw new Error(message + " 請重新測試 Cloudflare 儲存連線後再繼續。");
+                }
+                state.failedCount += 1;
+                batch.failed += 1;
+                state.errors.push({ path: fullPath, message, at: new Date().toISOString() });
+                if (state.errors.length > 20) state.errors.shift();
+              }
+              checkpointNow = true;
+            }
+          }
+
+          state.itemIndex = index + 1;
+          state.scannedEntryCount += 1;
+          batch.entries += 1;
+          if (checkpointNow || batch.entries % 10 === 0) {
+            await saveScanState(key, state);
+          }
+          setResult(scanProgressText(state, batch), "ok");
+        }
+
+        if (state.itemIndex >= listing.items.length) {
+          if (state.page * listing.perPage < listing.total) {
+            state.page += 1;
+            state.itemIndex = 0;
+          } else {
+            state.currentFolder = null;
+            state.page = 1;
+            state.itemIndex = 0;
+            state.visitedFolderCount += 1;
+          }
+          await saveScanState(key, state);
+        }
+      }
+
+      if (!state.currentFolder && state.pendingFolders.length === 0) state.completed = true;
+      await saveScanState(key, state);
+      setResult(scanProgressText(state, batch), "ok");
+      if (state.completed) {
+        setStorageResult(
+          "批量索引完成。本輪新增／更新 " + batch.indexed + " 首；跳過 " + batch.skipped +
+          " 首；失敗 " + batch.failed + " 首。累計曲目 " + state.indexedCount +
+          " 首。原始音訊未上傳、未修改。",
+          "ok"
+        );
+      } else if (scanPauseRequested) {
+        setStorageResult("已暫停批量索引，進度已保存至 D1。再次點擊「開始／繼續」即可續作。", "ok");
+      } else {
+        setStorageResult(
+          "本批完成：新增／更新 " + batch.indexed + " 首；跳過 " + batch.skipped +
+          " 首；失敗 " + batch.failed + " 首。再次點擊即可從 D1 保存的進度續作。",
+          "ok"
+        );
+      }
+    } catch (error) {
+      if (state) {
+        state.lastError = String(error.message || error).slice(0, 700);
+        try { await saveScanState(key, state); } catch {}
+      }
+      setResult(
+        (error.message || "批量索引失敗。") +
+        (state ? "\n已保留目前進度；修復問題後可以重新點擊續作。" : ""),
+        "error"
+      );
+    } finally {
+      scanRunning = false;
+      startButton.disabled = false;
+      pauseButton.disabled = true;
     }
   }
 
@@ -597,6 +877,12 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   $("#close-settings").addEventListener("click", () => dialog.close());
   $("#test-connection").addEventListener("click", testConnection);
   $("#test-storage").addEventListener("click", testCloudflareStorage);
+  $("#scan-batch").addEventListener("click", batchIndexCurrentTree);
+  $("#scan-pause").addEventListener("click", () => {
+    scanPauseRequested = true;
+    $("#scan-pause").disabled = true;
+    setResult("已要求暫停，完成目前音訊的索引後會保存進度……", "ok");
+  });
   browseButton.addEventListener("click", () => loadDirectory(pathInput.value.trim() || "/"));
   $("#choose-current").addEventListener("click", async () => {
     try {
@@ -610,7 +896,10 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) dialog.close();
   });
-  storageTokenInput.addEventListener("input", () => { activeStorageToken = storageTokenInput.value.trim(); });
+  storageTokenInput.addEventListener("input", () => {
+    activeStorageToken = storageTokenInput.value.trim();
+    cloudflareStorageReady = false;
+  });
   tokenInput.addEventListener("input", () => {
     // Keep credentials only in this page's JavaScript/DOM memory. Never persist them.
     activeToken = tokenInput.value;
