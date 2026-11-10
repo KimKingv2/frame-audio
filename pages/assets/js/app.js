@@ -1402,8 +1402,6 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => showView(button.dataset.view));
   });
-  $("#open-settings").addEventListener("click", () => dialog.showModal());
-  $("#close-settings").addEventListener("click", () => dialog.close());
   $("#test-connection").addEventListener("click", testConnection);
   $("#test-storage").addEventListener("click", testCloudflareStorage);
   $("#scan-music-batch").addEventListener("click", batchIndexCurrentTree);

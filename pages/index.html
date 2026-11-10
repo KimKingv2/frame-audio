@@ -97,5 +97,27 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
     <div class="privacy">安全提醒：請確認網址是你自己的 OpenList 網域。Token 只會傳送到你填寫的網址；不會寫入 GitHub、JSON、網址列或瀏覽器儲存空間。若遇到 CORS 錯誤，需要在 OpenList 允許目前 FRAME Audio 網域。</div>
   </div>
 </dialog>
-<script type="module" src="/assets/js/app.js"></script>
+<script>
+(() => {
+  "use strict";
+  const dialog = document.getElementById("connection-dialog");
+  const openButton = document.getElementById("open-settings");
+  const closeButton = document.getElementById("close-settings");
+  openButton?.addEventListener("click", () => {
+    if (!dialog || dialog.open) return;
+    try {
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+    } catch {
+      dialog.setAttribute("open", "");
+    }
+  });
+  closeButton?.addEventListener("click", () => {
+    if (!dialog || !dialog.open) return;
+    if (typeof dialog.close === "function") dialog.close();
+    else dialog.removeAttribute("open");
+  });
+})();
+</script>
+<script type="module" src="/assets/js/app.js?v=20261110-dialog-hotfix1"></script>
 </body></html>
