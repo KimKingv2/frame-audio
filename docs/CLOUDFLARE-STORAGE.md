@@ -38,6 +38,7 @@ All private endpoints require `Authorization: Bearer <FRAME_AUDIO_ADMIN_TOKEN>`.
 - `GET /api/catalog/status`: check bindings and show current track/folder counts.
 - `GET /api/catalog?kind=tracks&limit=100&offset=0`: paginated tracks.
 - `POST /api/catalog`: upsert up to 100 tracks in one batch.
+- `POST /api/catalog/folders/rebuild`: rebuild the selected completed folder hierarchy from folder paths and existing D1 track paths; upsert is idempotent and does not delete old rows.
 - `POST /api/catalog/lookup`: look up up to 100 paths and return file size / modified time for incremental comparison.
 - `GET /api/catalog/state?key=music_scan_<sha256>`: read one scan checkpoint.
 - `POST /api/catalog/state`: save the scan checkpoint in `catalog_state`.
@@ -53,13 +54,13 @@ There is deliberately no bulk-delete route. A partial scan never erases an exist
 1. Open the Preview site and connect the Music root in OpenList.
 2. Test Cloudflare storage using the Preview admin secret.
 3. Navigate to the directory that should be the Music scan root (for example, `/中國移動雲盤/Kim King/03 Music`).
-4. Click **開始／繼續索引此目錄樹（每批最多 10 首）**.
+4. Click **開始／繼續建立歌曲與資料夾索引**.
 5. The browser recursively walks subfolders, reads audio tags with bounded HTTP Range requests, stores track metadata in D1, and stores embedded artwork in R2.
 6. Click the same button again to continue the next batch. The cursor is stored in D1 and survives page reloads. The Pause button stops after the current item and checkpoints the cursor.
 
-Each batch is limited to 10 successful track writes, 500 directory entries, 40 completed folders and approximately 75 seconds. If the time limit is reached while a directory is still active, the current page/item cursor remains saved and the UI shows the exact resume position and stop reason. Unchanged tracks are skipped when the source provides a usable modification time; failed items are recorded and can be retried in a later full pass.
+Each batch is limited to 500 successful track writes, 500 directory entries, 500 completed folders and 7,500 seconds (2 hours 5 minutes). If a limit is reached while a directory is still active, the current page/item cursor remains saved and the UI shows the exact resume position and stop reason. Unchanged tracks are skipped when the source provides a usable modification time. Each changed/new track is attempted up to 20 times (first attempt plus 19 retries); retries re-fetch file info and restart bounded metadata reading. Authentication and permission errors stop immediately. After the entire selected tree is scanned, the browser calls `POST /api/catalog/folders/rebuild`; the function derives deterministic folder IDs, direct track membership, child-folder links and recursive track counts from the completed folder-path list and D1 track paths. Folder records are upserted in batches and existing rows are never bulk-deleted.
 
-Metadata Range reads use 256 KiB chunks to reduce high-latency request round trips. The total transfer limit remains 16 MiB per audio file, and a per-file time limit is still enforced. Larger chunks can read some bytes beyond the parser's immediate need, so the tradeoff is deliberately bounded. Folder playlist rows are handled in a separate follow-up phase; the current batch stage indexes tracks only.
+Metadata Range reads use 256 KiB chunks to reduce high-latency request round trips. The total transfer limit remains 16 MiB per audio file, and a per-file time limit is still enforced. Larger chunks can read some bytes beyond the parser's immediate need, so the tradeoff is deliberately bounded. The folder hierarchy is now persisted in D1 after a root scan completes. The folder browsing / playlist UI is a separate follow-up phase.
 
 ## Privacy
 
