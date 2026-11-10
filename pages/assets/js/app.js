@@ -550,7 +550,57 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     }
   }
 
-  function newScanState(rootPath) {
+  async function loadRetryPathSet() {
+    const response = await fetch("/api/catalog/retries", {
+      method: "GET",
+      credentials: "same-origin",
+      headers: { Authorization: "Bearer " + activeStorageToken }
+    });
+    let data = {};
+    try { data = await response.json(); } catch {}
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || ("讀取失敗重試佇列失敗（HTTP " + response.status + "）。"));
+    }
+    return new Set((data.items || [])
+      .map(item => String(item?.path || ""))
+      .filter(path => path.startsWith("/")));
+  }
+
+  async function saveRetryPath(path, message) {
+    const response = await fetch("/api/catalog/retries", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        Authorization: "Bearer " + activeStorageToken,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ path, message })
+    });
+    let data = {};
+    try { data = await response.json(); } catch {}
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || ("保存失敗重試項目失敗（HTTP " + response.status + "）。"));
+    }
+  }
+
+  async function resolveRetryPath(path) {
+    const response = await fetch("/api/catalog/retries", {
+      method: "DELETE",
+      credentials: "same-origin",
+      headers: {
+        Authorization: "Bearer " + activeStorageToken,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ path })
+    });
+    let data = {};
+    try { data = await response.json(); } catch {}
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || ("解除失敗重試項目失敗（HTTP " + response.status + "）。"));
+    }
+  }
+
+  function newScanState(rootPath, previousState = null) {
     return {
       version: 1,
       rootPath,
@@ -564,7 +614,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       failedCount: 0,
       visitedFolderCount: 0,
       scannedEntryCount: 0,
-      errors: [],
+      errors: Array.isArray(previousState?.errors) ? previousState.errors.slice(-20) : [],
       completed: false,
       folderIndexCompleted: false,
       folderIndexCount: 0,
@@ -625,10 +675,13 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         if (!window.confirm(
           "這個目錄的上一輪掃描與資料夾階層索引都已完成。重新執行會跳過未變更歌曲，只索引新增或變更項目，不會刪除任何資料。要開始新一輪嗎？"
         )) return;
-        state = newScanState(rootPath);
+        state = newScanState(rootPath, state);
         await saveScanState(key, state);
       }
 
+      const retryPaths = await loadRetryPathSet();
+      appendScanLog("全域失敗重試佇列讀取完成：" + retryPaths.size + " 個待重試路徑",
+        retryPaths.size ? "warning" : "success");
       setScanProgress("批量索引已啟動。\n" + scanProgressText(state, batch), "ok");
       const startedAt = Date.now();
       const maxIndexedPerBatch = 500;
@@ -718,10 +771,14 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
           } else if (AUDIO_FILE_PATTERN.test(item.name)) {
             const existing = existingByPath.get(fullPath);
             const listedModified = item.modified || null;
-            const unchanged = existing &&
+            const queuedForRetry = retryPaths.has(fullPath);
+            const unchanged = !queuedForRetry && existing &&
               Number(existing.sizeBytes) === Number(item.size) &&
               !!listedModified &&
               existing.modifiedAt === listedModified;
+            if (queuedForRetry) {
+              appendScanLog("此歌曲在全域失敗佇列中，本輪強制重試，不因既有 D1 紀錄而跳過：" + fullPath, "warning");
+            }
             if (unchanged) {
               state.skippedCount += 1;
               batch.skipped += 1;
@@ -737,7 +794,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
                   const candidatePath = joinOpenListPath(state.currentFolder, candidate.name);
                   const existingCandidate = existingByPath.get(candidatePath);
                   const candidateModified = candidate.modified || null;
-                  const candidateUnchanged = existingCandidate &&
+                  const candidateUnchanged = !retryPaths.has(candidatePath) && existingCandidate &&
                     Number(existingCandidate.sizeBytes) === Number(candidate.size) &&
                     !!candidateModified &&
                     existingCandidate.modifiedAt === candidateModified;
@@ -801,6 +858,17 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
               const trackElapsedSeconds = (performance.now() - trackStartedAt) / 1000;
               batch.currentPath = "";
               if (indexed.ok) {
+                if (retryPaths.has(fullPath)) {
+                  try {
+                    await resolveRetryPath(fullPath);
+                    retryPaths.delete(fullPath);
+                    state.errors = (state.errors || []).filter(item => item?.path !== fullPath);
+                    appendScanLog("歌曲已成功重試，從全域失敗佇列解除：" + fullPath, "success");
+                  } catch (error) {
+                    appendScanLog("歌曲已索引成功，但解除失敗佇列時發生錯誤；下次掃描仍可能再檢查：" +
+                      (error.message || error), "warning");
+                  }
+                }
                 state.indexedCount += 1;
                 batch.indexed += 1;
                 const stats = indexed.stats || {};
@@ -822,6 +890,14 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
                 const message = String(indexed.error || "未知索引錯誤").slice(0, 700);
                 state.failedCount += 1;
                 batch.failed += 1;
+                try {
+                  await saveRetryPath(fullPath, message);
+                  retryPaths.add(fullPath);
+                  appendScanLog("已將失敗歌曲加入全域重試佇列：" + fullPath, "warning");
+                } catch (queueError) {
+                  appendScanLog("保存全域重試佇列失敗，掃描狀態仍會保留錯誤紀錄：" +
+                    (queueError.message || queueError), "error");
+                }
                 state.errors.push({ path: fullPath, message, at: new Date().toISOString() });
                 if (state.errors.length > 20) state.errors.shift();
               }
