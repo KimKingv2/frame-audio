@@ -412,8 +412,17 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     ];
     if (batch.currentPath) lines.push("正在處理：" + batch.currentPath);
     if (batch.lastFileInfo) lines.push("最近完成：" + batch.lastFileInfo);
+    if (batch.stopReason) lines.push("本批停止原因：" + batch.stopReason);
+    if (state.currentFolder) {
+      lines.push(
+        "目前資料夾尚未掃完；續作游標：第 " + state.page +
+        " 頁，第 " + (state.itemIndex + 1) + " 個項目。"
+      );
+    } else if (state.pendingFolders.length) {
+      lines.push("目前資料夾已掃完，尚有 " + state.pendingFolders.length + " 個子資料夾待處理。");
+    }
     if (state.completed) lines.push("本輪掃描已完成。再次啟動會重新檢查新增或變更檔案，不會刪除既有資料。");
-    else if (scanPauseRequested) lines.push("已要求暫停，正在完成目前項目並保存進度……");
+    else if (scanPauseRequested) lines.push("已要求暫停，進度已保存；可以關閉頁面，之後重新連接並續作。");
     else if (finished) lines.push("本批已結束，進度已保存至 D1；可以關閉頁面，之後重新連接並續作。");
     else lines.push("掃描進行中，請保持此頁面開啟；進度會持續保存至 D1。");
     if (state.errors?.length) {
@@ -495,7 +504,10 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     pauseButton.disabled = false;
     const fakeButton = { disabled: false };
     const key = "music_scan_" + await sha256Hex(new TextEncoder().encode(rootPath));
-    const batch = { indexed: 0, skipped: 0, failed: 0, entries: 0, foldersVisited: 0 };
+    const batch = {
+      indexed: 0, skipped: 0, failed: 0, entries: 0, foldersVisited: 0,
+      directoryListMs: 0, catalogLookupMs: 0
+    };
     let state = null;
 
     try {
@@ -536,6 +548,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
           await saveScanState(key, state);
         }
 
+        const directoryListStartedAt = performance.now();
         const listing = await listOpenListDirectory({
           baseUrl: activeBaseUrl,
           token: activeToken,
@@ -543,9 +556,11 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
           page: state.page,
           perPage: 100
         });
+        batch.directoryListMs += Math.round(performance.now() - directoryListStartedAt);
         const audioItems = listing.items.filter(item => !item.isDir && AUDIO_FILE_PATTERN.test(item.name));
         const existingByPath = new Map();
         if (audioItems.length) {
+          const catalogLookupStartedAt = performance.now();
           const lookupResponse = await fetch("/api/catalog/lookup", {
             method: "POST",
             credentials: "same-origin",
@@ -563,6 +578,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
             throw new Error(lookupData.error || ("D1 增量查詢失敗（HTTP " + lookupResponse.status + "）。"));
           }
           for (const item of lookupData.items || []) existingByPath.set(item.path, item);
+          batch.catalogLookupMs += Math.round(performance.now() - catalogLookupStartedAt);
         }
 
         if (state.itemIndex > listing.items.length) state.itemIndex = 0;
@@ -655,6 +671,24 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       }
 
       if (!state.currentFolder && state.pendingFolders.length === 0) state.completed = true;
+      const batchElapsedMs = Date.now() - startedAt;
+      if (state.completed) {
+        batch.stopReason = "整個指定根目錄已掃完";
+      } else if (scanPauseRequested) {
+        batch.stopReason = "使用者要求暫停";
+      } else if (batch.indexed >= maxIndexedPerBatch) {
+        batch.stopReason = "達到每批新增／更新 " + maxIndexedPerBatch + " 首上限";
+      } else if (batch.entries >= maxEntriesPerBatch) {
+        batch.stopReason = "達到每批檢查 " + maxEntriesPerBatch + " 個項目上限";
+      } else if (batch.foldersVisited >= maxFoldersPerBatch) {
+        batch.stopReason = "達到每批完成 " + maxFoldersPerBatch + " 個資料夾上限";
+      } else if (batchElapsedMs >= maxDurationMs) {
+        batch.stopReason = "達到單批 " + Math.round(maxDurationMs / 1000) + " 秒安全時限";
+      } else {
+        batch.stopReason = "本批正常結束，仍有工作可續作";
+      }
+      batch.stopReason += "；目錄列表 API " + batch.directoryListMs +
+        " ms；D1 增量查詢 " + batch.catalogLookupMs + " ms";
       await saveScanState(key, state);
       setScanProgress(scanProgressText(state, batch, true), "ok");
     } catch (error) {
