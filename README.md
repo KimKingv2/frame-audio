@@ -61,3 +61,5 @@ FRAME Audio 是以 OpenList 為音訊來源的私人音訊平台，包含 **Musi
 - Build output directory：`pages`
 
 正式環境與 Preview 環境應各自設定 `DB`、`ARTWORKS` bindings 及 `FRAME_AUDIO_ADMIN_TOKEN` Secret。詳細步驟見 [docs/CLOUDFLARE-STORAGE.md](docs/CLOUDFLARE-STORAGE.md)。
+
+新增或修改環境變數及 Secret 後，必須觸發一次新的 Pages 部署，新的設定才會注入該部署。請確認 Secret 設定在正確的環境（Production 或 Preview），再重新部署對應分支。
