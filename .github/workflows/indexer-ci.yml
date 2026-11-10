@@ -5,11 +5,17 @@ on:
     branches: [cf-preview]
     paths:
       - "indexer/**"
+      - "functions/**"
+      - "pages/**/*.js"
+      - "migrations/**"
       - ".github/workflows/indexer-ci.yml"
   pull_request:
     branches: [main]
     paths:
       - "indexer/**"
+      - "functions/**"
+      - "pages/**/*.js"
+      - "migrations/**"
       - ".github/workflows/indexer-ci.yml"
   workflow_dispatch:
 
@@ -17,6 +23,23 @@ permissions:
   contents: read
 
 jobs:
+  javascript-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check JavaScript module syntax
+        shell: bash
+        run: |
+          while IFS= read -r -d '' file; do
+            echo "Checking $file"
+            node --input-type=module --check < "$file"
+          done < <(find functions pages -type f -name '*.js' -print0)
+
   python-checks:
     runs-on: ubuntu-latest
     steps:
