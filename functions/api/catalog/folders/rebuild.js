@@ -11,9 +11,9 @@ const FOLDER_SQL = [
 
 function normalizePath(value) {
   const path = String(value || "").trim();
-  if (!path.startsWith("/") || path.includes("\\0") || path.length > 4096) return null;
+  if (!path.startsWith("/") || path.indexOf(String.fromCharCode(0)) !== -1 || path.length > 4096) return null;
   if (path === "/") return "/";
-  return path.replace(/\\/+$/, "");
+  return path.replace(/\/+$/, "");
 }
 
 function parentPathOf(path) {
