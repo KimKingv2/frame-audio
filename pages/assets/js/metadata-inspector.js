@@ -2,6 +2,8 @@ const PARSER_URL = "https://esm.sh/music-metadata@12.3.5?bundle";
 const CHUNK_SIZE = 64 * 1024;
 const MAX_TRANSFER_BYTES = 16 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 30000;
+const PARSER_LOAD_TIMEOUT_MS = 30000;
+const MAX_METADATA_DURATION_MS = 90000;
 const MAX_RANGE_RETRIES = 2;
 const RETRY_DELAY_MS = 700;
 
@@ -27,25 +29,40 @@ let parserPromise;
 
 async function loadParser() {
   if (!parserPromise) {
-    parserPromise = import(PARSER_URL).then((module) => {
+    let timeoutId;
+    const modulePromise = import(PARSER_URL).then((module) => {
       if (typeof module.parseFromTokenizer !== "function") {
         throw new Error("music-metadata 載入成功，但找不到 parseFromTokenizer API。");
       }
       return module;
-    }).catch((error) => {
-      parserPromise = null;
-      throw new Error(
-        "無法載入 music-metadata 瀏覽器解析器。請確認目前網路可存取 esm.sh CDN。"
-      );
     });
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error(
+        "music-metadata CDN 載入超過 30 秒，已停止等待。請稍後重試或檢查目前網路是否能連接 esm.sh。"
+      )), PARSER_LOAD_TIMEOUT_MS);
+    });
+    parserPromise = Promise.race([modulePromise, timeoutPromise])
+      .catch((error) => {
+        parserPromise = null;
+        throw error;
+      })
+      .finally(() => clearTimeout(timeoutId));
   }
   return parserPromise;
 }
 
 class OpenListRangeTokenizer {
-  constructor({ url, size, mimeType, maxTransferBytes = MAX_TRANSFER_BYTES }) {
+  constructor({
+    url,
+    size,
+    mimeType,
+    maxTransferBytes = MAX_TRANSFER_BYTES,
+    maxDurationMs = MAX_METADATA_DURATION_MS
+  }) {
     this.fileInfo = { url: "OpenList audio", size, mimeType };
     this.position = 0;
+    this.startedAt = performance.now();
+    this.maxDurationMs = maxDurationMs;
     this.url = url;
     this.chunkSize = CHUNK_SIZE;
     this.maxTransferBytes = maxTransferBytes;
@@ -91,9 +108,18 @@ class OpenListRangeTokenizer {
       let lastError;
 
       for (let attempt = 0; attempt <= MAX_RANGE_RETRIES; attempt += 1) {
+        const remainingMs = this.maxDurationMs - (performance.now() - this.startedAt);
+        if (remainingMs <= 0) {
+          throw new Error(
+            `單首音訊標籤解析超過 ${Math.round(this.maxDurationMs / 1000)} 秒上限，已停止讀取；此前讀取 ${this.bytesFetched} bytes、成功 ${this.rangeRequests} 次 Range。`
+          );
+        }
         const controller = new AbortController();
         this.controllers.add(controller);
-        const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+        const timeout = setTimeout(
+          () => controller.abort(),
+          Math.max(1, Math.min(REQUEST_TIMEOUT_MS, remainingMs))
+        );
         const requestStartedAt = performance.now();
         let responseInfo = null;
         this.requestAttempts += 1;
@@ -287,6 +313,7 @@ class OpenListRangeTokenizer {
       finalHost: this.finalHost,
       lastRequestMs: this.lastRequestMs,
       lastRequestRange: this.lastRequestRange,
+      elapsedMs: Math.round(performance.now() - this.startedAt),
       bytesFetched: this.bytesFetched,
       maxTransferBytes: this.maxTransferBytes
     };
@@ -308,7 +335,13 @@ function normalizeLyrics(value) {
   }).filter(Boolean);
 }
 
-export async function inspectAudioMetadata({ rawUrl, baseUrl, path, fileSize }) {
+export async function inspectAudioMetadata({
+  rawUrl,
+  baseUrl,
+  path,
+  fileSize,
+  maxDurationMs = MAX_METADATA_DURATION_MS
+}) {
   if (!Number.isSafeInteger(fileSize) || fileSize <= 0) {
     throw new Error("OpenList 沒有提供有效的音訊檔案大小。");
   }
@@ -327,7 +360,8 @@ export async function inspectAudioMetadata({ rawUrl, baseUrl, path, fileSize }) 
   const tokenizer = new OpenListRangeTokenizer({
     url: url.href,
     size: fileSize,
-    mimeType: mimeForPath(path)
+    mimeType: mimeForPath(path),
+    maxDurationMs
   });
 
   try {
