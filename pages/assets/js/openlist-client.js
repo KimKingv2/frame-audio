@@ -1,4 +1,7 @@
 const DEFAULT_TIMEOUT_MS = 20000;
+const DIRECTORY_LIST_TIMEOUT_MS = 45000;
+const DIRECTORY_LIST_MAX_ATTEMPTS = 2;
+const DIRECTORY_LIST_RETRY_DELAY_MS = 900;
 
 export function normalizeOpenListUrl(value) {
   let url;
@@ -30,38 +33,51 @@ export async function listOpenListDirectory({ baseUrl, token, path = "/", page =
   const trimmedToken = String(token || "").trim();
   if (trimmedToken) headers.Authorization = trimmedToken;
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
   let response;
-  try {
-    response = await fetch(normalizedBase + "/api/fs/list", {
-      method: "POST",
-      mode: "cors",
-      credentials: "omit",
-      redirect: "error",
-      headers,
-      body: JSON.stringify({
-        path: safePath,
-        password: "",
-        page,
-        per_page: perPage,
-        refresh: false
-      }),
-      signal: controller.signal
-    });
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      throw new Error("連線逾時。請確認 OpenList 網址及網路狀態。");
+  let lastNetworkError = null;
+  for (let attempt = 1; attempt <= DIRECTORY_LIST_MAX_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), DIRECTORY_LIST_TIMEOUT_MS);
+    try {
+      response = await fetch(normalizedBase + "/api/fs/list", {
+        method: "POST",
+        mode: "cors",
+        credentials: "omit",
+        redirect: "error",
+        headers,
+        body: JSON.stringify({
+          path: safePath,
+          password: "",
+          page,
+          per_page: perPage,
+          refresh: false
+        }),
+        signal: controller.signal
+      });
+      lastNetworkError = null;
+      break;
+    } catch (error) {
+      lastNetworkError = error;
+      const retryable = error?.name === "AbortError" || error?.name === "TypeError";
+      if (!retryable || attempt >= DIRECTORY_LIST_MAX_ATTEMPTS) break;
+      await new Promise(resolve => setTimeout(resolve, DIRECTORY_LIST_RETRY_DELAY_MS));
+    } finally {
+      clearTimeout(timeout);
     }
-    const pageOrigin = typeof window !== "undefined" ? window.location.origin : "unknown";
-    const browserDetail = error?.message ? ` 瀏覽器訊息：${error.message}` : "";
-    throw new Error(
-      `瀏覽器未取得 OpenList HTTP 回應。請檢查網路及 CORS 設定。\n目前頁面來源（請加入 OpenList CORS 允許清單）：${pageOrigin}\n並允許 POST、OPTIONS 方法，以及 Authorization、Content-Type 標頭。${browserDetail}`
-    );
-  } finally {
-    clearTimeout(timeout);
   }
 
+  if (!response) {
+    if (lastNetworkError?.name === "AbortError") {
+      throw new Error(
+        `讀取 OpenList 目錄列表逾時。資料夾：${safePath}；頁碼：${page}；每次等待 ${DIRECTORY_LIST_TIMEOUT_MS / 1000} 秒；已嘗試 ${DIRECTORY_LIST_MAX_ATTEMPTS} 次。進度游標未推進，可以稍後續作。`
+      );
+    }
+    const pageOrigin = typeof window !== "undefined" ? window.location.origin : "unknown";
+    const browserDetail = lastNetworkError?.message ? ` 瀏覽器訊息：${lastNetworkError.message}` : "";
+    throw new Error(
+      `瀏覽器未取得 OpenList HTTP 回應。資料夾：${safePath}；頁碼：${page}。請檢查網路及 CORS 設定。\n目前頁面來源（請加入 OpenList CORS 允許清單）：${pageOrigin}\n並允許 POST、OPTIONS 方法，以及 Authorization、Content-Type 標頭。${browserDetail}`
+    );
+  }
   let payload;
   try {
     payload = await response.json();
