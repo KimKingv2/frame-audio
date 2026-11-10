@@ -7,6 +7,10 @@ const MAX_METADATA_DURATION_MS = 90000;
 const MAX_RANGE_RETRIES = 2;
 const RETRY_DELAY_MS = 700;
 
+function emitLog(onEvent, message, level = "info") {
+  try { onEvent?.({ message, level }); } catch {}
+}
+
 const MIME_BY_EXTENSION = {
   mp3: "audio/mpeg",
   flac: "audio/flac",
@@ -57,12 +61,14 @@ class OpenListRangeTokenizer {
     size,
     mimeType,
     maxTransferBytes = MAX_TRANSFER_BYTES,
-    maxDurationMs = MAX_METADATA_DURATION_MS
+    maxDurationMs = MAX_METADATA_DURATION_MS,
+    onEvent
   }) {
     this.fileInfo = { url: "OpenList audio", size, mimeType };
     this.position = 0;
     this.startedAt = performance.now();
     this.maxDurationMs = maxDurationMs;
+    this.onEvent = onEvent;
     this.url = url;
     this.chunkSize = CHUNK_SIZE;
     this.maxTransferBytes = maxTransferBytes;
@@ -124,7 +130,13 @@ class OpenListRangeTokenizer {
         );
         const requestStartedAt = performance.now();
         let responseInfo = null;
+        let attemptError = null;
+        let attemptStatus = "尚未取得 HTTP 回應";
         this.requestAttempts += 1;
+        const requestNumber = this.requestAttempts;
+        emitLog(this.onEvent,
+          "Range #" + requestNumber + " 開始；重試序號 " + (attempt + 1) +
+          "/" + (MAX_RANGE_RETRIES + 1) + "；bytes=" + start + "-" + end);
         try {
           const response = await fetch(this.url, {
             method: "GET",
@@ -141,6 +153,7 @@ class OpenListRangeTokenizer {
             redirected: response.redirected,
             finalHost: responseHost
           };
+          attemptStatus = "HTTP " + response.status;
           this.lastRequestMs = Math.round(performance.now() - requestStartedAt);
           this.lastRequestRange = `bytes=${start}-${end}`;
           this.finalHost = responseHost;
@@ -174,8 +187,10 @@ class OpenListRangeTokenizer {
 
           this.rangeRequests += 1;
           this.bytesFetched += bytes.byteLength;
+          attemptStatus = "HTTP 206，取得 " + bytes.byteLength + " bytes";
           return bytes;
         } catch (error) {
+          attemptError = error;
           lastError = error;
           this.lastRequestMs = Math.round(performance.now() - requestStartedAt);
           this.lastRequestRange = `bytes=${start}-${end}`;
@@ -201,6 +216,11 @@ class OpenListRangeTokenizer {
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
         } finally {
           const attemptElapsedMs = Math.round(performance.now() - requestStartedAt);
+          emitLog(this.onEvent,
+            "Range #" + requestNumber + " 結束；" + attemptStatus +
+            (attemptError ? "；錯誤：" + (attemptError.message || attemptError) : "") +
+            "；耗時 " + attemptElapsedMs + " ms",
+            attemptError ? "warning" : "success");
           this.lastRequestMs = attemptElapsedMs;
           this.totalRequestMs += attemptElapsedMs;
           this.slowestRequestMs = Math.max(this.slowestRequestMs, attemptElapsedMs);
@@ -350,16 +370,19 @@ export async function inspectAudioMetadata({
   baseUrl,
   path,
   fileSize,
-  maxDurationMs = MAX_METADATA_DURATION_MS
+  maxDurationMs = MAX_METADATA_DURATION_MS,
+  onEvent
 }) {
   if (!Number.isSafeInteger(fileSize) || fileSize <= 0) {
     throw new Error("OpenList 沒有提供有效的音訊檔案大小。");
   }
   if (!rawUrl) throw new Error("OpenList 沒有提供音訊來源網址。");
 
+  emitLog(onEvent, "music-metadata CDN 載入開始");
   const parserLoadStartedAt = performance.now();
   const parser = await loadParser();
   const parserLoadMs = Math.round(performance.now() - parserLoadStartedAt);
+  emitLog(onEvent, "music-metadata CDN 載入完成：" + parserLoadMs + " ms", "success");
   const normalizedBase = String(baseUrl || "").trim().replace(/\/+$/, "");
   if (!/^https?:\/\//i.test(normalizedBase)) {
     throw new Error("OpenList 基礎網址無效，無法解析音訊來源。");
@@ -373,16 +396,19 @@ export async function inspectAudioMetadata({
     url: url.href,
     size: fileSize,
     mimeType: mimeForPath(path),
-    maxDurationMs
+    maxDurationMs,
+    onEvent
   });
 
   try {
+    emitLog(onEvent, "music-metadata parseFromTokenizer 開始");
     const parseStartedAt = performance.now();
     const metadata = await parser.parseFromTokenizer(tokenizer, {
       duration: false,
       skipCovers: false
     });
     const parseElapsedMs = Math.round(performance.now() - parseStartedAt);
+    emitLog(onEvent, "music-metadata parseFromTokenizer 完成：" + parseElapsedMs + " ms", "success");
     return {
       metadata: {
         common: metadata.common || {},
