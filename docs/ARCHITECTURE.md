@@ -5,16 +5,20 @@
 ### Music
 - Browse tracks, artists, albums, and the original OpenList folder tree.
 - Each source folder can become a queue; parent-folder playback can include descendants.
-- Extract embedded artwork and lyrics into a private, deduplicated asset cache.
-- Build a local SQLite index and publish versioned JSON.
-- Updates are manually started on the user's Mac. Page load never scans the library.
-- The indexer is read-only against OpenList, uses HTTP Range, defaults to a 20-track sample, and caps metadata reads per file at 16 MiB and 40% of the source file size.
+- Extract embedded artwork and lyrics into a private, deduplicated asset store.
+- Store track metadata and resumable scan checkpoints in Cloudflare D1; store artwork in R2.
+- Indexing is user-triggered from the browser. Page load never scans the library.
+- Process at most 10 new or changed tracks per batch, with entry, folder and time limits.
+- Resume from D1 checkpoints after a page reload or interrupted session.
+- Skip unchanged tracks using path, file size and modified time where available.
+- A failed or partial scan never deletes existing catalogue rows.
 
 ### Podcasts
 - Keep shows, episodes, and listening progress separate from Music.
 - First target: audio files already stored in OpenList.
 - Episode resume position, played state, and playback speed are podcast-specific.
 - RSS discovery / automatic downloads remain optional future functionality.
+- Podcast folders are not included when the user starts a Music-root scan.
 
 ## Shared core
 - OpenList API and authenticated file URL resolution.
@@ -24,16 +28,18 @@
 - Shared error reporting and user settings.
 
 ## Private data boundary
-The public repository contains source code and schemas only. User library paths, API tokens, SQLite state, tracks/manifests, artwork, lyrics, playback history, and audio files must not be committed to GitHub.
+The public repository contains source code and schemas only. User library paths, API tokens, D1 contents, R2 objects, tracks/manifests, lyrics, playback history, and audio files must not be committed to GitHub.
 
 The browser obtains file URLs at playback time. Temporary OpenList signatures and tokens must not be placed in public JSON.
 
 ## Indexing strategy
 The initial music library is about 7,000 tracks / 90 GB, with FLAC, MP3, M4A, and WAV files stored in mixed folders. Audio tags take priority over folder names; filename parsing is fallback only.
 
-Incremental comparison uses path, size, modified time, and a reliable remote hash when available. Re-read metadata only for new or changed files. A failed or partial scan never triggers mass deletion; missing entries are removed only after a later successful full scan confirms absence. The current implementation intentionally does not auto-delete missing entries at all.
+The browser reads metadata through bounded 64 KiB HTTP Range requests. It never uploads the original audio file. Each batch has a ceiling of 10 successful track writes, 500 directory entries, 40 completed folders and approximately 75 seconds. The cursor, folder queue, counts and recent errors are stored in D1 so a subsequent batch can resume safely.
 
-The local indexer reads metadata through bounded 64 KiB HTTP Range requests. It refuses HTTP 200 responses, enforces both an absolute and proportional per-file transfer ceiling, and keeps SQLite, artwork, lyrics and JSON outside the public repository.
+Incremental comparison uses path, file size and modified time when the source provides it. Files without a usable modification time are re-read rather than assumed unchanged. Repeated writes use the path as the unique track key and therefore update the existing row. Missing paths are not deleted automatically.
+
+A standalone Mac indexer prototype remains under indexer/, but the current Preview workflow uses the browser and Cloudflare D1/R2 directly.
 
 ## Deployment boundary
-Cloudflare Pages serves the static application only. The user's Mac runs manual indexing and stores the private catalogue locally. Publishing the generated JSON/assets to a private data origin is a separate future step; no private index is committed to GitHub.
+Cloudflare Pages serves the static application and same-origin Functions API. OpenList remains the source of truth for audio files. D1 stores the private catalogue and scan checkpoints; R2 stores artwork. Only Preview is configured until the workflow has been fully validated.
