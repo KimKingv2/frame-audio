@@ -27,8 +27,8 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 @media(max-width:520px){.scan-log-toolbar{align-items:flex-start;flex-direction:column}.scan-log-toolbar>div{width:100%}.scan-log-button{flex:1}}
 </style>
 <link rel="stylesheet" href="/assets/css/metadata.css">
-<link rel="stylesheet" href="/assets/css/library.css?v=20261111-player-experience1">
-<link rel="stylesheet" href="/assets/css/interaction.css">
+<link rel="stylesheet" href="/assets/css/library.css?v=20261111-mobile-dock2">
+<link rel="stylesheet" href="/assets/css/interaction.css?v=20261111-mobile-dock2">
 </head>
 <body>
 <div class="shell">
@@ -52,15 +52,39 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 </main>
 </div>
 <div class="dock">
-  <div class="now"><div class="cover" id="player-cover">FA</div><div><b id="player-title">尚未選擇音訊</b><small id="player-subtitle">連接私人音訊庫後即可播放</small></div></div>
-  <div class="controls"><div class="player-transport"><button id="player-prev" type="button" aria-label="上一首">|◀</button><button id="player-toggle" type="button" aria-label="播放／暫停">▶</button><button id="player-next" type="button" aria-label="下一首">▶|</button><select id="player-speed" aria-label="播放速度"><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1.0×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2.0×</option></select></div>
-    <div class="timeline"><span id="player-current">--:--</span><input id="player-seek" type="range" min="0" max="1000" value="0" aria-label="播放進度"><span id="player-duration">--:--</span></div></div>
-  <div class="mode">
-    <button class="player-utility" id="player-mode" type="button" aria-label="順序播放" title="順序播放">→</button>
-    <button class="player-utility" id="player-lyrics" type="button" disabled>歌詞</button>
-    <button class="player-utility" id="player-eq" type="button">EQ</button>
-    <span id="player-type">READY</span>
-    <button class="player-stop" id="player-stop" type="button">停止</button>
+  <div class="now">
+    <div class="cover" id="player-cover">FA</div>
+    <div class="now-copy">
+      <b id="player-title">尚未選擇音訊</b>
+      <small id="player-subtitle">連接私人音訊庫後即可播放</small>
+      <span id="player-type">READY</span>
+    </div>
+  </div>
+  <div class="controls">
+    <div class="player-control-row">
+      <div class="player-tools player-tools-left" aria-label="播放模式">
+        <button class="player-utility" id="player-shuffle" type="button" aria-label="隨機播放：關閉" aria-pressed="false" title="隨機播放：關閉">⤨</button>
+        <button class="player-utility" id="player-mode" type="button" aria-label="順序播放" title="順序播放">→</button>
+      </div>
+      <div class="player-transport" aria-label="播放控制">
+        <button id="player-prev" type="button" aria-label="上一首" title="上一首">|◀</button>
+        <button id="player-toggle" type="button" aria-label="播放／暫停" title="播放／暫停">▶</button>
+        <button id="player-next" type="button" aria-label="下一首" title="下一首">▶|</button>
+      </div>
+      <div class="player-tools player-tools-right" aria-label="播放器工具">
+        <button class="player-utility" id="player-lyrics" type="button" disabled title="歌詞">歌詞</button>
+        <button class="player-utility" id="player-eq" type="button" title="均衡器">EQ</button>
+        <select id="player-speed" aria-label="播放速度" title="播放速度">
+          <option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1.0×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2.0×</option>
+        </select>
+        <button class="player-stop" id="player-stop" type="button" aria-label="停止播放" title="停止播放">停止</button>
+      </div>
+    </div>
+    <div class="timeline">
+      <span id="player-current">--:--</span>
+      <input id="player-seek" type="range" min="0" max="1000" value="0" aria-label="播放進度">
+      <span id="player-duration">--:--</span>
+    </div>
   </div>
 </div>
 <audio id="audio-player" preload="none"></audio>
