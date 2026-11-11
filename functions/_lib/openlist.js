@@ -9,7 +9,7 @@ function configuredBase(env) {
   if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) {
     return { response: error("OPENLIST_BASE_URL 必須是沒有帳密、查詢參數或片段的 HTTPS 網址。", 503) };
   }
-  return { baseUrl: url.origin + url.pathname.replace(/\\/+$/, "") };
+  return { baseUrl: url.origin + url.pathname.replace(/\/+$/, "") };
 }
 
 export function validOpenListPath(value) {

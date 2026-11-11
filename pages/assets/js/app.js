@@ -128,12 +128,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     appendScanLog((prefix ? prefix + "｜" : "") + (event.message || String(event)), event.level || "info");
   }
 
-  // Remove credentials saved by older versions. Retain only non-secret root paths.
-  try {
-    const legacy = JSON.parse(localStorage.getItem("frame-audio-credentials-v1") || "null");
-    if (typeof legacy?.musicRoot === "string" && legacy.musicRoot) musicRootInput.value = legacy.musicRoot;
-    if (typeof legacy?.podcastRoot === "string" && legacy.podcastRoot) podcastRootInput.value = legacy.podcastRoot;
-  } catch {}
+  // Remove the legacy credential record without reading or parsing its token values.
   try { localStorage.removeItem("frame-audio-credentials-v1"); } catch {}
 
   async function testCloudflareStorage() {
