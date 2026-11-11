@@ -1,4 +1,4 @@
-import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo } from "./openlist-client.js";
+import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo } from "./openlist-client.js?v=20261111-vps-playback1";
 import { inspectAudioMetadata } from "./metadata-inspector.js";
 import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js";
 import { initLibraryUI } from "./library-ui.js?v=20261111-vps-playback1";
