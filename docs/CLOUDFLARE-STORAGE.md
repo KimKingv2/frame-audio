@@ -10,7 +10,7 @@ FRAME Audio uses Cloudflare Pages Functions as its same-origin API, D1 for catal
 - Pages R2 binding: `ARTWORKS`
 - Secret: `FRAME_AUDIO_API_ADMIN_TOKEN` (FRAME Audio internal API admin gate)
 - Secret: `ALIST_VPS_API_TOKEN` (VPS Alist API credential)
-- Variable: `ALIST_VPS_API_BASE_URL` (VPS Alist API base URL)
+- Text: `ALIST_VPS_API_BASE_URL` (VPS Alist API base URL)
 
 The D1 and R2 resources are accessed through the existing `DB` and `ARTWORKS` Pages bindings. `FRAME_AUDIO_API_ADMIN_TOKEN` is an application-level gate for private FRAME Audio routes; it is **not** a Cloudflare Account API Token and does not directly grant access to the Cloudflare account.
 
@@ -24,7 +24,7 @@ Use uppercase `SERVICE_SOURCE_PURPOSE` names for external integrations:
 - Future Alist sources can use the same pattern, for example `ALIST_WORKER_API_BASE_URL` and `ALIST_WORKER_API_TOKEN`.
 - `FRAME_AUDIO_*`: secrets and settings owned by the FRAME Audio application, such as `FRAME_AUDIO_API_ADMIN_TOKEN`.
 
-Keep credentials in Pages Secrets, not regular Variables, and never expose them to browser code.
+Choose **Text** for non-sensitive configuration such as the API base URL. Choose **Secret** for tokens and credentials; never put them in Text or expose them to browser code.
 
 ## D1 initialization
 
@@ -44,7 +44,7 @@ Configure the following separately for **Production** and **Preview**:
 
 | Name | Type | Value |
 |---|---|---|
-| `ALIST_VPS_API_BASE_URL` | Variable | `https://drive.kimkingv2.top` |
+| `ALIST_VPS_API_BASE_URL` | Text | `https://drive.kimkingv2.top` |
 | `ALIST_VPS_API_TOKEN` | Secret | The read-only VPS Alist API Token |
 | `FRAME_AUDIO_API_ADMIN_TOKEN` | Secret | Copy the current `FRAME_AUDIO_ADMIN_TOKEN` value unchanged |
 
