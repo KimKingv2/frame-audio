@@ -46,9 +46,9 @@ Configure the following separately for **Production** and **Preview**:
 |---|---|---|
 | `ALIST_VPS_API_BASE_URL` | Variable | `https://drive.kimkingv2.top` |
 | `ALIST_VPS_API_TOKEN` | Secret | The read-only VPS Alist API Token |
-| `FRAME_AUDIO_API_ADMIN_TOKEN` | Secret | Keep the existing FRAME Audio API admin secret value |
+| `FRAME_AUDIO_API_ADMIN_TOKEN` | Secret | Copy the current `FRAME_AUDIO_ADMIN_TOKEN` value unchanged |
 
-Do not paste any Secret into the website, JavaScript, GitHub, a URL, or a chat. Do not change the existing `FRAME_AUDIO_API_ADMIN_TOKEN` value while renaming it. The `ALIST_VPS_API_TOKEN` is a separate Pages Secret and should contain the read-only token currently used for VPS Alist. No Cloudflare Account API Token is required for D1/R2 access.
+Do not paste any Secret into the website, JavaScript, GitHub, a URL, or a chat. When creating `FRAME_AUDIO_API_ADMIN_TOKEN`, copy the value currently stored in the old `FRAME_AUDIO_ADMIN_TOKEN` Secret without rotating it. `ALIST_VPS_API_TOKEN` is a separate Pages Secret and should contain the read-only token currently used for VPS Alist. No Cloudflare Account API Token is required for D1/R2 access.
 
 Also verify the existing bindings in both environments:
 
@@ -56,6 +56,18 @@ Also verify the existing bindings in both environments:
 - R2 binding `ARTWORKS` → `frame-audio-artwork`
 
 After saving environment values, trigger a new deployment of the relevant branch. Preview configuration does not automatically apply to Production.
+
+## One-time rename procedure
+
+For a safe transition, the current Functions temporarily accept the previous names as fallbacks:
+
+| Previous name | New name |
+|---|---|
+| `FRAME_AUDIO_ADMIN_TOKEN` | `FRAME_AUDIO_API_ADMIN_TOKEN` |
+| `OPENLIST_API_TOKEN` | `ALIST_VPS_API_TOKEN` |
+| `OPENLIST_BASE_URL` | `ALIST_VPS_API_BASE_URL` |
+
+Add the three new names in **both Preview and Production** first. Copy the existing secret values unchanged, and set the new base URL to `https://drive.kimkingv2.top`. Redeploy and verify both environments. Once the new names work, remove the three previous names. The fallback exists only to make this rename safe; do not use the previous names for new configuration.
 
 ## Cloudflare Access
 
