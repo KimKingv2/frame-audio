@@ -518,10 +518,37 @@ export function initLibraryUI(options = {}) {
       '<div class="media-card-grid">'+artists.slice(0,300).map(([name,tracks],i)=>'<button class="artist-card" data-action="play-group" data-index="'+i+'"><span class="artist-avatar">'+esc(name.slice(0,1))+'</span><strong>'+esc(name)+'</strong><small>'+tracks.length+' 首</small></button>').join("")+'</div>';
   }
   function renderFolders() {
-    const folders=state.folders.filter(f=>!state.search||[f.name,f.path].join(" ").toLocaleLowerCase().includes(state.search.toLocaleLowerCase()));
+    let rootPath="";
+    try {
+      const configured=options.getMusicRootPath?.();
+      if(typeof configured==="string"&&configured.startsWith("/"))rootPath=configured.replace(/\/+$/,"")||"/";
+    } catch {}
+    if(!rootPath) {
+      const roots=[...new Set(state.folders.map(folder=>String(folder.rootPath||"")).filter(path=>path.startsWith("/")))];
+      roots.sort((a,b)=>a.localeCompare(b,"zh-Hant"));
+      rootPath=roots[0]||"";
+    }
+    const prefix=rootPath==="/"?"/":rootPath?rootPath+"/":"";
+    const query=state.search.toLocaleLowerCase();
+    const folders=state.folders.filter(folder=>{
+      const path=String(folder.path||"").replace(/\/+$/,"");
+      if(!prefix||!path.startsWith(prefix))return false;
+      const relative=path.slice(prefix.length);
+      if(!relative||relative.includes("/"))return false;
+      if(folder.rootPath&&folder.rootPath!==rootPath)return false;
+      return !query||[folder.name,path].join(" ").toLocaleLowerCase().includes(query);
+    }).sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"zh-Hant"));
     state.items=folders;state.itemType="folder";
-    root.innerHTML=searchBar("搜尋資料夾")+sectionHead("FOLDER PLAYLISTS","資料夾歌單",'<span class="library-muted">'+folders.length+' 個</span>')+
-      '<div class="folder-grid">'+folders.slice(0,500).map((f,i)=>'<button class="folder-card" data-action="play-group" data-index="'+i+'"><span>▰</span><strong>'+esc(f.name)+'</strong><small>'+Number(f.recursiveTrackCount||f.directTrackCount||0)+' 首歌曲</small><em>'+esc(f.path)+'</em></button>').join("")+'</div>';
+    const countLabel='<span class="library-muted">'+folders.length+' 個根目錄資料夾</span>';
+    const empty='<div class="library-empty"><div class="library-empty-mark">▰</div><h3>'+
+      (rootPath?"這個 Music 根目錄目前沒有第一層資料夾":"尚未取得 Music 根目錄")+
+      '</h3><p>'+(rootPath?"完成 Music 掃描後，根目錄下的各個資料夾會自動出現在這裡。":"請先設定 Music 根目錄並完成一次掃描。")+
+      (rootPath?'<br>'+esc(rootPath):"")+'</p></div>';
+    root.innerHTML=searchBar("搜尋根目錄資料夾")+sectionHead("MUSIC FOLDERS","資料夾歌單",countLabel)+
+      (folders.length?'<div class="folder-grid">'+folders.slice(0,500).map((folder,index)=>
+        '<button class="folder-card" data-action="play-group" data-index="'+index+'"><span>▰</span><strong>'+
+        esc(folder.name)+'</strong><small>'+Number(folder.recursiveTrackCount??folder.directTrackCount??0)+
+        ' 首歌曲</small><em>'+esc(folder.path)+'</em></button>').join("")+'</div>':empty);
   }
   function showCards(shows) {
     if(!shows.length)return '<div class="library-empty"><div class="library-empty-mark">▤</div><h3>還沒有 Podcast 節目</h3><p>完成 Podcast 掃描後，節目會出現在這裡。</p></div>';

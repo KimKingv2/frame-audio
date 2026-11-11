@@ -1,7 +1,7 @@
 import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo } from "./openlist-client.js?v=20261111-server-secrets1";
 import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261111-sylt-native1";
 import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js?v=20261111-server-secrets1";
-import { initLibraryUI } from "./library-ui.js?v=20261111-now-playing-close3";
+import { initLibraryUI } from "./library-ui.js?v=20261111-music-folders4";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
 (() => {
@@ -716,6 +716,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   function newScanState(rootPath, previousState = null) {
     return {
       version: 1,
+      folderQueueVersion: 2,
       rootPath,
       pendingFolders: [rootPath],
       currentFolder: null,
@@ -734,6 +735,43 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       folderTrackCount: 0,
       updatedAt: new Date().toISOString()
     };
+  }
+
+  function reconcileLegacyFolderQueue(scanState) {
+    const rootPath = String(scanState.rootPath || "").trim();
+    const validPath = value => typeof value === "string" && value.startsWith("/") && !value.includes("\\0");
+    const seenFolders = [...new Set([
+      ...(validPath(rootPath) ? [rootPath] : []),
+      ...(Array.isArray(scanState.seenFolders) ? scanState.seenFolders.filter(validPath) : [])
+    ])];
+    const currentFolder = validPath(scanState.currentFolder) ? scanState.currentFolder : null;
+    const pendingFolders = [...new Set(
+      (Array.isArray(scanState.pendingFolders) ? scanState.pendingFolders : []).filter(validPath)
+    )];
+    const pendingSet = new Set(pendingFolders);
+    const upgraded = Number(scanState.folderQueueVersion || 0) < 2;
+    let restoredFolders = 0;
+
+    if (upgraded) {
+      for (const folderPath of seenFolders) {
+        if (folderPath === currentFolder || pendingSet.has(folderPath)) continue;
+        pendingFolders.push(folderPath);
+        pendingSet.add(folderPath);
+        restoredFolders += 1;
+      }
+      scanState.folderQueueVersion = 2;
+      if (restoredFolders > 0 || currentFolder || pendingFolders.length > 0) {
+        scanState.completed = false;
+        scanState.folderIndexCompleted = false;
+        scanState.folderIndexCount = 0;
+        scanState.folderTrackCount = 0;
+      }
+    }
+
+    scanState.seenFolders = seenFolders;
+    scanState.pendingFolders = pendingFolders;
+    scanState.currentFolder = currentFolder;
+    return { upgraded, restoredFolders };
   }
 
   async function batchIndexCurrentTree() {
@@ -785,14 +823,25 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       if (!state) {
         state = newScanState(rootPath);
         await saveScanState(key, state);
-      } else if (state.completed && state.folderIndexCompleted !== true) {
-        appendScanLog("曲目掃描已完成；尚未建立資料夾階層，將補做資料夾索引。", "warning");
-      } else if (state.completed) {
-        if (!window.confirm(
-          "這個目錄的上一輪掃描與資料夾階層索引都已完成。重新執行會跳過未變更歌曲，只索引新增或變更項目，不會刪除任何資料。要開始新一輪嗎？"
-        )) return;
-        state = newScanState(rootPath, state);
-        await saveScanState(key, state);
+      } else {
+        const queueRepair = reconcileLegacyFolderQueue(state);
+        if (queueRepair.upgraded) {
+          appendScanLog("舊版掃描進度已升級為資料夾佇列校正版。", "warning");
+          if (queueRepair.restoredFolders) {
+            appendScanLog("為避免資料夾漏掃，已將 " + queueRepair.restoredFolders +
+              " 個先前已記錄的資料夾重新排入掃描；既有且未變更歌曲仍會直接跳過。", "warning");
+          }
+          await saveScanState(key, state);
+        }
+        if (state.completed && state.folderIndexCompleted !== true) {
+          appendScanLog("曲目掃描已完成；尚未建立資料夾階層，將補做資料夾索引。", "warning");
+        } else if (state.completed) {
+          if (!window.confirm(
+            "這個目錄的上一輪掃描與資料夾階層索引都已完成。重新執行會跳過未變更歌曲，只索引新增或變更項目，不會刪除任何資料。要開始新一輪嗎？"
+          )) return;
+          state = newScanState(rootPath, state);
+          await saveScanState(key, state);
+        }
       }
 
       const retryPaths = await loadRetryPathSet();
@@ -1534,6 +1583,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     if (event.target === dialog) dialog.close();
   });
   libraryUI = initLibraryUI({
+    getMusicRootPath: () => getConfiguredRoot(musicRootInput, "Music"),
     getCredentials: () => ({
       baseUrl: activeBaseUrl,
       connected,
