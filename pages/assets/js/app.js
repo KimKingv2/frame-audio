@@ -1,7 +1,7 @@
 import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo } from "./openlist-client.js";
 import { inspectAudioMetadata } from "./metadata-inspector.js";
 import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js";
-import { initLibraryUI } from "./library-ui.js";
+import { initLibraryUI } from "./library-ui.js?v=20261111-vps-playback1";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
 const MUSIC_ROOT_PATH = "/中國移動雲盤/Kim King/03 Music";
@@ -14,6 +14,10 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
   const dialog = $("#connection-dialog");
   const urlInput = $("#openlist-url");
   const tokenInput = $("#openlist-token");
+  const playbackUrlInput = $("#playback-openlist-url");
+  const playbackTokenInput = $("#playback-openlist-token");
+  const playbackEnabledInput = $("#vps-playback-enabled");
+  const playbackResultBox = $("#vps-playback-result");
   const storageTokenInput = $("#cloudflare-admin-token");
   const storageResultBox = $("#storage-result");
   const pathInput = $("#openlist-path");
@@ -1369,6 +1373,43 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
     }
   }
 
+  async function testPlaybackSource() {
+    const button = $("#test-vps-playback-source");
+    const baseUrl = playbackUrlInput.value.trim();
+    const token = playbackTokenInput.value;
+    const path = pathInput.value.trim() || "/";
+    if (!baseUrl || !token.trim()) {
+      playbackResultBox.textContent = "請填入 VPS Alist 網址及 API Token。這組設定只用於播放，不會取代曲庫索引來源。";
+      playbackResultBox.className = "statusbox error";
+      return;
+    }
+    button.disabled = true;
+    playbackResultBox.textContent = "正在以唯讀 /api/fs/list 測試 VPS Alist……";
+    playbackResultBox.className = "statusbox";
+    try {
+      const result = await listOpenListDirectory({
+        baseUrl,
+        token,
+        path,
+        page: 1,
+        perPage: 1
+      });
+      playbackResultBox.textContent =
+        "PASS：VPS Alist API 可連線。\n測試目錄：" + path +
+        "\n讀取項目：" + result.items.length +
+        "；API 回報總數：" + result.total +
+        "\n播放設定：" + (playbackEnabledInput.checked ? "已啟用 VPS 優先播放，失敗時回退 Cloudflare OpenList。" : "目前停用 VPS 優先播放。");
+      playbackResultBox.className = "statusbox ok";
+    } catch (error) {
+      playbackResultBox.textContent =
+        "FAIL：VPS Alist API 測試失敗。\n" + (error.message || "未知錯誤") +
+        "\n請檢查網址、Token、唯讀目錄權限及 CORS。正式播放遇到同類 API 錯誤時會自動回退 Cloudflare OpenList。";
+      playbackResultBox.className = "statusbox error";
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   async function testConnection() {
     const button = $("#test-connection");
     activeBaseUrl = urlInput.value.trim();
@@ -1406,6 +1447,7 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
   $("#close-settings").addEventListener("click", () => dialog.close());
   $("#test-connection").addEventListener("click", testConnection);
   $("#test-storage").addEventListener("click", testCloudflareStorage);
+  $("#test-vps-playback-source").addEventListener("click", testPlaybackSource);
   $("#scan-music-batch").addEventListener("click", batchIndexCurrentTree);
   $("#scan-podcast-batch").addEventListener("click", batchIndexPodcastTree);
   $("#scan-log-copy").addEventListener("click", async () => {
@@ -1458,7 +1500,10 @@ const PODCAST_ROOT_PATH = "/中國移動雲盤/Kim King/13 喜马拉雅";
       adminToken: activeStorageToken,
       openListToken: activeToken,
       baseUrl: activeBaseUrl,
-      connected
+      connected,
+      playbackBaseUrl: playbackUrlInput.value.trim(),
+      playbackToken: playbackTokenInput.value,
+      playbackEnabled: playbackEnabledInput.checked
     }),
     reindexMusic: path => indexSingleAudioFile(path, { disabled: false }, {
       silent: true,
