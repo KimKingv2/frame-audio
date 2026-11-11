@@ -55,3 +55,10 @@ If the replacement index fails, the old catalogue row, listening history and ret
 - Player mode and shuffle preference are stored locally. Alist tokens and Cloudflare credentials are never included in those preferences. Music file-info lookup does not request a resume row because every newly selected Music track starts at 0:00; Podcast episodes still load their saved resume position and playback rate.
 
 - The Now Playing view is a fixed full-viewport overlay rather than an animated library-grid child, preventing transformed-parent positioning and sidebar flicker. Its opaque layered dark-violet backdrop remains visible while the lyrics column itself stays unboxed. Entry and exit motions use slower compositor-friendly transforms; the dock stays above the sheet.
+
+## Music 第一層資料夾與 Now Playing 背景保留（2026-11-11）
+
+- 「資料夾歌單」優先讀取 D1 的資料夾階層索引；若舊掃描未寫入部分資料夾，前端會從已索引歌曲的完整路徑補出有歌曲的第一層資料夾，不需要重新讀取或上傳原始音訊。
+- 空資料夾仍以 D1 資料夾索引為準；只靠曲目路徑無法推斷沒有音訊檔的空資料夾。
+- Now Playing 改為疊加在既有曲庫 DOM 上，不再用 innerHTML 把曲庫整頁替換掉。收起播放頁時只移除疊層，底下的曲庫、搜尋結果與捲動位置保留原樣。
+- 播放詳情頁使用自己的固定全螢幕捲動層；不再隱藏 Hero/Footer 或鎖定 body 捲動，降低上滑／下滑動畫期間的背景消失與閃爍。

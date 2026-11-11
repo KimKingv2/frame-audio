@@ -159,7 +159,6 @@ body.is-podcast-view .hero{background:radial-gradient(ellipse at 78% 50%,#5c81a8
 .now-open{appearance:none;min-width:0;padding:0;border:0;text-align:left;color:inherit;background:transparent;cursor:pointer;touch-action:manipulation}
 .now-open:disabled{cursor:default;opacity:.8}
 .now-open:not(:disabled):hover #player-title{color:#e2ceff}
-body.is-now-playing .hero,body.is-now-playing .foot{display:none}
 .now-playing-page{min-height:clamp(500px,calc(100vh - 310px),760px);padding:12px 0 28px;display:flex;flex-direction:column;gap:16px}
 .now-playing-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .now-playing-topbar .secondary{padding:8px 12px}
@@ -232,7 +231,6 @@ body.is-now-playing .hero,body.is-now-playing .foot{display:none}
 }
 
 /* Refined Now Playing overlay: one fixed surface, smooth compositor-friendly motion. */
-body.is-now-playing{overflow:hidden}
 .now-playing-page{
   position:fixed;
   inset:0;
@@ -245,6 +243,7 @@ body.is-now-playing{overflow:hidden}
   overflow-x:hidden;
   overflow-y:auto;
   overscroll-behavior:contain;
+  touch-action:pan-y;
   padding:clamp(24px,4vh,46px) clamp(22px,5vw,70px) 126px;
   background:
     radial-gradient(ellipse at 16% 12%,rgba(121,88,159,.22),transparent 42%),
@@ -297,6 +296,7 @@ body.is-now-playing{overflow:hidden}
 .now-playing-lyric-line.active{background:transparent}
 .dock{z-index:100;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
 body.is-now-playing .dock{border-top-color:transparent}
+.now-playing-notice{position:relative;z-index:1;margin:0 0 14px;}
 @media(max-width:680px){
   .now-playing-page{
     padding:calc(14px + env(safe-area-inset-top)) 16px calc(135px + env(safe-area-inset-bottom));

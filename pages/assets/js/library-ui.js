@@ -15,7 +15,7 @@ export function initLibraryUI(options = {}) {
     preloadEntry:null,preloadAudio:null,preloadGeneration:0,
     playMode:"sequential",shuffleEnabled:false,shuffleOrder:[],shufflePosition:-1,
     lyricsCues:[],lyricsPlainLines:[],lyricsActiveIndex:-1,
-    lyricsScrollPause:new WeakMap(),libraryScrollPosition:null
+    lyricsScrollPause:new WeakMap()
   };
   const PLAY_MODES=["sequential","repeat-one","repeat-all"];
   const esc = value => String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -158,13 +158,26 @@ export function initLibraryUI(options = {}) {
     syncLyricsHighlight({forceScroll:true});
   }
   function renderNowPlaying() {
-    if(root.querySelector(".now-playing-page")?.dataset.closing==="true")return;
+    let page=root.querySelector(".now-playing-page");
+    if(page?.dataset.closing==="true")return;
     const item=state.currentItem;
-    if(!item){root.innerHTML='<div class="now-playing-empty"><button class="secondary" data-action="back-now-playing">← 返回曲庫</button><h2>尚未播放音訊</h2><p>從 Music 或 Podcast 選擇內容後，這裡會顯示目前歌曲與同步歌詞。</p></div>';return;}
+    if(!page){
+      page=document.createElement("section");
+      page.className="now-playing-page now-playing-enter";
+      page.setAttribute("aria-label","正在播放");
+      page.addEventListener("animationend",event=>{
+        if(event.target===page&&event.animationName==="now-playing-panel-in")page.classList.remove("now-playing-enter");
+      });
+      root.append(page);
+    }
+    const pendingNotice=root.querySelector(":scope > .now-playing-notice");
+    if(pendingNotice)page.prepend(pendingNotice);
+    if(!item){
+      page.innerHTML='<div class="now-playing-empty"><button class="secondary" data-action="back-now-playing">← 返回曲庫</button><h2>尚未播放音訊</h2><p>從 Music 或 Podcast 選擇內容後，這裡會顯示目前歌曲與同步歌詞。</p></div>';
+      return;
+    }
     const parsed=currentLyrics(),kind=item.itemType==="episode"?"PODCAST":"MUSIC",artist=item.subtitle||item.albumArtist||item.album||"";
-    const shouldAnimateIn=!root.querySelector(".now-playing-page");
-    root.innerHTML='<section class="now-playing-page'+(shouldAnimateIn?' now-playing-enter':'')+'">'+
-      '<div class="now-playing-topbar"><button class="secondary" data-action="back-now-playing">← 返回曲庫</button><span class="kicker">NOW PLAYING</span><span class="now-playing-kind">'+kind+'</span></div>'+
+    page.innerHTML='<div class="now-playing-topbar"><button class="secondary" data-action="back-now-playing">← 返回曲庫</button><span class="kicker">NOW PLAYING</span><span class="now-playing-kind">'+kind+'</span></div>'+
       '<div class="now-playing-main">'+
        '<div class="now-playing-track"><div class="now-playing-art" id="now-playing-art"><span>'+esc(String(item.title||"FA").slice(0,1).toUpperCase())+'</span></div>'+
         '<div class="now-playing-track-copy"><span class="kicker">CURRENT TRACK</span><h1>'+esc(item.title||"未命名音訊")+'</h1><p>'+esc(artist)+'</p><div class="now-playing-track-meta"><span>'+kind+'</span><span>'+duration(item.durationMs)+'</span></div></div>'+
@@ -172,11 +185,7 @@ export function initLibraryUI(options = {}) {
         '<p class="now-playing-reindex-status" id="now-playing-reindex-status" role="status"></p></div>'+
        '<section class="now-playing-lyrics-panel" aria-label="同步歌詞"><div class="now-playing-lyrics-heading"><span class="kicker">LYRICS</span><span>'+(parsed.cues.length?parsed.cues.length+" 個時間點":parsed.plainLines.length?"純文字歌詞":"尚無歌詞")+'</span></div>'+
         '<div class="now-playing-lyrics-list" id="now-playing-lyrics-list" aria-live="polite">'+lyricsMarkup(parsed,"now-playing-lyric-line")+'</div></section>'+
-      '</div></section>';
-    const page=root.querySelector(".now-playing-page");
-    page?.addEventListener("animationend",event=>{
-      if(event.target===page&&event.animationName==="now-playing-panel-in")page.classList.remove("now-playing-enter");
-    });
+      '</div>';
     bindLyricsManualScroll($("#now-playing-lyrics-list"));
     syncNowPlayingArtwork(item);syncLyricsHighlight({forceScroll:true});
   }
@@ -298,7 +307,22 @@ export function initLibraryUI(options = {}) {
     }
     return result;
   }
-  function message(text,type=""){root.innerHTML='<div class="library-message '+(type?"is-"+type:"")+'">'+esc(text)+'</div>';}
+  function message(text,type=""){
+    if(state.view==="now-playing"){
+      const page=root.querySelector(".now-playing-page");
+      const host=page||root;
+      let notice=host.querySelector(".now-playing-notice");
+      if(!notice){
+        notice=document.createElement("div");
+        notice.className="library-message now-playing-notice";
+        host.prepend(notice);
+      }
+      notice.className="library-message now-playing-notice"+(type?" is-"+type:"");
+      notice.textContent=String(text||"");
+      return;
+    }
+    root.innerHTML='<div class="library-message '+(type?"is-"+type:"")+'">'+esc(text)+'</div>';
+  }
   async function load(force=false) {
     if(state.busy)return;
     if(!force&&state.loaded&&Date.now()-state.loadedAt<30000){render();return;}
@@ -566,22 +590,79 @@ export function initLibraryUI(options = {}) {
       roots.sort((a,b)=>a.localeCompare(b,"zh-Hant"));
       rootPath=roots[0]||"";
     }
+
     const prefix=rootPath==="/"?"/":rootPath?rootPath+"/":"";
-    const query=state.search.toLocaleLowerCase();
-    const folders=state.folders.filter(folder=>{
+    const isFirstLevel=path=>{
+      const normalized=String(path||"").replace(/\/+$/,"");
+      if(!prefix||!normalized.startsWith(prefix))return false;
+      const relative=normalized.slice(prefix.length);
+      return !!relative&&!relative.includes("/");
+    };
+
+    // Keep saved folder records (including empty folders), then use indexed track
+    // paths to recover first-level folders if an older scan missed folder metadata.
+    const foldersByPath=new Map();
+    for(const folder of state.folders){
       const path=String(folder.path||"").replace(/\/+$/,"");
-      if(!prefix||!path.startsWith(prefix))return false;
-      const relative=path.slice(prefix.length);
-      if(!relative||relative.includes("/"))return false;
-      if(folder.rootPath&&folder.rootPath!==rootPath)return false;
-      return !query||[folder.name,path].join(" ").toLocaleLowerCase().includes(query);
-    }).sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"zh-Hant"));
+      if(!isFirstLevel(path))continue;
+      if(folder.rootPath&&folder.rootPath!==rootPath)continue;
+      foldersByPath.set(path,{...folder,path,rootPath:folder.rootPath||rootPath});
+    }
+
+    const derivedByPath=new Map();
+    let tracksUnderRoot=0;
+    for(const track of state.tracks){
+      const trackPath=String(track.file?.path||track.path||"").replace(/\/+$/,"");
+      if(!prefix||!trackPath.startsWith(prefix))continue;
+      tracksUnderRoot+=1;
+      let folderPath=trackPath.slice(0,trackPath.lastIndexOf("/"))||"/";
+      let direct=true;
+      while(folderPath!==rootPath&&folderPath.startsWith(prefix)){
+        let stats=derivedByPath.get(folderPath);
+        if(!stats){
+          stats={path:folderPath,name:folderPath.slice(folderPath.lastIndexOf("/") + 1),directTrackCount:0,recursiveTrackCount:0};
+          derivedByPath.set(folderPath,stats);
+        }
+        stats.recursiveTrackCount+=1;
+        if(direct)stats.directTrackCount+=1;
+        direct=false;
+        const slash=folderPath.lastIndexOf("/");
+        const parent=slash<=0?"/":folderPath.slice(0,slash);
+        if(parent===folderPath)break;
+        folderPath=parent;
+      }
+    }
+
+    let recoveredCount=0;
+    for(const [path,stats] of derivedByPath){
+      if(!isFirstLevel(path))continue;
+      const saved=foldersByPath.get(path);
+      if(!saved)recoveredCount+=1;
+      foldersByPath.set(path,{
+        ...(saved||{}),
+        path,
+        name:saved?.name||stats.name,
+        rootPath,
+        directTrackCount:Math.max(Number(saved?.directTrackCount||0),stats.directTrackCount),
+        recursiveTrackCount:Math.max(Number(saved?.recursiveTrackCount||0),stats.recursiveTrackCount)
+      });
+    }
+
+    const query=state.search.toLocaleLowerCase();
+    const folders=[...foldersByPath.values()]
+      .filter(folder=>!query||[folder.name,folder.path].join(" ").toLocaleLowerCase().includes(query))
+      .sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"zh-Hant"));
     state.items=folders;state.itemType="folder";
-    const countLabel='<span class="library-muted">'+folders.length+' 個根目錄資料夾</span>';
+    const countLabel='<span class="library-muted">'+folders.length+' 個根目錄資料夾'+
+      (recoveredCount?' · 已依曲目路徑補齊 '+recoveredCount+' 個':'')+'</span>';
+    const emptyTitle=!rootPath?"尚未取得 Music 根目錄":
+      tracksUnderRoot?"目前沒有可列出的第一層資料夾":"尚未找到已索引的 Music 子資料夾";
+    const emptyText=!rootPath?"請先設定 Music 根目錄並完成一次掃描。":
+      tracksUnderRoot
+        ?"D1 已收錄 "+tracksUnderRoot+" 首位於此根目錄下的歌曲，但目前沒有子資料夾紀錄。若歌曲都直接放在根目錄，這裡不會列出單曲。"
+        :"這裡只列出 Music 根目錄下的第一層資料夾。完成掃描後，會優先讀取資料夾索引，並在索引缺漏時依 D1 已收錄歌曲的路徑補足。";
     const empty='<div class="library-empty"><div class="library-empty-mark">▰</div><h3>'+
-      (rootPath?"這個 Music 根目錄目前沒有第一層資料夾":"尚未取得 Music 根目錄")+
-      '</h3><p>'+(rootPath?"完成 Music 掃描後，根目錄下的各個資料夾會自動出現在這裡。":"請先設定 Music 根目錄並完成一次掃描。")+
-      (rootPath?'<br>'+esc(rootPath):"")+'</p></div>';
+      emptyTitle+'</h3><p>'+emptyText+(rootPath?'<br>'+esc(rootPath):"")+'</p></div>';
     root.innerHTML=searchBar("搜尋根目錄資料夾")+sectionHead("MUSIC FOLDERS","資料夾歌單",countLabel)+
       (folders.length?'<div class="folder-grid">'+folders.slice(0,500).map((folder,index)=>
         '<button class="folder-card" data-action="play-group" data-index="'+index+'"><span>▰</span><strong>'+
@@ -643,6 +724,15 @@ export function initLibraryUI(options = {}) {
       '<div class="statusbox" id="error-status">成功索引後，對應錯誤會從清單解除。</div>';
   }
   function render() {
+    const returningFromNowPlaying=state.view!=="now-playing"&&root.querySelector(".now-playing-page");
+    if(returningFromNowPlaying){
+      returningFromNowPlaying.remove();
+      document.body.classList.toggle("is-podcast-view",["shows","show-detail","continue"].includes(state.view));
+      document.body.classList.remove("is-now-playing");
+      $("#player-now-playing")?.setAttribute("aria-label","展開正在播放頁面");
+      root.classList.remove("view-enter");
+      return;
+    }
     if(!state.loaded){message("正在讀取曲庫……");void load(true);return;}
     switch(state.view){
       case "music":renderHome();break;
@@ -1062,21 +1152,10 @@ export function initLibraryUI(options = {}) {
     const target=name==="podcasts"?"shows":name;
     if(target==="now-playing"&&!state.currentItem){message("請先從曲庫選擇音訊。");return;}
     const returningFromNowPlaying=state.view==="now-playing"&&target!=="now-playing";
-    if(target==="now-playing"&&state.view!=="now-playing"){
-      state.libraryScrollPosition={x:window.scrollX||0,y:window.scrollY||0,rootTop:root.scrollTop||0};
-    }
-    const restorePosition=returningFromNowPlaying?state.libraryScrollPosition:null;
     if(target!=="now-playing")state.lastLibraryView=target;
     state.view=target;
     if(target!=="now-playing"&&!returningFromNowPlaying)state.search="";
     if(!state.loaded)await load(true);else render();
-    if(restorePosition){
-      state.libraryScrollPosition=null;
-      requestAnimationFrame(()=>requestAnimationFrame(()=>{
-        window.scrollTo(restorePosition.x,restorePosition.y);
-        root.scrollTop=restorePosition.rootTop;
-      }));
-    }
   }
   async function refresh(){state.loaded=false;await load(true);}
   loadPlayerPreferences();updatePlayerModeButton();updateShuffleButton();
