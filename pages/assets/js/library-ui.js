@@ -155,7 +155,8 @@ export function initLibraryUI(options = {}) {
       sectionHead("TRACK LIST","曲目清單",'<span class="library-muted">'+tracks.length+' 首</span>')+
       trackRows(tracks,"track");
     loadCovers();
-  }  function renderArtists() {
+  }
+  function renderArtists() {
     const map=new Map();
     for(const t of state.tracks){for(const artist of (t.artists?.length?t.artists:[t.albumArtist||"未知藝人"])){if(!map.has(artist))map.set(artist,[]);map.get(artist).push(t);}}
     const artists=[...map.entries()].filter(([name])=>!state.search||name.toLocaleLowerCase().includes(state.search.toLocaleLowerCase())).sort((a,b)=>a[0].localeCompare(b[0],"zh-Hant"));

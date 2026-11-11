@@ -48,6 +48,7 @@
 .back-link{border:0;background:none;color:#b99ae8;padding:8px 0;cursor:pointer;font-size:11px}
 .show-detail{display:grid;grid-template-columns:150px minmax(0,1fr);gap:22px;align-items:center;margin:12px 0 25px;padding:20px;border:1px solid #c7b3df24;border-radius:14px;background:linear-gradient(120deg,#282236,#1b1925)}
 .show-detail-cover{width:150px;height:150px}
+.album-detail-actions{display:flex;align-items:center;gap:10px;margin-top:14px}
 .show-detail h3{font-size:24px;margin:8px 0}
 .show-detail p{font-size:11px;color:#9b93a7;line-height:1.8;margin:4px 0}
 .show-description{max-width:650px}
