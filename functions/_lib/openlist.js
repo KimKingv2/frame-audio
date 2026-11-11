@@ -2,7 +2,7 @@ import { error, isObject, json } from "./api.js";
 
 function configuredBase(env) {
   const raw = String(env.ALIST_VPS_API_BASE_URL || env.OPENLIST_BASE_URL || "").trim();
-  if (!raw) return { response: error("Cloudflare 尚未設定 ALIST_VPS_API_BASE_URL Variable。", 503) };
+  if (!raw) return { response: error("Cloudflare 尚未設定 ALIST_VPS_API_BASE_URL Text。", 503) };
   let url;
   try { url = new URL(raw); }
   catch { return { response: error("ALIST_VPS_API_BASE_URL 不是有效網址。", 503) }; }
@@ -40,7 +40,23 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000) {
     });
   } catch (cause) {
     if (cause?.name === "AbortError") return { response: error("VPS Alist API 請求逾時。", 504) };
-    return { response: error("Cloudflare Pages 無法連接 VPS Alist API。", 502) };
+    const diagnosticCode = String(cause?.cause?.code || cause?.code || "");
+    const diagnosticMessage = String(cause?.cause?.message || cause?.message || cause?.name || "Unknown error")
+      .replace(/https?:\/\/[^\s"'<>]+/gi, "[URL]")
+      .replace(/(authorization|token)\s*[:=]\s*[^\s,;]+/gi, "$1=[REDACTED]")
+      .replace(/\s+/g, " ")
+      .slice(0, 140);
+    console.error("[FRAME Audio] VPS Alist fetch failed", {
+      endpoint,
+      name: String(cause?.name || "Error"),
+      code: diagnosticCode,
+      message: diagnosticMessage
+    });
+    const detail = [diagnosticCode, diagnosticMessage].filter(Boolean).join(": ");
+    return { response: error(
+      "Cloudflare Pages 無法連接 VPS Alist API。" + (detail ? " 診斷：" + detail : ""),
+      502
+    ) };
   } finally {
     clearTimeout(timeout);
   }

@@ -80,7 +80,7 @@ Open the site and complete the Access email OTP login. The connection dialog sho
 1. VPS Alist through the same-origin Pages Function routes `/api/openlist/list` and `/api/openlist/get`.
 2. Cloudflare D1 and R2 through the existing catalogue status endpoint.
 
-A successful status check reports Music track/folder counts, Podcast schema status and listening schema status. A missing `ALIST_VPS_API_TOKEN` or `ALIST_VPS_API_BASE_URL` returns an explicit server-side configuration error.
+A successful status check reports Music track/folder counts, Podcast schema status and listening schema status. A missing `ALIST_VPS_API_TOKEN` or `ALIST_VPS_API_BASE_URL` returns an explicit server-side configuration error. A connection-level 502 includes a sanitized underlying error type/code (and writes the same non-secret diagnostic to Pages logs) to distinguish DNS, TLS, redirect and network failures; it never logs or returns the API Token.
 
 ## API overview
 
