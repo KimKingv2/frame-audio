@@ -8,7 +8,7 @@ export function initLibraryUI(options = {}) {
   const $ = selector => document.querySelector(selector);
   const state = {
     view:"music",tracks:[],folders:[],shows:[],episodes:[],loaded:false,loadedAt:0,busy:false,
-    selectedShowId:"",selectedAlbum:null,search:"",items:[],itemType:"track",reportPeriod:"week",reportType:"episode",
+    selectedShowId:"",selectedAlbum:null,search:"",searchComposing:false,items:[],itemType:"track",reportPeriod:"week",reportType:"episode",
     errors:[],currentItem:null,queue:[],queueIndex:-1,session:null,tickAt:0,speed:1,
     lastProgressSave:0,restorePositionMs:0,playRequestId:0,artworkUrls:new Set()
   };
@@ -117,15 +117,31 @@ export function initLibraryUI(options = {}) {
     root.innerHTML=searchBar("搜尋曲名、歌手、專輯或路徑")+sectionHead("ALL TRACKS","所有歌曲",'<span class="library-muted">'+rows.length+' 首</span>')+trackRows(rows.slice(0,500),"track");
     loadCovers();
   }
+  function albumArtistDisplay(tracks) {
+    const albumArtists=[...new Set(tracks.map(t=>String(t.albumArtist||"").trim()).filter(Boolean))];
+    const trackArtists=[...new Set(tracks.flatMap(t=>(t.artists||[]).map(a=>String(a||"").trim())).filter(Boolean))];
+    const artists=albumArtists.length===1?albumArtists:[...new Set([...albumArtists,...trackArtists])];
+    if(!artists.length)return "未知藝人";
+    return artists.length>3?artists.slice(0,2).join(" / ")+" 等 "+artists.length+" 位藝人":artists.join(" / ");
+  }
   function renderAlbums() {
     const map=new Map();
-    for(const track of state.tracks){const name=String(track.album||"未分類專輯"),artist=track.albumArtist||(track.artists||[]).join(" / "),key=name+"|"+artist;
-      if(!map.has(key))map.set(key,{title:name,artist,tracks:[]});map.get(key).tracks.push(track);}
-    const albums=[...map.values()].filter(a=>!state.search||[a.title,a.artist].join(" ").toLocaleLowerCase().includes(state.search.toLocaleLowerCase())).sort((a,b)=>a.title.localeCompare(b.title,"zh-Hant"));
+    for(const track of state.tracks){
+      const rawName=String(track.album||"").trim();
+      const name=rawName||"未分類專輯";
+      const trackArtist=String(track.albumArtist||"").trim()||(track.artists||[]).join(" / ")||"未知藝人";
+      const normalizedName=rawName.normalize("NFKC").replace(/\s+/g," ").toLocaleLowerCase();
+      const key=rawName?"album:"+normalizedName:"unknown:"+trackArtist;
+      if(!map.has(key))map.set(key,{title:name,tracks:[]});
+      map.get(key).tracks.push(track);
+    }
+    const albums=[...map.values()].map(album=>({...album,artist:albumArtistDisplay(album.tracks)}))
+      .filter(a=>!state.search||[a.title,a.artist].join(" ").toLocaleLowerCase().includes(state.search.toLocaleLowerCase()))
+      .sort((a,b)=>a.title.localeCompare(b.title,"zh-Hant"));
     state.items=albums;state.itemType="album";
     root.innerHTML=searchBar("搜尋專輯或專輯藝人")+sectionHead("ALBUMS","專輯",'<span class="library-muted">'+albums.length+' 張</span>')+
       '<div class="media-card-grid">'+albums.slice(0,300).map((a,i)=>'<button class="media-card" data-action="open-album" data-index="'+i+'">'+
-      cover(artworkOf(a.tracks[0]),a.title,"media-card-cover")+'<strong>'+esc(a.title)+'</strong><span>'+esc(a.artist||"未知藝人")+'</span><small>'+a.tracks.length+' 首</small></button>').join("")+'</div>';
+      cover(artworkOf(a.tracks[0]),a.title,"media-card-cover")+'<strong>'+esc(a.title)+'</strong><span>'+esc(a.artist)+'</span><small>'+a.tracks.length+' 首</small></button>').join("")+'</div>';
     loadCovers();
   }
   function orderedAlbumTracks(tracks) {
@@ -408,8 +424,32 @@ export function initLibraryUI(options = {}) {
     }catch(e){message(e.message||"操作失敗。","error");}
   }
   root.addEventListener("click",handleClick);
+  function refreshSearchResults(input) {
+    if(!input)return;
+    state.search=input.value;
+    const start=input.selectionStart,end=input.selectionEnd;
+    render();
+    const replacement=$("#library-search");
+    if(replacement){
+      replacement.focus({preventScroll:true});
+      if(Number.isInteger(start)&&Number.isInteger(end)){
+        try{replacement.setSelectionRange(start,end);}catch{}
+      }
+    }
+  }
+  root.addEventListener("compositionstart",event=>{
+    if(event.target.id==="library-search")state.searchComposing=true;
+  });
+  root.addEventListener("compositionend",event=>{
+    if(event.target.id!=="library-search")return;
+    state.searchComposing=false;
+    refreshSearchResults(event.target);
+  });
   root.addEventListener("input",event=>{
-    if(event.target.id==="library-search"){state.search=event.target.value;const pos=event.target.selectionStart;render();const input=$("#library-search");if(input){input.focus();input.setSelectionRange(pos,pos);}}
+    if(event.target.id!=="library-search")return;
+    state.search=event.target.value;
+    if(state.searchComposing||event.isComposing)return;
+    refreshSearchResults(event.target);
   });
   audio.addEventListener("error",()=>{
     if(!state.currentItem||!audio.src)return;
