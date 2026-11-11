@@ -355,6 +355,46 @@ function mimeForPath(path) {
   return MIME_BY_EXTENSION[extension] || undefined;
 }
 
+function nativeTextValues(nativeTags, ids) {
+  const wanted = new Set(ids.map(id => String(id).toUpperCase()));
+  return (Array.isArray(nativeTags) ? nativeTags : [])
+    .filter(tag => wanted.has(String(tag?.id || "").toUpperCase()))
+    .map(tag => tag?.value)
+    .flatMap(value => Array.isArray(value) ? value : [value])
+    .map(value => typeof value === "string" ? value.trim() : "")
+    .filter(Boolean);
+}
+
+function joinNativeArtists(values) {
+  if (values.length > 2) {
+    return values.slice(0, -1).join(", ") + " & " + values[values.length - 1];
+  }
+  return values.join(" & ");
+}
+
+function preferFlacVorbisIdentity(metadata, path) {
+  const common = { ...(metadata.common || {}) };
+  if (!/\.flac$/i.test(String(path))) return common;
+
+  const vorbis = metadata.native?.vorbis || [];
+  const title = nativeTextValues(vorbis, ["TITLE"]);
+  const album = nativeTextValues(vorbis, ["ALBUM"]);
+  const artists = nativeTextValues(vorbis, ["ARTIST"]);
+  const albumArtists = nativeTextValues(vorbis, ["ALBUMARTIST", "ALBUM ARTIST"]);
+
+  if (title.length) common.title = title[0];
+  if (album.length) common.album = album[0];
+  if (artists.length) {
+    common.artists = artists;
+    common.artist = joinNativeArtists(artists);
+  }
+  if (albumArtists.length) {
+    common.albumartists = albumArtists;
+    common.albumartist = joinNativeArtists(albumArtists);
+  }
+  return common;
+}
+
 function normalizeLyrics(value) {
   if (!value) return [];
   const values = Array.isArray(value) ? value : [value];
@@ -429,7 +469,11 @@ export async function inspectAudioMetadata({
       metadataPrefetchMs + " ms；metadata 總耗時 " + metadataReadElapsedMs + " ms", "success");
     return {
       metadata: {
-        common: metadata.common || {},
+        // FLAC's Vorbis Comment is the canonical in-file tag block.
+        // music-metadata ranks APEv2 above Vorbis, so a stale APEv2 footer
+        // can otherwise override the user's current Vorbis values.
+        common: preferFlacVorbisIdentity(metadata, path),
+        native: metadata.native || {},
         format: metadata.format || {},
         tagTypes: metadata.format?.tagTypes || []
       },

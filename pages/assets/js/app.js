@@ -1,5 +1,5 @@
 import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo } from "./openlist-client.js?v=20261111-vps-all-source1";
-import { inspectAudioMetadata } from "./metadata-inspector.js";
+import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261111-flac-vorbis-priority1";
 import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js";
 import { initLibraryUI } from "./library-ui.js?v=20261111-album-ime5";
 
@@ -316,6 +316,14 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     return JSON.stringify(textValue) + " [" + codePoints + "]";
   }
 
+  function metadataNativeDebugValue(native, type, ids) {
+    const wanted = new Set(ids.map(id => String(id).toUpperCase()));
+    const values = (native?.[type] || [])
+      .filter(tag => wanted.has(String(tag?.id || "").toUpperCase()))
+      .map(tag => metadataDebugValue(tag?.value));
+    return values.length ? values.join(" / ") : "(none)";
+  }
+
   async function indexSingleAudioFile(path, button, options = {}) {
     const silent = options.silent === true;
     const listedFile = options.listedFile || null;
@@ -398,6 +406,16 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         "｜TITLE=" + metadataDebugValue(common.title) +
         "｜ALBUM=" + metadataDebugValue(common.album) +
         "｜tagTypes=" + JSON.stringify(metadata.tagTypes || []));
+      if (/\.flac$/i.test(path) && metadata.native) {
+        log("FLAC 標籤來源對照｜Vorbis TITLE=" +
+          metadataNativeDebugValue(metadata.native, "vorbis", ["TITLE"]) +
+          "｜Vorbis ALBUM=" +
+          metadataNativeDebugValue(metadata.native, "vorbis", ["ALBUM"]) +
+          "｜APEv2 TITLE=" +
+          metadataNativeDebugValue(metadata.native, "APEv2", ["TITLE"]) +
+          "｜APEv2 ALBUM=" +
+          metadataNativeDebugValue(metadata.native, "APEv2", ["ALBUM"]));
+      }
       const id = await sha256Hex(new TextEncoder().encode(path));
       let artwork = null;
       let artworkNote = "沒有內嵌封面";
