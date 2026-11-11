@@ -3,7 +3,7 @@ import {
   joinOpenListPath,
   formatBytes,
   getOpenListFileInfo
-} from "./openlist-client.js";
+} from "./openlist-client.js?v=20261111-server-secrets1";
 import { inspectAudioMetadata } from "./metadata-inspector.js";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
@@ -97,12 +97,11 @@ function progressText(state, batch, finished = false, pauseRequested = false) {
   return lines.join("\n");
 }
 
-async function apiRequest(url, adminToken, options = {}) {
+async function apiRequest(url, options = {}) {
   const response = await fetch(url, {
     credentials: "same-origin",
     ...options,
     headers: {
-      Authorization: "Bearer " + adminToken,
       ...(options.headers || {})
     }
   });
@@ -114,11 +113,11 @@ async function apiRequest(url, adminToken, options = {}) {
   return data;
 }
 
-async function scanStateRequest(key, adminToken, method = "GET", state = null) {
+async function scanStateRequest(key, method = "GET", state = null) {
   const url = method === "GET"
     ? "/api/catalog/state?key=" + encodeURIComponent(key)
     : "/api/catalog/state";
-  return apiRequest(url, adminToken, {
+  return apiRequest(url, {
     method,
     ...(method === "POST" ? {
       headers: { "Content-Type": "application/json" },
@@ -127,38 +126,38 @@ async function scanStateRequest(key, adminToken, method = "GET", state = null) {
   });
 }
 
-async function saveScanState(key, state, adminToken, onLog) {
+async function saveScanState(key, state, onLog) {
   state.updatedAt = new Date().toISOString();
   const startedAt = performance.now();
   onLog("Podcast D1 掃描進度保存開始");
-  await scanStateRequest(key, adminToken, "POST", state);
+  await scanStateRequest(key, "POST", state);
   onLog("Podcast D1 掃描進度保存完成：" +
     Math.round(performance.now() - startedAt) + " ms", "success");
 }
 
-async function loadRetryPaths(adminToken) {
-  const data = await apiRequest("/api/catalog/podcasts/retries", adminToken);
+async function loadRetryPaths() {
+  const data = await apiRequest("/api/catalog/podcasts/retries");
   return new Set((data.items || []).map(item => String(item?.path || "")).filter(path => path.startsWith("/")));
 }
 
-async function saveRetryPath(path, message, adminToken) {
-  await apiRequest("/api/catalog/podcasts/retries", adminToken, {
+async function saveRetryPath(path, message) {
+  await apiRequest("/api/catalog/podcasts/retries", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path, message })
   });
 }
 
-async function resolveRetryPath(path, adminToken) {
-  await apiRequest("/api/catalog/podcasts/retries", adminToken, {
+async function resolveRetryPath(path) {
+  await apiRequest("/api/catalog/podcasts/retries", {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path })
   });
 }
 
-async function savePodcastShow(show, adminToken) {
-  return apiRequest("/api/catalog/podcasts?kind=shows", adminToken, {
+async function savePodcastShow(show) {
+  return apiRequest("/api/catalog/podcasts?kind=shows", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ show })
@@ -166,12 +165,12 @@ async function savePodcastShow(show, adminToken) {
 }
 
 export async function indexPodcastEpisode({
-  path, rootPath, baseUrl, openListToken, adminToken, listedFile, onLog
+  path, rootPath, baseUrl, listedFile, onLog
 }) {
   const showFolderPath = childShowFolder(rootPath, path);
   if (!showFolderPath) throw new Error("單集不在任何第一層節目資料夾內，已略過。");
   const showName = showFolderPath.split("/").filter(Boolean).pop() || "未命名節目";
-  const info = await getOpenListFileInfo({ baseUrl, token: openListToken, path });
+  const info = await getOpenListFileInfo({ baseUrl, path });
   if (info.is_dir) throw new Error("Podcast 單集路徑實際上是資料夾。");
   const fileSize = Number(info.size || 0);
   if (!Number.isSafeInteger(fileSize) || fileSize <= 0) throw new Error("OpenList 沒有提供有效的單集檔案大小。");
@@ -210,7 +209,6 @@ export async function indexPodcastEpisode({
         method: "PUT",
         credentials: "same-origin",
         headers: {
-          Authorization: "Bearer " + adminToken,
           "Content-Type": mimeType
         },
         body: new Blob([pictureBytes], { type: mimeType })
@@ -278,7 +276,7 @@ export async function indexPodcastEpisode({
     coverHash
   };
 
-  await apiRequest("/api/catalog/podcasts?kind=episodes", adminToken, {
+  await apiRequest("/api/catalog/podcasts?kind=episodes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ show, episode })
@@ -289,16 +287,13 @@ export async function indexPodcastEpisode({
 
 export async function runPodcastBatch({
   baseUrl,
-  openListToken,
-  adminToken,
   rootPath,
   onLog = () => {},
   onProgress = () => {},
   shouldPause = () => false
 }) {
   const root = normalizePath(rootPath);
-  if (!baseUrl || !openListToken) throw new Error("請先連接 OpenList。");
-  if (!adminToken) throw new Error("請先測試 Cloudflare D1 / R2。");
+  if (!baseUrl) throw new Error("伺服器端連線尚未就緒。");
   const log = (message, level = "info") => {
     try { onLog(String(message || ""), level); } catch {}
   };
@@ -310,21 +305,21 @@ export async function runPodcastBatch({
   try {
     log("========== Podcast 批次索引開始 ==========");
     log("Podcast 根目錄：" + root);
-    const stored = await scanStateRequest(key, adminToken);
+    const stored = await scanStateRequest(key);
     state = stored.state;
     if (!state) {
       state = newPodcastState(root);
-      await saveScanState(key, state, adminToken, log);
+      await saveScanState(key, state, log);
     } else if (state.completed) {
       const restart = window.confirm(
         "這個 Podcast 根目錄上一輪已完成。\n再次掃描會跳過未變更單集，只索引新增或變更項目，不會刪除既有資料。要開始新一輪嗎？"
       );
       if (!restart) return { cancelled: true };
       state = newPodcastState(root, state);
-      await saveScanState(key, state, adminToken, log);
+      await saveScanState(key, state, log);
     }
 
-    const retryPaths = await loadRetryPaths(adminToken);
+    const retryPaths = await loadRetryPaths();
     log("Podcast 全域失敗重試佇列讀取完成：" + retryPaths.size + " 個待重試路徑",
       retryPaths.size ? "warning" : "success");
     const startedAt = Date.now();
@@ -350,7 +345,7 @@ export async function runPodcastBatch({
         log("Podcast 單集重試 " + attempt + "/" + MAX_FILE_ATTEMPTS + "：" + retryPath);
         try {
           indexed = await indexPodcastEpisode({
-            path: retryPath, rootPath: root, baseUrl, openListToken, adminToken,
+            path: retryPath, rootPath: root, baseUrl,
             onLog: log
           });
         } catch (error) {
@@ -359,7 +354,7 @@ export async function runPodcastBatch({
         if (indexed?.ok) break;
         const message = String(indexed?.error || "未知錯誤").slice(0, 700);
         if (/管理金鑰不正確|尚未設定 FRAME_AUDIO_ADMIN_TOKEN|HTTP 401|HTTP 403|驗證失敗|沒有.*權限/i.test(message)) {
-          throw new Error(message + " 請檢查 OpenList Token 與 Cloudflare 管理金鑰。");
+          throw new Error(message + " 請檢查 Cloudflare Pages 的 OPENLIST_API_TOKEN 與 FRAME_AUDIO_ADMIN_TOKEN Secrets。");
         }
         if (attempt < MAX_FILE_ATTEMPTS) {
           const delay = 1500 * attempt;
@@ -369,7 +364,7 @@ export async function runPodcastBatch({
       }
       batch.entries += 1;
       if (indexed?.ok) {
-        await resolveRetryPath(retryPath, adminToken);
+        await resolveRetryPath(retryPath);
         retryPaths.delete(retryPath);
         recoveredPaths.add(retryPath);
         state.errors = (state.errors || []).filter(item => item?.path !== retryPath);
@@ -381,13 +376,13 @@ export async function runPodcastBatch({
         exhaustedRetryPaths.add(retryPath);
         state.failedCount += 1;
         batch.failed += 1;
-        await saveRetryPath(retryPath, message, adminToken);
+        await saveRetryPath(retryPath, message);
         state.errors = (state.errors || []).filter(item => item?.path !== retryPath);
         state.errors.push({ path: retryPath, message, at: new Date().toISOString() });
         if (state.errors.length > 20) state.errors.shift();
         log("Podcast 單集仍失敗，已保留待重試狀態：" + retryPath, "warning");
       }
-      await saveScanState(key, state, adminToken, log);
+      await saveScanState(key, state, log);
       onProgress(progressText(state, batch, false, shouldPause()), "ok");
     }
 
@@ -406,11 +401,11 @@ export async function runPodcastBatch({
         state.page = 1;
         state.itemIndex = 0;
         log("Podcast 進入資料夾：" + state.currentFolder);
-        await saveScanState(key, state, adminToken, log);
+        await saveScanState(key, state, log);
       }
 
       const listing = await listOpenListDirectory({
-        baseUrl, token: openListToken,
+        baseUrl, 
         path: state.currentFolder,
         page: state.page,
         perPage: 100,
@@ -422,7 +417,7 @@ export async function runPodcastBatch({
       const audioItems = listing.items.filter(item => !item.isDir && AUDIO_FILE_PATTERN.test(item.name));
       const existingByPath = new Map();
       if (audioItems.length) {
-        const lookup = await apiRequest("/api/catalog/podcasts/lookup", adminToken, {
+        const lookup = await apiRequest("/api/catalog/podcasts/lookup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -448,7 +443,7 @@ export async function runPodcastBatch({
             await savePodcastShow({
               id: showId, title: showName, folderPath: showPath,
               author: null, description: null, coverHash: null
-            }, adminToken);
+            });
             if (!state.showFolders.includes(showPath)) state.showFolders.push(showPath);
             log("Podcast 節目資料夾已建立／更新：" + showName, "success");
           }
@@ -488,7 +483,7 @@ export async function runPodcastBatch({
                 log("Podcast 單集索引嘗試 " + attempt + "/" + MAX_FILE_ATTEMPTS + "：" + fullPath);
                 try {
                   indexed = await indexPodcastEpisode({
-                    path: fullPath, rootPath: root, baseUrl, openListToken, adminToken,
+                    path: fullPath, rootPath: root, baseUrl,
                     listedFile: item, onLog: log
                   });
                 } catch (error) {
@@ -497,7 +492,7 @@ export async function runPodcastBatch({
                 if (indexed?.ok) break;
                 const message = String(indexed?.error || "未知錯誤").slice(0, 700);
                 if (/管理金鑰不正確|尚未設定 FRAME_AUDIO_ADMIN_TOKEN|HTTP 401|HTTP 403|驗證失敗|沒有.*權限/i.test(message)) {
-                  throw new Error(message + " 請檢查 OpenList Token 與 Cloudflare 管理金鑰。");
+                  throw new Error(message + " 請檢查 Cloudflare Pages 的 OPENLIST_API_TOKEN 與 FRAME_AUDIO_ADMIN_TOKEN Secrets。");
                 }
                 if (attempt < MAX_FILE_ATTEMPTS) {
                   const delay = 1500 * attempt;
@@ -508,7 +503,7 @@ export async function runPodcastBatch({
               batch.currentPath = "";
               if (indexed?.ok) {
                 if (retryPaths.has(fullPath)) {
-                  await resolveRetryPath(fullPath, adminToken);
+                  await resolveRetryPath(fullPath);
                   retryPaths.delete(fullPath);
                   state.errors = (state.errors || []).filter(error => error?.path !== fullPath);
                 }
@@ -522,7 +517,7 @@ export async function runPodcastBatch({
                 state.failedCount += 1;
                 batch.failed += 1;
                 try {
-                  await saveRetryPath(fullPath, message, adminToken);
+                  await saveRetryPath(fullPath, message);
                   retryPaths.add(fullPath);
                   log("Podcast 單集已加入 Podcast 專屬失敗佇列：" + fullPath, "warning");
                 } catch (queueError) {
@@ -540,7 +535,7 @@ export async function runPodcastBatch({
         state.scannedEntryCount += 1;
         batch.entries += 1;
         if (checkpointNow || batch.entries % 10 === 0) {
-          await saveScanState(key, state, adminToken, log);
+          await saveScanState(key, state, log);
         }
         onProgress(progressText(state, batch), "ok");
       }
@@ -556,7 +551,7 @@ export async function runPodcastBatch({
           state.visitedFolderCount += 1;
           batch.foldersVisited += 1;
         }
-        await saveScanState(key, state, adminToken, log);
+        await saveScanState(key, state, log);
       }
     }
 
@@ -569,7 +564,7 @@ export async function runPodcastBatch({
     else if (batch.foldersVisited >= MAX_FOLDERS_PER_BATCH) batch.stopReason = "達到每批完成 500 個資料夾上限";
     else if (elapsedMs >= MAX_BATCH_DURATION_MS) batch.stopReason = "達到單批安全時限";
     else batch.stopReason = "本批正常結束，仍有工作可續作";
-    await saveScanState(key, state, adminToken, log);
+    await saveScanState(key, state, log);
     log("========== Podcast 本批結束：" + batch.stopReason + " ==========",
       state.completed ? "success" : "warning");
     onProgress(progressText(state, batch, true, shouldPause()), "ok");
@@ -578,7 +573,7 @@ export async function runPodcastBatch({
     log("Podcast 批次索引發生錯誤：" + (error.message || error), "error");
     if (state) {
       state.lastError = String(error.message || error).slice(0, 700);
-      try { await saveScanState(key, state, adminToken, log); } catch {}
+      try { await saveScanState(key, state, log); } catch {}
       onProgress(progressText(state, batch, false, shouldPause()) +
         "\n發生錯誤，已保存目前進度；修復後可續作。", "error");
     } else {

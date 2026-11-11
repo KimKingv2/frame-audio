@@ -1,7 +1,7 @@
-import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo } from "./openlist-client.js?v=20261111-vps-all-source1";
+import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo } from "./openlist-client.js?v=20261111-server-secrets1";
 import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261111-flac-vorbis-priority1";
-import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js";
-import { initLibraryUI } from "./library-ui.js?v=20261111-player-experience1";
+import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js?v=20261111-server-secrets1";
+import { initLibraryUI } from "./library-ui.js?v=20261111-server-secrets1";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
 (() => {
@@ -9,9 +9,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
 
   const $ = (selector) => document.querySelector(selector);
   const dialog = $("#connection-dialog");
-  const urlInput = $("#openlist-url");
-  const tokenInput = $("#openlist-token");
-  const storageTokenInput = $("#cloudflare-admin-token");
   const musicRootInput = $("#music-root-path");
   const podcastRootInput = $("#podcast-root-path");
   const storageResultBox = $("#storage-result");
@@ -22,14 +19,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   const currentPathLabel = $("#current-path");
   const metadataPreview = $("#metadata-result");
   const browseButton = $("#browse-root");
-  const rememberCredentialsInput = $("#remember-credentials");
-  const sharedVpsTokenInput = $("#share-vps-token");
-  const forgetCredentialsButton = $("#forget-credentials");
-  const credentialStorageKey = "frame-audio-credentials-v1";
-  let restoredCredentials = false;
-  let activeBaseUrl = "";
-  let activeToken = "";
-  let activeStorageToken = "";
+  let activeBaseUrl = window.location.origin;
   let cloudflareStorageReady = false;
   let activePath = "/";
   let scanRunning = false;
@@ -138,123 +128,44 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     appendScanLog((prefix ? prefix + "｜" : "") + (event.message || String(event)), event.level || "info");
   }
 
-  function currentStorageToken() {
-    return sharedVpsTokenInput?.checked
-      ? tokenInput.value.trim()
-      : storageTokenInput.value.trim();
-  }
-
-  function syncStorageTokenMode(copyFromVps = false) {
-    const shared = sharedVpsTokenInput?.checked === true;
-    if (storageTokenInput) {
-      storageTokenInput.readOnly = shared;
-      if (shared && copyFromVps) storageTokenInput.value = tokenInput.value;
-    }
-    activeStorageToken = currentStorageToken();
-    cloudflareStorageReady = false;
-  }
-
-  function saveCredentials() {
-    if (!rememberCredentialsInput?.checked) {
-      try { localStorage.removeItem(credentialStorageKey); } catch {}
-      return;
-    }
-    const shared = sharedVpsTokenInput?.checked === true;
-    const payload = {
-      version: 1,
-      openListUrl: urlInput.value.trim(),
-      openListToken: tokenInput.value,
-      shareVpsToken: shared,
-      adminToken: shared ? "" : storageTokenInput.value.trim(),
-      musicRoot: musicRootInput.value,
-      podcastRoot: podcastRootInput.value
-    };
-    try {
-      localStorage.setItem(credentialStorageKey, JSON.stringify(payload));
-    } catch {
-      setStorageResult("瀏覽器拒絕保存本機憑證。請檢查隱私／網站儲存設定。", "error");
-    }
-  }
-
-  function restoreCredentials() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(credentialStorageKey) || "null");
-      if (!saved || saved.version !== 1) return;
-      if (typeof saved.openListUrl === "string" && saved.openListUrl) urlInput.value = saved.openListUrl;
-      if (typeof saved.openListToken === "string") tokenInput.value = saved.openListToken;
-      const share = saved.shareVpsToken !== false;
-      if (sharedVpsTokenInput) sharedVpsTokenInput.checked = share;
-      if (share) {
-        storageTokenInput.value = tokenInput.value;
-      } else if (typeof saved.adminToken === "string") {
-        storageTokenInput.value = saved.adminToken;
-      }
-      storageTokenInput.readOnly = share;
-      if (typeof saved.musicRoot === "string" && saved.musicRoot) musicRootInput.value = saved.musicRoot;
-      if (typeof saved.podcastRoot === "string" && saved.podcastRoot) podcastRootInput.value = saved.podcastRoot;
-      activeBaseUrl = urlInput.value.trim();
-      activeToken = tokenInput.value;
-      activeStorageToken = currentStorageToken();
-      restoredCredentials = Boolean(activeToken.trim() && activeBaseUrl);
-    } catch {
-      restoredCredentials = false;
-    }
-  }
-
-  function forgetCredentials() {
-    try { localStorage.removeItem(credentialStorageKey); } catch {}
-    tokenInput.value = "";
-    storageTokenInput.value = "";
-    activeToken = "";
-    activeStorageToken = "";
-    connected = false;
-    cloudflareStorageReady = false;
-    if (sharedVpsTokenInput) sharedVpsTokenInput.checked = true;
-    if (storageTokenInput) storageTokenInput.readOnly = true;
-    setResult("已清除本機保存的 VPS Alist Token。");
-    setStorageResult("已清除本機保存的 Cloudflare 管理金鑰。", "ok");
-  }
-
-  restoreCredentials();
+  // Remove credentials saved by older versions. Retain only non-secret root paths.
+  try {
+    const legacy = JSON.parse(localStorage.getItem("frame-audio-credentials-v1") || "null");
+    if (typeof legacy?.musicRoot === "string" && legacy.musicRoot) musicRootInput.value = legacy.musicRoot;
+    if (typeof legacy?.podcastRoot === "string" && legacy.podcastRoot) podcastRootInput.value = legacy.podcastRoot;
+  } catch {}
+  try { localStorage.removeItem("frame-audio-credentials-v1"); } catch {}
 
   async function testCloudflareStorage() {
     const button = $("#test-storage");
-    activeStorageToken = currentStorageToken();
-    if (!activeStorageToken) {
-      setStorageResult("請輸入 Cloudflare 儲存管理金鑰。這不是 OpenList API Token。", "error");
-      return;
-    }
     button.disabled = true;
     cloudflareStorageReady = false;
-    setStorageResult("正在檢查 Cloudflare D1 與 R2……");
+    setStorageResult("正在透過 Cloudflare Access 檢查伺服器端 D1 / R2……");
     try {
       const response = await fetch("/api/catalog/status", {
-        method: "GET", credentials: "same-origin",
-        headers: { Authorization: "Bearer " + activeStorageToken }
+        method: "GET",
+        credentials: "same-origin"
       });
       let data = {};
       try { data = await response.json(); } catch {}
-      if (!response.ok || !data.ok) {
-        if (response.status === 401 && sharedVpsTokenInput?.checked) {
-          throw new Error("Cloudflare 拒絕目前的 VPS Token。請確認 Cloudflare Pages Secret「FRAME_AUDIO_ADMIN_TOKEN」已設為同一個 Token；若要使用不同金鑰，可取消「共用 VPS Token」。");
-        }
-        throw new Error(data.error || ("Cloudflare API HTTP " + response.status));
-      }
+      if (!response.ok || !data.ok) throw new Error(data.error || ("Cloudflare API HTTP " + response.status));
       cloudflareStorageReady = true;
-      saveCredentials();
       void libraryUI?.refresh();
       setStorageResult(
-        "PASS：Cloudflare 儲存已連線。\nD1：歌曲 " + data.tracks + " 首；資料夾 " + data.folders + " 個。\nR2：已連接。" +
+        "PASS：Cloudflare 伺服器端儲存已連線。\\nD1：歌曲 " + data.tracks +
+        " 首；資料夾 " + data.folders + " 個。\\nR2：已連接。" +
         (data.podcastSchemaReady
-          ? "\nPodcast D1：已初始化；節目 " + data.podcastShows + " 個；單集 " + data.podcastEpisodes + " 集。"
-          : "\nPodcast D1：尚未初始化。請在 D1 執行 migrations/0002_podcasts.sql 後再開始 Podcast 掃描。") +
+          ? "\\nPodcast D1：已初始化；節目 " + data.podcastShows + " 個；單集 " + data.podcastEpisodes + " 集。"
+          : "\\nPodcast D1：尚未初始化。請在 D1 執行 migrations/0002_podcasts.sql 後再開始 Podcast 掃描。") +
         (data.listeningSchemaReady
-          ? "\n收聽進度與報表資料表：已初始化。"
-          : "\n收聽進度與報表資料表：尚未初始化，請執行 migrations/0003_listening.sql。"),
+          ? "\\n收聽進度與報表資料表：已初始化。"
+          : "\\n收聽進度與報表資料表：尚未初始化，請執行 migrations/0003_listening.sql。"),
         data.podcastSchemaReady ? "ok" : "");
-    } catch (error) {
-      setStorageResult(error.message || "Cloudflare 儲存連線失敗。", "error");
-    } finally { button.disabled = false; }
+    } catch (cause) {
+      setStorageResult(cause.message || "Cloudflare 儲存連線失敗。", "error");
+    } finally {
+      button.disabled = false;
+    }
   }
 
   function clearMetadataPreview() {
@@ -426,7 +337,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       if (!silent) setResult(message, "error");
       return { ok: false, error: message };
     }
-    if (!cloudflareStorageReady || !activeStorageToken) {
+    if (!cloudflareStorageReady) {
       const message = "請先輸入 Cloudflare 管理金鑰並成功執行「測試 Cloudflare 儲存」。";
       if (!silent) setResult(message, "error");
       return { ok: false, error: message };
@@ -459,7 +370,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       if (!info) {
         const fileInfoStartedAt = performance.now();
         log("VPS Alist /api/fs/get 開始");
-        info = await getOpenListFileInfo({ baseUrl: activeBaseUrl, token: activeToken, path });
+        info = await getOpenListFileInfo({ baseUrl: activeBaseUrl, path });
         openListInfoMs = Math.round(performance.now() - fileInfoStartedAt);
         log("VPS Alist /api/fs/get 完成：" + openListInfoMs + " ms；檔案大小 " +
           formatBytes(Number(info.size || 0)), "success");
@@ -535,7 +446,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
             method: "PUT",
             credentials: "same-origin",
             headers: {
-              Authorization: "Bearer " + activeStorageToken,
               "Content-Type": mimeType
             },
             body: new Blob([pictureBytes], { type: mimeType })
@@ -598,7 +508,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         method: "POST",
         credentials: "same-origin",
         headers: {
-          Authorization: "Bearer " + activeStorageToken,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({ track })
@@ -617,8 +526,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
           method: "POST",
           credentials: "same-origin",
           headers: {
-            Authorization: "Bearer " + activeStorageToken,
-            "Content-Type": "application/json"
+              "Content-Type": "application/json"
           },
           body: JSON.stringify({ paths: [path] })
         });
@@ -717,7 +625,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       method,
       credentials: "same-origin",
       headers: {
-        Authorization: "Bearer " + activeStorageToken,
         ...(method === "POST" ? { "Content-Type": "application/json" } : {})
       },
       ...(method === "POST" ? { body: JSON.stringify({ key, state }) } : {})
@@ -745,7 +652,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     const response = await fetch("/api/catalog/retries", {
       method: "GET",
       credentials: "same-origin",
-      headers: { Authorization: "Bearer " + activeStorageToken }
     });
     let data = {};
     try { data = await response.json(); } catch {}
@@ -762,7 +668,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       method: "POST",
       credentials: "same-origin",
       headers: {
-        Authorization: "Bearer " + activeStorageToken,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ path, message })
@@ -779,7 +684,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       method: "DELETE",
       credentials: "same-origin",
       headers: {
-        Authorization: "Bearer " + activeStorageToken,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ path })
@@ -822,7 +726,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       setResult("請先測試 VPS Alist 連線，並讀取要索引的音樂根目錄。", "error");
       return;
     }
-    if (!cloudflareStorageReady || !activeStorageToken) {
+    if (!cloudflareStorageReady) {
       setResult("請先輸入 Cloudflare 管理金鑰並成功測試 D1 / R2。", "error");
       return;
     }
@@ -994,7 +898,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         const directoryListStartedAt = performance.now();
         const listing = await listOpenListDirectory({
           baseUrl: activeBaseUrl,
-          token: activeToken,
           path: state.currentFolder,
           page: state.page,
           perPage: 100,
@@ -1014,7 +917,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
             method: "POST",
             credentials: "same-origin",
             headers: {
-              Authorization: "Bearer " + activeStorageToken,
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
@@ -1104,7 +1006,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
                     appendScanLog("下一首 /api/fs/get 前瞻預取開始：" + nextCandidate.path);
                     const promise = getOpenListFileInfo({
                       baseUrl: activeBaseUrl,
-                      token: activeToken,
                       path: nextCandidate.path
                     }).then(info => {
                       const elapsedMs = Math.round(performance.now() - prefetchStartedAt);
@@ -1223,8 +1124,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
           method: "POST",
           credentials: "same-origin",
           headers: {
-            Authorization: "Bearer " + activeStorageToken,
-            "Content-Type": "application/json"
+              "Content-Type": "application/json"
           },
           body: JSON.stringify({
             rootPath: state.rootPath,
@@ -1293,7 +1193,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       setResult("請先測試 VPS Alist 連線，並確認 Podcast 根目錄可讀取。", "error");
       return;
     }
-    if (!cloudflareStorageReady || !activeStorageToken) {
+    if (!cloudflareStorageReady) {
       setResult("請先輸入 Cloudflare 管理金鑰並成功測試 D1 / R2。", "error");
       return;
     }
@@ -1319,8 +1219,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     try {
       const result = await runPodcastBatch({
         baseUrl: activeBaseUrl,
-        openListToken: activeToken,
-        adminToken: activeStorageToken,
         rootPath,
         onLog: appendScanLog,
         onProgress: setScanProgress,
@@ -1356,7 +1254,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     try {
       const info = await getOpenListFileInfo({
         baseUrl: activeBaseUrl,
-        token: activeToken,
         path
       });
       if (info.is_dir) throw new Error("選取的項目是資料夾，請選擇音訊檔案。");
@@ -1394,7 +1291,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     try {
       const info = await getOpenListFileInfo({
         baseUrl: activeBaseUrl,
-        token: activeToken,
         path
       });
       const fileSize = Number(info.size || 0);
@@ -1423,7 +1319,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         setResult(lines.concat("正在測試 " + (index + 1) + "/" + offsets.length + "，起始位移 " + offset + " bytes……").join("\n"));
         const result = await probeOpenListAudioRange({
           baseUrl: activeBaseUrl,
-          token: activeToken,
           path,
           byteCount: chunk,
           startByte: offset
@@ -1532,7 +1427,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     $("#connection-label").textContent = "VPS Alist 已連線";
     $("#connection-dot").style.background = "#78b98d";
     connected = true;
-    if (cloudflareStorageReady && activeStorageToken) void libraryUI?.refresh();
+    if (cloudflareStorageReady) void libraryUI?.refresh();
   }
 
   async function loadDirectory(path) {
@@ -1540,7 +1435,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     try {
       const result = await listOpenListDirectory({
         baseUrl: activeBaseUrl,
-        token: activeToken,
         path,
         page: 1,
         perPage: 100
@@ -1554,41 +1448,22 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
 
   async function testConnection() {
     const button = $("#test-connection");
-    activeBaseUrl = urlInput.value.trim();
-    activeToken = tokenInput.value;
-    syncStorageTokenMode(true);
     const path = pathInput.value.trim() || "/";
-    if (!activeToken.trim()) {
-      setResult("請先輸入 VPS Alist 唯讀 API Token。", "error");
-      tokenInput.focus();
-      return;
-    }
-    if (!activeBaseUrl) {
-      setResult("請先填寫 VPS Alist 網址。", "error");
-      urlInput.focus();
-      return;
-    }
+    activeBaseUrl = window.location.origin;
     button.disabled = true;
     browseButton.disabled = true;
     browser.hidden = true;
     connected = false;
-    $("#connection-label").textContent = "正在連接 VPS Alist";
+    $("#connection-label").textContent = "正在透過 Cloudflare 連接 VPS Alist";
     $("#connection-dot").style.background = "#b78b75";
-    setResult("正在連接並讀取目錄……");
+    setResult("正在透過伺服器端 VPS Alist API 讀取目錄……");
     try {
-      const result = await listOpenListDirectory({
-        baseUrl: activeBaseUrl,
-        token: activeToken,
-        path,
-        page: 1,
-        perPage: 100
-      });
+      const result = await listOpenListDirectory({ baseUrl: activeBaseUrl, path, page: 1, perPage: 100 });
       renderDirectory(result);
-      saveCredentials();
-    } catch (error) {
+    } catch (cause) {
       $("#connection-label").textContent = "VPS Alist 尚未連線";
       $("#connection-dot").style.background = "#b78b75";
-      setResult(error.message || "連線失敗。", "error");
+      setResult(cause.message || "伺服器端 Alist 連線失敗。", "error");
     } finally {
       button.disabled = false;
     }
@@ -1640,46 +1515,11 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) dialog.close();
   });
-  rememberCredentialsInput?.addEventListener("change", () => {
-    if (rememberCredentialsInput.checked) {
-      saveCredentials();
-      setStorageResult("已啟用本機憑證保存。憑證只存在此瀏覽器，不會寫入 GitHub。", "ok");
-    } else {
-      try { localStorage.removeItem(credentialStorageKey); } catch {}
-      setStorageResult("已停用本機保存；目前頁面仍可繼續使用已輸入的憑證。", "ok");
-    }
-  });
-  sharedVpsTokenInput?.addEventListener("change", () => {
-    syncStorageTokenMode(true);
-    saveCredentials();
-    setStorageResult(
-      sharedVpsTokenInput.checked
-        ? "Cloudflare D1 / R2 現在會使用 VPS Alist Token。請確認 Pages Secret FRAME_AUDIO_ADMIN_TOKEN 的值相同。"
-        : "已切換為獨立 Cloudflare D1 / R2 管理金鑰。",
-      "ok"
-    );
-  });
-  forgetCredentialsButton?.addEventListener("click", forgetCredentials);
-  storageTokenInput.addEventListener("input", () => {
-    activeStorageToken = currentStorageToken();
-    cloudflareStorageReady = false;
-    saveCredentials();
-  });
-  tokenInput.addEventListener("input", () => {
-    activeToken = tokenInput.value;
-    if (sharedVpsTokenInput?.checked) syncStorageTokenMode(true);
-    saveCredentials();
-  });
-  [urlInput, musicRootInput, podcastRootInput].forEach(input => {
-    input?.addEventListener("input", saveCredentials);
-  });
-
   libraryUI = initLibraryUI({
     getCredentials: () => ({
-      adminToken: activeStorageToken,
-      openListToken: activeToken,
       baseUrl: activeBaseUrl,
       connected,
+      storageReady: cloudflareStorageReady,
     }),
     reindexMusic: path => indexSingleAudioFile(path, { disabled: false }, {
       silent: true,
@@ -1691,8 +1531,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         path,
         rootPath,
         baseUrl: activeBaseUrl,
-        openListToken: activeToken,
-        adminToken: activeStorageToken,
         onLog: appendScanLog
       });
     },
@@ -1704,7 +1542,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         method: "DELETE",
         credentials: "same-origin",
         headers: {
-          Authorization: "Bearer " + activeStorageToken,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({ path })
@@ -1719,7 +1556,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         method: "POST",
         credentials: "same-origin",
         headers: {
-          Authorization: "Bearer " + activeStorageToken,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({ itemType, oldPath, newPath })
@@ -1732,9 +1568,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   });
 
   showView("music");
-  if (restoredCredentials) {
-    setResult("已載入此瀏覽器保存的 VPS Token，正在自動連線……");
-    setStorageResult("已載入此瀏覽器保存的管理金鑰，正在自動測試 D1 / R2……");
-    Promise.allSettled([testConnection(), testCloudflareStorage()]);
-  }
+  setResult("Cloudflare Access 已驗證，正在建立伺服器端 VPS Alist 連線……");
+  setStorageResult("正在檢查伺服器端 D1 / R2 Secrets 與資料庫綁定……");
+  Promise.allSettled([testConnection(), testCloudflareStorage()]);
 })();

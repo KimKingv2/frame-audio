@@ -1,4 +1,4 @@
-import { getOpenListFileInfo } from "./openlist-client.js?v=20261111-vps-all-source1";
+import { getOpenListFileInfo } from "./openlist-client.js?v=20261111-server-secrets1";
 import { EQ_BANDS, parseFoobarFeq, parseSynchronizedLyrics } from "./player-effects.js?v=20261111-player-experience1";
 
 const PERIODS = [["week","近 7 日"],["month","近 30 日"],["year","近 365 日"],["all","全部時間"]];
@@ -33,7 +33,6 @@ export function initLibraryUI(options = {}) {
     return h ? h+" 小時 "+m+" 分" : m ? m+" 分鐘" : n+" 秒";
   };
   function getConfig(){return options.getCredentials?.()||{};}
-  function authToken(){const c=getConfig();if(!c.adminToken)throw new Error("請先設定並測試 Cloudflare 儲存管理金鑰。");return c.adminToken;}
   function loadPlayerPreferences(){try{const saved=JSON.parse(localStorage.getItem("frame-audio-player-preferences")||"{}");if(PLAY_MODES.includes(saved.playMode))state.playMode=saved.playMode;if(Array.isArray(saved.eqGains)&&saved.eqGains.length===EQ_BANDS.length)state.eqGains=saved.eqGains.map(value=>Math.max(-20,Math.min(20,Number(value)||0)));state.eqEnabled=saved.eqEnabled===true;}catch{}}
   function savePlayerPreferences(){try{localStorage.setItem("frame-audio-player-preferences",JSON.stringify({playMode:state.playMode,eqEnabled:state.eqEnabled,eqGains:state.eqGains}));}catch{}}
   function updatePlayerModeButton(){const button=$("#player-mode");if(!button)return;const config={sequential:{icon:"→",label:"順序播放"},"repeat-one":{icon:"↻¹",label:"單曲循環"},"repeat-all":{icon:"↻",label:"列表循環"}}[state.playMode]||{icon:"→",label:"順序播放"};button.textContent=config.icon;button.title=config.label;button.setAttribute("aria-label",config.label);button.classList.toggle("active",state.playMode!=="sequential");audio.loop=false;}
@@ -50,7 +49,7 @@ export function initLibraryUI(options = {}) {
   function animateLibraryContent(){root.classList.remove("view-enter");void root.offsetWidth;root.classList.add("view-enter");}
   function openModal(dialog){if(!dialog||dialog.open)return;try{dialog.showModal();}catch{dialog.setAttribute("open","");}}
   async function api(url,init={}) {
-    const headers=new Headers(init.headers||{});headers.set("Authorization","Bearer "+authToken());
+    const headers=new Headers(init.headers||{});
     if(init.body&&!headers.has("Content-Type"))headers.set("Content-Type","application/json");
     const response=await fetch(url,{credentials:"same-origin",...init,headers});
     let data={};try{data=await response.json();}catch{}
@@ -90,12 +89,10 @@ export function initLibraryUI(options = {}) {
   }
   function loadCovers() {
     revokeCovers();
-    const token=getConfig().adminToken;
-    if(!token)return;
     root.querySelectorAll("img[data-art-hash]").forEach(async img=>{
       const hash=img.dataset.artHash;if(!/^[a-f0-9]{64}$/i.test(hash))return;
       try{
-        const res=await fetch("/api/artwork/"+hash,{headers:{Authorization:"Bearer "+token},credentials:"same-origin"});
+        const res=await fetch("/api/artwork/"+hash,{credentials:"same-origin"});
         if(!res.ok)return;
         const url=URL.createObjectURL(await res.blob());state.artworkUrls.add(url);
         img.src=url;img.parentElement?.classList.add("has-artwork");
@@ -237,7 +234,7 @@ export function initLibraryUI(options = {}) {
     if(!targets.length){if(status){status.hidden=false;status.textContent="找不到可重新讀取的曲目。";}return;}
     if(typeof options.reindexMusic!=="function"){if(status){status.hidden=false;status.textContent="目前無法啟動單曲索引。";}return;}
     const credentials=getConfig();
-    if(!credentials.connected||!credentials.openListToken||!credentials.adminToken){
+    if(!credentials.connected||!credentials.storageReady){
       if(status){status.hidden=false;status.textContent="請先連接 VPS Alist，並測試 Cloudflare D1 / R2。";}
       return;
     }
@@ -416,8 +413,7 @@ export function initLibraryUI(options = {}) {
     if(lyricsButton)lyricsButton.disabled=!item;
     const coverNode=$("#player-cover");coverNode.textContent=(item?.title||"FA").slice(0,1).toUpperCase();coverNode.style.backgroundImage="";
     if(item?.artworkHash) {
-      const token=getConfig().adminToken;
-      fetch("/api/artwork/"+item.artworkHash,{headers:{Authorization:"Bearer "+token}}).then(r=>r.ok?r.blob():null).then(blob=>{
+      fetch("/api/artwork/"+item.artworkHash,{credentials:"same-origin"}).then(r=>r.ok?r.blob():null).then(blob=>{
         if(!blob||state.currentItem?.id!==item.id)return;
         const url=URL.createObjectURL(blob);state.artworkUrls.add(url);coverNode.style.backgroundImage="url('"+url+"')";coverNode.textContent="";
       }).catch(()=>{});
@@ -469,13 +465,12 @@ export function initLibraryUI(options = {}) {
     const requestId=++state.playRequestId;
     const isCurrentRequest=()=>requestId===state.playRequestId;
     const config=getConfig();
-    if(!config.connected||!config.openListToken||!config.baseUrl){message("播放前請先測試 VPS Alist 唯讀 API 連線。","error");$("#open-settings")?.click();return;}
+    if(!config.connected||!config.storageReady||!config.baseUrl){message("伺服器端 VPS Alist 或 Cloudflare 連線尚未就緒。","error");$("#open-settings")?.click();return;}
     const item=playable(raw,type);if(!item.path||!item.id){message("這筆索引缺少檔案路徑或識別碼。","error");return;}
     try {
       const [info,saved]=await Promise.all([
         getOpenListFileInfo({
           baseUrl:config.baseUrl,
-          token:config.openListToken,
           path:item.path,
           timeoutMs:18000
         }),
@@ -549,7 +544,7 @@ export function initLibraryUI(options = {}) {
     if(!newPath.startsWith("/")||newPath.includes("\0")){if(status)status.textContent="路徑必須以 / 開頭，且不能包含空字元。";return;}
     if(button)button.disabled=true;if(status)status.textContent="正在單獨更新索引："+newPath;
     try{
-      const cfg=getConfig();if(!cfg.connected||!cfg.openListToken)throw new Error("請先測試 VPS Alist 連線。");
+      const cfg=getConfig();if(!cfg.connected||!cfg.storageReady)throw new Error("請先測試伺服器端 VPS Alist 與 Cloudflare 連線。");
       const result=entry.itemType==="track"?await options.reindexMusic?.(newPath):await options.reindexPodcast?.(newPath);
       if(!result?.ok)throw new Error(result?.error||"索引未成功。");
       if(newPath!==entry.path){

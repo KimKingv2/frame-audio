@@ -30,54 +30,38 @@ export async function listOpenListDirectory({
   perPage = 100,
   onEvent
 }) {
+  void baseUrl;
+  void token;
   const emit = (message, level = "info") => {
     try { onEvent?.({ message, level }); } catch {}
   };
-  const normalizedBase = normalizeOpenListUrl(baseUrl);
   const safePath = String(path || "/").trim();
-  if (!safePath.startsWith("/") || safePath.includes("\0")) {
-    throw new Error("目錄路徑必須以 / 開頭。");
-  }
-
+  if (!safePath.startsWith("/") || safePath.includes("\\0")) throw new Error("目錄路徑必須以 / 開頭。");
+  const safePage = Number.isSafeInteger(Number(page)) && Number(page) > 0 ? Number(page) : 1;
+  const safePerPage = Number.isSafeInteger(Number(perPage)) && Number(perPage) > 0 ? Math.min(500, Number(perPage)) : 100;
   const headers = { "Content-Type": "application/json" };
-  const trimmedToken = String(token || "").trim();
-  if (trimmedToken) headers.Authorization = trimmedToken;
-
   let response;
   let lastNetworkError = null;
   for (let attempt = 1; attempt <= DIRECTORY_LIST_MAX_ATTEMPTS; attempt += 1) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), DIRECTORY_LIST_TIMEOUT_MS);
     const attemptStartedAt = performance.now();
-    emit("OpenList /api/fs/list 第 " + attempt + "/" + DIRECTORY_LIST_MAX_ATTEMPTS +
-      " 次請求開始；第 " + page + " 頁；最長等待 45 秒");
+    emit("伺服器端 OpenList 目錄列表第 " + attempt + "/" + DIRECTORY_LIST_MAX_ATTEMPTS + " 次請求開始；第 " + safePage + " 頁；最長等待 45 秒");
     try {
-      response = await fetch(normalizedBase + "/api/fs/list", {
+      response = await fetch("/api/openlist/list", {
         method: "POST",
-        mode: "cors",
-        credentials: "omit",
+        credentials: "same-origin",
         redirect: "error",
         headers,
-        body: JSON.stringify({
-          path: safePath,
-          password: "",
-          page,
-          per_page: perPage,
-          refresh: false
-        }),
+        body: JSON.stringify({ path: safePath, password: "", page: safePage, per_page: safePerPage, refresh: false }),
         signal: controller.signal
       });
-      const elapsedMs = Math.round(performance.now() - attemptStartedAt);
-      emit("OpenList /api/fs/list 已收到 HTTP " + response.status +
-        "；請求耗時 " + elapsedMs + " ms", response.ok ? "success" : "warning");
+      emit("伺服器端 OpenList 目錄列表已收到 HTTP " + response.status + "；請求耗時 " + Math.round(performance.now() - attemptStartedAt) + " ms", response.ok ? "success" : "warning");
       lastNetworkError = null;
       break;
     } catch (error) {
-      const elapsedMs = Math.round(performance.now() - attemptStartedAt);
       lastNetworkError = error;
-      emit("OpenList /api/fs/list 請求失敗：" +
-        (error?.name === "AbortError" ? "逾時" : (error?.message || error)) +
-        "；耗時 " + elapsedMs + " ms", "warning");
+      emit("伺服器端 OpenList 目錄列表請求失敗：" + (error?.name === "AbortError" ? "逾時" : (error?.message || error)) + "；耗時 " + Math.round(performance.now() - attemptStartedAt) + " ms", "warning");
       const retryable = error?.name === "AbortError" || error?.name === "TypeError";
       if (!retryable || attempt >= DIRECTORY_LIST_MAX_ATTEMPTS) break;
       emit("等待 " + DIRECTORY_LIST_RETRY_DELAY_MS + " ms 後自動重試", "warning");
@@ -86,50 +70,34 @@ export async function listOpenListDirectory({
       clearTimeout(timeout);
     }
   }
-
   if (!response) {
-    emit("OpenList /api/fs/list 最終失敗；已耗盡自動重試", "error");
+    emit("伺服器端 OpenList 目錄列表最終失敗；已耗盡自動重試", "error");
     if (lastNetworkError?.name === "AbortError") {
-      throw new Error(
-        `讀取 OpenList 目錄列表逾時。資料夾：${safePath}；頁碼：${page}；每次等待 ${DIRECTORY_LIST_TIMEOUT_MS / 1000} 秒；已嘗試 ${DIRECTORY_LIST_MAX_ATTEMPTS} 次。進度游標未推進，可以稍後續作。`
-      );
+      throw new Error(`讀取 OpenList 目錄列表逾時。資料夾：${safePath}；頁碼：${safePage}；每次等待 ${DIRECTORY_LIST_TIMEOUT_MS / 1000} 秒；已嘗試 ${DIRECTORY_LIST_MAX_ATTEMPTS} 次。進度游標未推進，可以稍後續作。`);
     }
-    const pageOrigin = typeof window !== "undefined" ? window.location.origin : "unknown";
-    const browserDetail = lastNetworkError?.message ? ` 瀏覽器訊息：${lastNetworkError.message}` : "";
-    throw new Error(
-      `瀏覽器未取得 OpenList HTTP 回應。資料夾：${safePath}；頁碼：${page}。請檢查網路及 CORS 設定。\n目前頁面來源（請加入 OpenList CORS 允許清單）：${pageOrigin}\n並允許 POST、OPTIONS 方法，以及 Authorization、Content-Type 標頭。${browserDetail}`
-    );
+    throw new Error("無法取得 Cloudflare Pages 的 OpenList API 回應。請確認 Cloudflare Access 登入，以及 OPENLIST_API_TOKEN、OPENLIST_BASE_URL 已設定。");
   }
   let payload;
   const jsonStartedAt = performance.now();
-  emit("解析 OpenList 目錄 JSON 開始");
+  emit("解析伺服器端 OpenList 目錄 JSON 開始");
   try {
     payload = await response.json();
-    emit("解析 OpenList 目錄 JSON 完成：" + Math.round(performance.now() - jsonStartedAt) + " ms", "success");
+    emit("解析伺服器端 OpenList 目錄 JSON 完成：" + Math.round(performance.now() - jsonStartedAt) + " ms", "success");
   } catch {
-    throw new Error(`OpenList 回應不是有效 JSON（HTTP ${response.status}）。`);
+    throw new Error(`伺服器端 OpenList 回應不是有效 JSON（HTTP ${response.status}）。`);
   }
-
-  if (!response.ok) {
-    throw new Error(`OpenList HTTP ${response.status}：${payload?.message || response.statusText}`);
-  }
+  if (!response.ok) throw new Error(`伺服器端 OpenList API HTTP ${response.status}：${payload?.error || payload?.message || response.statusText}`);
   if (typeof payload?.code === "number" && payload.code !== 200) {
     const code = payload.code;
     const message = String(payload.message || "未知 API 錯誤");
-    if (code === 401 || code === 403) {
-      throw new Error("OpenList 驗證失敗或沒有目錄讀取權限，請檢查 Token。");
-    }
+    if (code === 401 || code === 403) throw new Error("伺服器端 OpenList 驗證失敗，請檢查 OPENLIST_API_TOKEN Secret。");
     throw new Error(`OpenList API ${code}：${message}`);
   }
-
   const data = payload?.data;
-  if (!data || !Array.isArray(data.content)) {
-    throw new Error("OpenList 回傳格式與預期不同，找不到 data.content。");
-  }
-
+  if (!data || !Array.isArray(data.content)) throw new Error("OpenList 回傳格式與預期不同，找不到 data.content。");
   return {
     path: safePath,
-    items: data.content.map((item) => ({
+    items: data.content.map(item => ({
       name: String(item.name || ""),
       isDir: Boolean(item.is_dir),
       size: Number(item.size || 0),
@@ -137,8 +105,8 @@ export async function listOpenListDirectory({
       sign: item.sign || ""
     })),
     total: Number(data.total ?? data.content.length),
-    page: Number(data.page ?? page),
-    perPage: Number(data.per_page ?? perPage)
+    page: Number(data.page ?? safePage),
+    perPage: Number(data.per_page ?? safePerPage)
   };
 }
 
@@ -160,54 +128,39 @@ export function formatBytes(bytes) {
 }
 
 export async function getOpenListFileInfo({ baseUrl, token, path, timeoutMs = DEFAULT_TIMEOUT_MS }) {
-  const normalizedBase = normalizeOpenListUrl(baseUrl);
+  void baseUrl;
+  void token;
   const safePath = String(path || "").trim();
-  if (!safePath.startsWith("/") || safePath.includes("\0")) {
-    throw new Error("檔案路徑必須是以 / 開頭的完整路徑。");
-  }
-
-  const headers = { "Content-Type": "application/json" };
-  const trimmedToken = String(token || "").trim();
-  if (trimmedToken) headers.Authorization = trimmedToken;
-
+  if (!safePath.startsWith("/") || safePath.includes("\\0")) throw new Error("檔案路徑必須是以 / 開頭的完整路徑。");
   const controller = new AbortController();
-  const safeTimeoutMs = Number.isFinite(Number(timeoutMs))
-    ? Math.max(1000, Math.min(60000, Number(timeoutMs)))
-    : DEFAULT_TIMEOUT_MS;
+  const safeTimeoutMs = Number.isFinite(Number(timeoutMs)) ? Math.max(1000, Math.min(60000, Number(timeoutMs))) : DEFAULT_TIMEOUT_MS;
   const timeout = setTimeout(() => controller.abort(), safeTimeoutMs);
   let response;
   try {
-    response = await fetch(normalizedBase + "/api/fs/get", {
+    response = await fetch("/api/openlist/get", {
       method: "POST",
-      mode: "cors",
-      credentials: "omit",
+      credentials: "same-origin",
       redirect: "error",
-      headers,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: safePath, password: "" }),
       signal: controller.signal
     });
   } catch (error) {
     if (error?.name === "AbortError") throw new Error("讀取 OpenList 檔案資訊逾時。");
-    throw new Error("無法讀取 OpenList /api/fs/get。請確認 CORS、Token 與目錄權限。");
+    throw new Error("無法讀取伺服器端 OpenList 檔案資訊。請確認 Cloudflare Access 與 Pages Functions 設定。");
   } finally {
     clearTimeout(timeout);
   }
-
   let payload;
-  try {
-    payload = await response.json();
-  } catch {
-    throw new Error(`OpenList 檔案資訊不是有效 JSON（HTTP ${response.status}）。`);
-  }
-  if (!response.ok) throw new Error(`OpenList /api/fs/get HTTP ${response.status}。`);
+  try { payload = await response.json(); }
+  catch { throw new Error(`OpenList 檔案資訊不是有效 JSON（HTTP ${response.status}）。`); }
+  if (!response.ok) throw new Error(payload?.error || `伺服器端 OpenList 檔案資訊 HTTP ${response.status}。`);
   if (payload?.code != null && Number(payload.code) !== 200) {
     const code = Number(payload.code);
-    if (code === 401 || code === 403) throw new Error("OpenList 驗證失敗或沒有檔案讀取權限，請檢查 Token。");
-    throw new Error(`OpenList /api/fs/get API ${code}：${String(payload.message || "未知錯誤")}`);
+    if (code === 401 || code === 403) throw new Error("伺服器端 OpenList 驗證失敗，請檢查 OPENLIST_API_TOKEN Secret。");
+    throw new Error(`OpenList 檔案資訊 API ${code}：${String(payload.message || "未知錯誤")}`);
   }
-  if (!payload?.data || typeof payload.data !== "object") {
-    throw new Error("OpenList /api/fs/get 缺少檔案資訊。");
-  }
+  if (!payload?.data || typeof payload.data !== "object") throw new Error("OpenList 檔案資訊缺少 data。");
   return payload.data;
 }
 
@@ -227,53 +180,7 @@ export async function probeOpenListAudioRange({
     throw new Error("Range 測試上限必須介於 1 到 65536 bytes。");
   }
 
-  const headers = { "Content-Type": "application/json" };
-  const trimmedToken = String(token || "").trim();
-  if (trimmedToken) headers.Authorization = trimmedToken;
-
-  const apiController = new AbortController();
-  const apiTimeout = setTimeout(() => apiController.abort(), DEFAULT_TIMEOUT_MS);
-  let infoResponse;
-  try {
-    infoResponse = await fetch(normalizedBase + "/api/fs/get", {
-      method: "POST",
-      mode: "cors",
-      credentials: "omit",
-      redirect: "error",
-      headers,
-      body: JSON.stringify({ path: safePath, password: "" }),
-      signal: apiController.signal
-    });
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      throw new Error("讀取音訊檔案資訊逾時。");
-    }
-    throw new Error("無法讀取 OpenList /api/fs/get。請確認 CORS、Token 與目錄權限。");
-  } finally {
-    clearTimeout(apiTimeout);
-  }
-
-  let payload;
-  try {
-    payload = await infoResponse.json();
-  } catch {
-    throw new Error(`OpenList 檔案資訊不是有效 JSON（HTTP ${infoResponse.status}）。`);
-  }
-  if (!infoResponse.ok) {
-    throw new Error(`OpenList /api/fs/get HTTP ${infoResponse.status}。`);
-  }
-  if (payload?.code != null && Number(payload.code) !== 200) {
-    const code = Number(payload.code);
-    if (code === 401 || code === 403) {
-      throw new Error("OpenList 驗證失敗或沒有檔案讀取權限，請檢查 Token。");
-    }
-    throw new Error(`OpenList /api/fs/get API ${code}：${String(payload.message || "未知錯誤")}`);
-  }
-
-  const info = payload?.data;
-  if (!info || typeof info !== "object") {
-    throw new Error("OpenList /api/fs/get 缺少檔案資訊。");
-  }
+  const info = await getOpenListFileInfo({ baseUrl, path, timeoutMs: DEFAULT_TIMEOUT_MS });
   if (info.is_dir) {
     throw new Error("選取的項目是資料夾，請選擇音訊檔案。");
   }
