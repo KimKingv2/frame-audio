@@ -1,4 +1,4 @@
-import { error, isObject } from "./api.js";
+import { error, isObject, json } from "./api.js";
 
 function configuredBase(env) {
   const raw = String(env.OPENLIST_BASE_URL || "").trim();
@@ -65,4 +65,4 @@ export function normalizedRawUrl(value, baseUrl) {
   return url.href;
 }
 
-export { error };
+export { error, json };
