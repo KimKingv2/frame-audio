@@ -28,7 +28,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 </style>
 <link rel="stylesheet" href="/assets/css/metadata.css">
 <link rel="stylesheet" href="/assets/css/library.css?v=20261111-mobile-dock2">
-<link rel="stylesheet" href="/assets/css/interaction.css?v=20261111-refined-dock1">
+<link rel="stylesheet" href="/assets/css/interaction.css?v=20261111-unified-controls1">
 </head>
 <body>
 <div class="shell">
@@ -62,16 +62,15 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   </div>
   <div class="controls">
     <div class="player-control-row">
-      <div class="player-tools player-tools-left" aria-label="播放模式">
+      <div class="player-control-group" role="group" aria-label="播放與音訊工具">
         <button class="player-utility" id="player-shuffle" type="button" aria-label="隨機播放：關閉" aria-pressed="false" title="隨機播放：關閉">⤨</button>
+        <div class="player-transport" aria-label="播放控制">
+          <button id="player-prev" type="button" aria-label="上一首" title="上一首">⏮</button>
+          <button id="player-toggle" class="player-play" type="button" aria-label="播放／暫停" title="播放／暫停">▶</button>
+          <button id="player-next" type="button" aria-label="下一首" title="下一首">⏭</button>
+        </div>
         <button class="player-utility" id="player-mode" type="button" aria-label="順序播放" title="順序播放">→</button>
-      </div>
-      <div class="player-transport" aria-label="播放控制">
-        <button id="player-prev" type="button" aria-label="上一首" title="上一首">⏮</button>
-        <button id="player-toggle" class="player-play" type="button" aria-label="播放／暫停" title="播放／暫停">▶</button>
-        <button id="player-next" type="button" aria-label="下一首" title="下一首">⏭</button>
-      </div>
-      <div class="player-tools player-tools-right" aria-label="播放器工具">
+        <span class="player-control-separator" aria-hidden="true"></span>
         <button class="player-utility" id="player-lyrics" type="button" disabled aria-label="歌詞" title="歌詞">♫</button>
         <button class="player-utility" id="player-eq" type="button" aria-label="均衡器" title="均衡器">EQ</button>
         <select id="player-speed" aria-label="播放速度" title="播放速度">

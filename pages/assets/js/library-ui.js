@@ -49,6 +49,103 @@ export function initLibraryUI(options = {}) {
     state.shuffleOrder=order;
     state.shufflePosition=order.indexOf(currentIndex);
   }
+
+  function clearNextPreload() {
+    state.preloadGeneration += 1;
+    const entry = state.preloadEntry;
+    state.preloadEntry = null;
+    state.preloadAudio = null;
+    const warmedAudio = entry?.audio;
+    if (warmedAudio) {
+      try { warmedAudio.pause(); } catch {}
+      try { warmedAudio.removeAttribute("src"); warmedAudio.load(); } catch {}
+    }
+  }
+  function nextQueueIndex(delta = 1) {
+    if (!state.queue.length || state.queueIndex < 0 || !state.currentItem) return -1;
+    if (state.shuffleEnabled) {
+      if (state.shuffleOrder.length !== state.queue.length) rebuildShuffleOrder(state.queueIndex);
+      let position = state.shuffleOrder.indexOf(state.queueIndex);
+      if (position < 0) {
+        rebuildShuffleOrder(state.queueIndex);
+        position = state.shufflePosition;
+      }
+      let targetPosition = position + delta;
+      if (targetPosition < 0 || targetPosition >= state.shuffleOrder.length) {
+        if (state.playMode !== "repeat-all") return -1;
+        if (state.queue.length === 1) return state.queueIndex;
+        rebuildShuffleOrder(state.queueIndex);
+        targetPosition = delta > 0 ? 1 : state.shuffleOrder.length - 1;
+      }
+      return state.shuffleOrder[targetPosition] ?? -1;
+    }
+    let target = state.queueIndex + delta;
+    if (delta > 0 && target >= state.queue.length) {
+      if (state.playMode !== "repeat-all") return -1;
+      target = 0;
+    }
+    return target >= 0 && target < state.queue.length ? target : -1;
+  }
+  function maybePreloadNextItem() {
+    if (!state.currentItem || audio.paused || state.playMode === "repeat-one") return;
+    const durationSeconds = Number.isFinite(audio.duration)
+      ? audio.duration
+      : Number(state.currentItem.durationMs || 0) / 1000;
+    if (!(durationSeconds > 0) || durationSeconds - Number(audio.currentTime || 0) > 30) return;
+
+    const targetIndex = nextQueueIndex(1);
+    if (targetIndex < 0 || targetIndex === state.queueIndex) return;
+    const item = state.queue[targetIndex];
+    if (!item?.id || !pathOf(item)) return;
+    if (state.preloadEntry?.itemId === item.id && state.preloadEntry?.path === pathOf(item)) return;
+
+    clearNextPreload();
+    const config = getConfig();
+    if (!config.connected || !config.storageReady || !config.baseUrl) return;
+
+    const generation = state.preloadGeneration;
+    const entry = {
+      itemId: item.id,
+      path: pathOf(item),
+      itemType: state.currentItem.itemType,
+      generation,
+      info: null,
+      audio: null,
+      promise: null
+    };
+    state.preloadEntry = entry;
+    console.info("[FRAME Audio] Next-track preload started", { remainingSeconds: Math.max(0, Math.round(durationSeconds - audio.currentTime)) });
+
+    entry.promise = getOpenListFileInfo({
+      baseUrl: config.baseUrl,
+      path: entry.path,
+      timeoutMs: 60000
+    }).then(info => {
+      if (state.preloadEntry !== entry || state.preloadGeneration !== generation) return null;
+      if (!info || info.is_dir || !info.raw_url) throw new Error("下一首音訊沒有有效的播放網址。");
+      entry.info = info;
+
+      const useStream = Boolean(eqSource || state.eqEnabled);
+      const sourceUrl = useStream ? info.stream_url : info.raw_url;
+      if (sourceUrl) {
+        const warmedAudio = new Audio();
+        warmedAudio.preload = "auto";
+        if (useStream) warmedAudio.crossOrigin = "anonymous";
+        warmedAudio.src = sourceUrl;
+        entry.audio = warmedAudio;
+        state.preloadAudio = warmedAudio;
+        try { warmedAudio.load(); } catch {}
+      }
+      console.info("[FRAME Audio] Next-track file info ready", { sizeBytes: Number(info.size || 0), warmedAudio: Boolean(entry.audio) });
+      return info;
+    }).catch(error => {
+      if (state.preloadEntry === entry && state.preloadGeneration === generation) {
+        entry.failed = true;
+        console.warn("[FRAME Audio] Next-track preload failed", { message: String(error?.message || error).slice(0, 120) });
+      }
+      return null;
+    });
+  }
   function updateEqStatus(text,type=""){const node=$("#eq-status");if(!node)return;node.textContent=text;node.className="eq-status"+(type?" "+type:"");}
   function renderEqSliders(){const host=$("#eq-sliders");if(!host)return;host.innerHTML=EQ_BANDS.map((band,index)=>'<label class="eq-band"><span class="eq-band-value" id="eq-value-'+index+'">'+Number(state.eqGains[index]||0).toFixed(1)+'</span><input type="range" min="-20" max="20" step="0.5" value="'+Number(state.eqGains[index]||0)+'" data-eq-index="'+index+'" aria-label="'+band.label+' Hz"><span class="eq-band-label">'+band.shortLabel+'</span></label>').join("");}
   function applyEqualizerGains(){if(!eqContext||!eqFilters.length)return;const now=eqContext.currentTime;let maxBoost=0;eqFilters.forEach((filter,index)=>{const gain=state.eqEnabled?Number(state.eqGains[index]||0):0;filter.gain.setTargetAtTime(gain,now,0.025);maxBoost=Math.max(maxBoost,gain);});if(eqOutput)eqOutput.gain.setTargetAtTime(Math.pow(10,-maxBoost/20),now,0.04);const headroom=$("#eq-headroom");if(headroom)headroom.textContent=maxBoost>0?"自動預留頭部空間："+(-maxBoost).toFixed(1)+" dB":"頭部空間：0 dB";}
@@ -519,10 +616,16 @@ export function initLibraryUI(options = {}) {
       const infoRequest=cachedEntry?.promise
         ? cachedEntry.promise.then(info=>info||getOpenListFileInfo({baseUrl:config.baseUrl,path:item.path,timeoutMs:60000}))
         : getOpenListFileInfo({baseUrl:config.baseUrl,path:item.path,timeoutMs:60000});
+      const lookupStartedAt=performance.now();
       const [info,saved]=await Promise.all([
         infoRequest,
         api("/api/listening?view=progress&itemType="+type+"&itemId="+encodeURIComponent(item.id)).catch(()=>({item:null}))
       ]);
+      console.info("[FRAME Audio] Playback file info ready", {
+        source: cachedEntry ? "preload" : "api",
+        elapsedMs: Math.round(performance.now()-lookupStartedAt),
+        sizeBytes: Number(info?.size || 0)
+      });
       if(!isCurrentRequest())return;
       if(!info||info.is_dir)throw new Error("VPS Alist 回傳的項目是資料夾，不是音訊檔案。");
       if(!info.raw_url)throw new Error("VPS Alist /api/fs/get 沒有提供 raw_url。");
@@ -608,6 +711,7 @@ export function initLibraryUI(options = {}) {
       try {
         await audio.play();
         if(!isCurrentRequest())return;
+        console.info("[FRAME Audio] Playback started", { elapsedSinceSelectionMs: Math.round(performance.now()-lookupStartedAt) });
         $("#player-toggle").textContent="Ⅱ";
       } catch(e) {
         if(!isCurrentRequest()||isPlaybackInterruption(e))return;
@@ -620,6 +724,16 @@ export function initLibraryUI(options = {}) {
     }
   }
 
+  function next(delta) {
+    if (!state.queue.length || state.queueIndex < 0 || !state.currentItem) return;
+    if (delta < 0 && Number(audio.currentTime || 0) > 3) {
+      audio.currentTime = 0;
+      return;
+    }
+    const target = nextQueueIndex(delta);
+    if (target < 0 || target >= state.queue.length) return;
+    void playItem(state.currentItem.itemType, state.queue[target], state.queue, target, { preserveQueue: true });
+  }
   async function reindexError(i) {
     const entry=state.errors[i];if(!entry)return;
     const input=root.querySelector('[data-error-path="'+i+'"]'),newPath=String(input?.value||"").trim();
@@ -719,7 +833,7 @@ export function initLibraryUI(options = {}) {
   audio.addEventListener("pause",()=>{accountTime();persistSession(false);saveProgress(true);$("#player-toggle").textContent="▶";document.body.classList.remove("is-audio-playing");});
   audio.addEventListener("loadedmetadata",()=>{
     if(state.restorePositionMs>3000&&Number.isFinite(audio.duration)&&state.restorePositionMs<audio.duration*1000-5000)audio.currentTime=state.restorePositionMs/1000;
-    state.restorePositionMs=0;timeline();
+    state.restorePositionMs=0;timeline();maybePreloadNextItem();
   });
   audio.addEventListener("timeupdate",()=>{timeline();syncLyricsHighlight();maybePreloadNextItem();});
   audio.addEventListener("ended",()=>{
