@@ -142,6 +142,14 @@ export function initLibraryUI(options = {}) {
       return char;
     }).join("");
   }
+  function albumReindexMatchKey(value) {
+    return normalizeAlbumName(value).replace(/[\p{P}\p{S}\p{M}\p{C}\s]/gu,"");
+  }
+  function trackArtistKeys(track) {
+    return [track.albumArtist,...(track.artists||[])]
+      .map(value=>normalizeAlbumName(value))
+      .filter(Boolean);
+  }
   function renderAlbums() {
     const map=new Map();
     for(const track of state.tracks){
@@ -177,6 +185,58 @@ export function initLibraryUI(options = {}) {
       cover(artworkOf(a.tracks[0]),a.title,"media-card-cover")+'<strong>'+esc(a.title)+'</strong><span>'+esc(a.artist)+'</span><small>'+a.tracks.length+' 首</small></button>').join("")+'</div>';
     loadCovers();
   }
+  function albumRefreshTargetCount(album) {
+    const albumKey=albumReindexMatchKey(album?.title);
+    if(!albumKey)return album?.tracks?.length||0;
+    const artistKeys=new Set((album?.tracks||[]).flatMap(trackArtistKeys));
+    return state.tracks.filter(track=>
+      albumReindexMatchKey(track.album)===albumKey &&
+      (!artistKeys.size||trackArtistKeys(track).some(key=>artistKeys.has(key))) &&
+      Boolean(pathOf(track))
+    ).length;
+  }
+  async function refreshAlbumMetadata() {
+    const album=state.selectedAlbum;
+    if(!album)return;
+    const albumKey=albumReindexMatchKey(album.title);
+    const artistKeys=new Set((album.tracks||[]).flatMap(trackArtistKeys));
+    const targets=state.tracks.filter(track=>
+      albumReindexMatchKey(track.album)===albumKey &&
+      (!artistKeys.size||trackArtistKeys(track).some(key=>artistKeys.has(key))) &&
+      Boolean(pathOf(track))
+    );
+    const status=$("#album-reindex-status");
+    const button=root.querySelector('[data-action="refresh-album-metadata"]');
+    if(!targets.length){if(status){status.hidden=false;status.textContent="找不到可重新讀取的曲目。";}return;}
+    if(typeof options.reindexMusic!=="function"){if(status){status.hidden=false;status.textContent="目前無法啟動單曲索引。";}return;}
+    const approved=window.confirm(
+      "準備重新讀取 "+targets.length+" 首同名／疑似同名歌曲的音訊標籤，並更新 Cloudflare D1 索引。"+
+      "\n原始音訊不會修改；封面會沿用 R2 去重保存。"+
+      "\n\n要繼續嗎？"
+    );
+    if(!approved)return;
+    if(button)button.disabled=true;
+    if(status){status.hidden=false;status.textContent="正在準備重新讀取 "+targets.length+" 首歌曲……";}
+    let succeeded=0;
+    const failures=[];
+    for(let index=0;index<targets.length;index++){
+      const track=targets[index];
+      if(status)status.textContent="重新讀取 "+(index+1)+"/"+targets.length+"："+(track.title||pathOf(track));
+      const result=await options.reindexMusic(pathOf(track));
+      if(result?.ok)succeeded++;
+      else failures.push({path:pathOf(track),error:result?.error||"索引失敗"});
+    }
+    const summary="完成：成功更新 "+succeeded+" / "+targets.length+" 首。"+
+      (failures.length?"\n失敗 "+failures.length+" 首：\n"+failures.slice(0,5).map(item=>item.path+"（"+item.error+"）").join("\n"):"");
+    state.selectedAlbum=null;
+    state.view="albums";
+    state.loaded=false;
+    await load(true);
+    const notice=document.createElement("div");
+    notice.className="library-message "+(failures.length?"is-error":"is-success");
+    notice.textContent=summary;
+    root.prepend(notice);
+  }
   function orderedAlbumTracks(tracks) {
     const order = value => {
       const number = Number(value);
@@ -208,7 +268,9 @@ export function initLibraryUI(options = {}) {
       '<div class="show-detail album-detail">'+cover(artworkOf(tracks[0]),album.title,"show-detail-cover")+
       '<div><span class="kicker">ALBUM</span><h3>'+esc(album.title)+'</h3><p>'+esc(album.artist||"未知歌手")+'</p>'+
       '<span class="library-muted">'+esc(details)+'</span>'+tagDiagnostic+duplicateDiagnostic+
-      '<div class="album-detail-actions"><button class="primary" data-action="play-album">▶ 播放整張專輯</button></div></div></div>'+
+      '<div class="album-detail-actions"><button class="primary" data-action="play-album">▶ 播放整張專輯</button>'+
+      '<button class="secondary" data-action="refresh-album-metadata">重新讀取同名專輯標籤（'+albumRefreshTargetCount(album)+' 首）</button></div>'+
+      '<p class="library-muted" id="album-reindex-status" hidden></p></div></div>'+
       sectionHead("TRACK LIST","曲目清單",'<span class="library-muted">'+tracks.length+' 首</span>')+
       trackRows(tracks,"track");
     loadCovers();
@@ -447,6 +509,7 @@ export function initLibraryUI(options = {}) {
         const list=orderedAlbumTracks(state.selectedAlbum?.tracks||[]);
         if(list.length)await playItem("track",list[0],list,0);return;
       }
+      if(action==="refresh-album-metadata"){await refreshAlbumMetadata();return;}
       if(action==="play-show"){
         const show=state.shows.find(s=>s.id===state.selectedShowId),list=state.episodes.filter(e=>e.showId===show?.id).map(e=>({...e,showTitle:show.title}));
         if(list.length)await playItem("episode",list[0],list,0);return;

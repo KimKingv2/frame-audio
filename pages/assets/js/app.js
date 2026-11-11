@@ -1,7 +1,7 @@
 import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo } from "./openlist-client.js?v=20261111-vps-all-source1";
 import { inspectAudioMetadata } from "./metadata-inspector.js";
 import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js";
-import { initLibraryUI } from "./library-ui.js?v=20261111-album-ime3";
+import { initLibraryUI } from "./library-ui.js?v=20261111-album-ime4";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
 (() => {
