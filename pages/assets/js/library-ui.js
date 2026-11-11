@@ -1155,6 +1155,7 @@ export function initLibraryUI(options = {}) {
     if(target!=="now-playing")state.lastLibraryView=target;
     state.view=target;
     if(target!=="now-playing"&&!returningFromNowPlaying)state.search="";
+    if(returningFromNowPlaying){render();return;}
     if(!state.loaded)await load(true);else render();
   }
   async function refresh(){state.loaded=false;await load(true);}
