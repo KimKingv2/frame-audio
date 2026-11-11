@@ -1,4 +1,4 @@
-import { getOpenListFileInfo } from "./openlist-client.js";
+import { getOpenListFileInfo } from "./openlist-client.js?v=20261111-vps-all-source1";
 
 const PERIODS = [["week","近 7 日"],["month","近 30 日"],["year","近 365 日"],["all","全部時間"]];
 
@@ -265,17 +265,13 @@ export function initLibraryUI(options = {}) {
   }
   async function playItem(type,raw,queue=[raw],index=0) {
     const config=getConfig();
-    if(!config.connected||!config.openListToken||!config.baseUrl){message("播放前請先連接 Cloudflare OpenList 曲庫。","error");$("#open-settings")?.click();return;}
-    if(!String(config.playbackBaseUrl||"").trim()||!String(config.playbackToken||"").trim()){
-      message("正式播放只使用 VPS Alist。請先在「連接 OpenList」設定 VPS Alist 網址及唯讀 API Token。","error");
-      $("#open-settings")?.click();return;
-    }
+    if(!config.connected||!config.openListToken||!config.baseUrl){message("播放前請先測試 VPS Alist 唯讀 API 連線。","error");$("#open-settings")?.click();return;}
     const item=playable(raw,type);if(!item.path||!item.id){message("這筆索引缺少檔案路徑或識別碼。","error");return;}
     try {
       const [info,saved]=await Promise.all([
         getOpenListFileInfo({
-          baseUrl:config.playbackBaseUrl,
-          token:config.playbackToken,
+          baseUrl:config.baseUrl,
+          token:config.openListToken,
           path:item.path,
           timeoutMs:18000
         }),
@@ -314,7 +310,7 @@ export function initLibraryUI(options = {}) {
     if(!newPath.startsWith("/")||newPath.includes("\0")){if(status)status.textContent="路徑必須以 / 開頭，且不能包含空字元。";return;}
     if(button)button.disabled=true;if(status)status.textContent="正在單獨更新索引："+newPath;
     try{
-      const cfg=getConfig();if(!cfg.connected||!cfg.openListToken)throw new Error("請先連接 OpenList。");
+      const cfg=getConfig();if(!cfg.connected||!cfg.openListToken)throw new Error("請先測試 VPS Alist 連線。");
       const result=entry.itemType==="track"?await options.reindexMusic?.(newPath):await options.reindexPodcast?.(newPath);
       if(!result?.ok)throw new Error(result?.error||"索引未成功。");
       if(newPath!==entry.path){

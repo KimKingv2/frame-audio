@@ -2,7 +2,7 @@
 
 ## Shared player
 
-Music tracks and Podcast episodes use one bottom-docked HTML5 audio player. A queue is created from the current track list, album, artist, folder or show. Previous / next controls move inside that queue. Cloudflare OpenList remains the catalogue, folder browsing and indexing source. Playback URL resolution is performed exclusively by the configured VPS Alist. There is no automatic Cloudflare playback fallback: VPS API or HTML5 media errors are surfaced to the user. The browser receives the temporary raw_url directly; the audio stream is not proxied or transcoded by Pages or VPS. The VPS Alist URL and API token are held in page memory only.
+Music tracks and Podcast episodes use one bottom-docked HTML5 audio player. A queue is created from the current track list, album, artist, folder or show. Previous / next controls move inside that queue. VPS Alist is the single source for folder browsing, indexing, file metadata and playback URL resolution. There is no automatic Cloudflare playback fallback: VPS API or HTML5 media errors are surfaced to the user. The browser receives the temporary raw_url directly; the audio stream is not proxied or transcoded by Pages or VPS. The single VPS Alist URL and API token are held in page memory only. Cloudflare D1 / R2 credentials remain separate.
 
 ## Resume
 

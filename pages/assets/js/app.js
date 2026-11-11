@@ -1,7 +1,7 @@
-import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo } from "./openlist-client.js?v=20261111-vps-only1";
+import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo } from "./openlist-client.js?v=20261111-vps-all-source1";
 import { inspectAudioMetadata } from "./metadata-inspector.js";
 import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js";
-import { initLibraryUI } from "./library-ui.js?v=20261111-vps-only1";
+import { initLibraryUI } from "./library-ui.js?v=20261111-vps-all-source1";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
 (() => {
@@ -11,9 +11,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   const dialog = $("#connection-dialog");
   const urlInput = $("#openlist-url");
   const tokenInput = $("#openlist-token");
-  const playbackUrlInput = $("#playback-openlist-url");
-  const playbackTokenInput = $("#playback-openlist-token");
-  const playbackResultBox = $("#vps-playback-result");
   const storageTokenInput = $("#cloudflare-admin-token");
   const musicRootInput = $("#music-root-path");
   const podcastRootInput = $("#podcast-root-path");
@@ -41,7 +38,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   // component encounters an initialization problem.
   $("#test-connection")?.addEventListener("click", testConnection);
   $("#test-storage")?.addEventListener("click", testCloudflareStorage);
-  $("#test-vps-playback-source")?.addEventListener("click", testVpsPlaybackSource);
   browseButton?.addEventListener("click", () => loadDirectory(pathInput.value.trim() || "/"));
 
   const views = {
@@ -90,7 +86,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
 
   function setCurrentFolderAsRoot(input, label) {
     if (!activePath || !activePath.startsWith("/")) {
-      setResult("請先在 OpenList 瀏覽器中開啟要設定的資料夾。", "error");
+      setResult("請先在 VPS Alist 目錄瀏覽器中開啟要設定的資料夾。", "error");
       return;
     }
     input.value = activePath;
@@ -319,7 +315,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       try { onLog(message, level); } catch {}
     };
     if (!connected) {
-      const message = "請先連接 OpenList 並讀取目錄。";
+      const message = "請先測試 VPS Alist 連線並讀取目錄。";
       if (!silent) setResult(message, "error");
       return { ok: false, error: message };
     }
@@ -341,7 +337,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       let openListInfoMs = 0;
       const preloadedFileInfo = options.preloadedFileInfo || null;
       if (preloadedFileInfo && preloadedFileInfo.path === path) {
-        log("等待前瞻預取的 OpenList /api/fs/get：" + path);
+        log("等待前瞻預取的 VPS Alist /api/fs/get：" + path);
         const preloadResult = await preloadedFileInfo.promise;
         if (preloadResult?.ok) {
           info = preloadResult.info;
@@ -355,15 +351,15 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       }
       if (!info) {
         const fileInfoStartedAt = performance.now();
-        log("OpenList /api/fs/get 開始");
+        log("VPS Alist /api/fs/get 開始");
         info = await getOpenListFileInfo({ baseUrl: activeBaseUrl, token: activeToken, path });
         openListInfoMs = Math.round(performance.now() - fileInfoStartedAt);
-        log("OpenList /api/fs/get 完成：" + openListInfoMs + " ms；檔案大小 " +
+        log("VPS Alist /api/fs/get 完成：" + openListInfoMs + " ms；檔案大小 " +
           formatBytes(Number(info.size || 0)), "success");
       }
       if (info.is_dir) throw new Error("選取的項目是資料夾，請選擇音訊檔案。");
       const fileSize = Number(info.size || 0);
-      if (!Number.isSafeInteger(fileSize) || fileSize <= 0) throw new Error("OpenList 沒有提供有效的檔案大小。");
+      if (!Number.isSafeInteger(fileSize) || fileSize <= 0) throw new Error("VPS Alist 沒有提供有效的檔案大小。");
       if (typeof options.onFileInfoReady === "function") {
         try { options.onFileInfoReady(info); }
         catch (error) { log("啟動下一首檔案資訊預取失敗：" + (error.message || error), "warning"); }
@@ -508,7 +504,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
           "\nR2：" + artworkNote +
           "\nMetadata Range：" + (stats.rangeRequests || 0) + " 次；實際讀取 " +
           formatBytes(stats.bytesFetched || 0) +
-          "\nOpenList 原始音訊未下載、未修改。",
+          "\n原始音訊未下載、未修改。",
           "ok"
         );
       }
@@ -673,7 +669,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     const pauseButton = $("#scan-pause");
     if (scanRunning) return;
     if (!connected) {
-      setResult("請先連接 OpenList，並讀取要索引的音樂根目錄。", "error");
+      setResult("請先測試 VPS Alist 連線，並讀取要索引的音樂根目錄。", "error");
       return;
     }
     if (!cloudflareStorageReady || !activeStorageToken) {
@@ -775,7 +771,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
 
           const failureMessage = String(indexed.error || "未知索引錯誤").slice(0, 700);
           if (/管理金鑰不正確|尚未設定 FRAME_AUDIO_ADMIN_TOKEN|HTTP 401|HTTP 403|驗證失敗|沒有.*權限/i.test(failureMessage)) {
-            throw new Error(failureMessage + " 請重新測試 Cloudflare 儲存連線或檢查 OpenList Token 後再繼續。");
+            throw new Error(failureMessage + " 請重新測試 Cloudflare 儲存連線或檢查 VPS Alist Token 後再繼續。");
           }
           if (attempt < maxFileAttempts) {
             const retryDelayMs = 1500 * attempt;
@@ -983,7 +979,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
 
                 const failureMessage = String(indexed.error || "未知索引錯誤").slice(0, 700);
                 if (/管理金鑰不正確|尚未設定 FRAME_AUDIO_ADMIN_TOKEN|HTTP 401|HTTP 403|驗證失敗|沒有.*權限/i.test(failureMessage)) {
-                  throw new Error(failureMessage + " 請重新測試 Cloudflare 儲存連線或檢查 OpenList Token 後再繼續。");
+                  throw new Error(failureMessage + " 請重新測試 Cloudflare 儲存連線或檢查 VPS Alist Token 後再繼續。");
                 }
                 if (attempt < maxFileAttempts) {
                   const retryDelayMs = 1500 * attempt;
@@ -1144,7 +1140,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     const pauseButton = $("#scan-pause");
     if (scanRunning) return;
     if (!connected) {
-      setResult("請先連接 OpenList，並確認 Podcast 根目錄可讀取。", "error");
+      setResult("請先測試 VPS Alist 連線，並確認 Podcast 根目錄可讀取。", "error");
       return;
     }
     if (!cloudflareStorageReady || !activeStorageToken) {
@@ -1253,7 +1249,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       });
       const fileSize = Number(info.size || 0);
       if (!Number.isSafeInteger(fileSize) || fileSize <= 0) {
-        throw new Error("OpenList 沒有提供有效的檔案大小。");
+        throw new Error("VPS Alist 沒有提供有效的檔案大小。");
       }
       const chunk = 65536;
       const offsets = [...new Set([
@@ -1381,9 +1377,9 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       }
     }
 
-    const summary = `連線成功。讀取 ${result.items.length} 個項目（API 回報總數 ${result.total}）。\n進入資料夾後，點選支援格式的音訊檔即可測試最多 64 KiB 的 Range 回應。`;
+    const summary = `VPS Alist 連線成功。讀取 ${result.items.length} 個項目（API 回報總數 ${result.total}）。\n進入資料夾後，點選支援格式的音訊檔即可測試最多 64 KiB 的 Range 回應。`;
     setResult(summary, "ok");
-    $("#connection-label").textContent = "OpenList 已連線";
+    $("#connection-label").textContent = "VPS Alist 已連線";
     $("#connection-dot").style.background = "#78b98d";
     connected = true;
     if (cloudflareStorageReady && activeStorageToken) void libraryUI?.refresh();
@@ -1406,55 +1402,18 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     }
   }
 
-  async function testVpsPlaybackSource() {
-    const button = $("#test-vps-playback-source");
-    const baseUrl = playbackUrlInput.value.trim();
-    const token = playbackTokenInput.value;
-    const path = getConfiguredRoot(musicRootInput, "Music");
-    if (!baseUrl || !token.trim()) {
-      playbackResultBox.textContent = "請填入 VPS Alist 網址及 API Token。正式播放只使用 VPS Alist，不會回退 Cloudflare OpenList。";
-      playbackResultBox.className = "statusbox error";
-      return;
-    }
-    button.disabled = true;
-    playbackResultBox.textContent = "正在以唯讀 /api/fs/list 測試 VPS Alist……";
-    playbackResultBox.className = "statusbox";
-    try {
-      const result = await listOpenListDirectory({
-        baseUrl,
-        token,
-        path,
-        page: 1,
-        perPage: 1
-      });
-      playbackResultBox.textContent =
-        "PASS：VPS Alist API 可連線。\n測試目錄：" + path +
-        "\n讀取項目：" + result.items.length +
-        "；API 回報總數：" + result.total +
-        "\n正式播放來源已固定為 VPS Alist；若其 API 或音訊播放失敗，播放器會顯示錯誤，不會自動切換其他來源。";
-      playbackResultBox.className = "statusbox ok";
-    } catch (error) {
-      playbackResultBox.textContent =
-        "FAIL：VPS Alist API 測試失敗。\n" + (error.message || "未知錯誤") +
-        "\n請檢查網址、Token、唯讀目錄權限及 Production CORS。";
-      playbackResultBox.className = "statusbox error";
-    } finally {
-      button.disabled = false;
-    }
-  }
-
   async function testConnection() {
     const button = $("#test-connection");
     activeBaseUrl = urlInput.value.trim();
     activeToken = tokenInput.value;
     const path = pathInput.value.trim() || "/";
     if (!activeToken.trim()) {
-      setResult("請先輸入 OpenList API Token。", "error");
+      setResult("請先輸入 VPS Alist 唯讀 API Token。", "error");
       tokenInput.focus();
       return;
     }
     if (!activeBaseUrl) {
-      setResult("請先填寫 OpenList 網址。", "error");
+      setResult("請先填寫 VPS Alist 網址。", "error");
       urlInput.focus();
       return;
     }
@@ -1462,7 +1421,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     browseButton.disabled = true;
     browser.hidden = true;
     connected = false;
-    $("#connection-label").textContent = "正在連接 OpenList";
+    $("#connection-label").textContent = "正在連接 VPS Alist";
     $("#connection-dot").style.background = "#b78b75";
     setResult("正在連接並讀取目錄……");
     try {
@@ -1475,7 +1434,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       });
       renderDirectory(result);
     } catch (error) {
-      $("#connection-label").textContent = "OpenList 尚未連線";
+      $("#connection-label").textContent = "VPS Alist 尚未連線";
       $("#connection-dot").style.background = "#b78b75";
       setResult(error.message || "連線失敗。", "error");
     } finally {
@@ -1544,8 +1503,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       openListToken: activeToken,
       baseUrl: activeBaseUrl,
       connected,
-      playbackBaseUrl: playbackUrlInput.value.trim(),
-      playbackToken: playbackTokenInput.value
     }),
     reindexMusic: path => indexSingleAudioFile(path, { disabled: false }, {
       silent: true,

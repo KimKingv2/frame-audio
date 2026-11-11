@@ -26,14 +26,14 @@ The show title comes from the immediate folder name. Episode title, episode/seas
 - D1 tables `podcast_shows` and `podcast_episodes`.
 - Independent retry queue using `podcast_scan_`, `podcast_retry_` and `podcast_retry_done_`.
 - Up to 500 entries / changed episodes per batch, with a resumable D1 cursor.
-- Bounded browser Range reads and R2 artwork de-duplication.
+- Bounded browser Range reads from the VPS Alist file URL and R2 artwork de-duplication.
 - Unchanged episodes are skipped using full path, file size and modification timestamp.
 - Partial scans and missing source files never delete existing Podcast records.
 
 ## Playback
 
 - Each show has a detail page and ordered episode list.
-- The shared player obtains the current OpenList playback URL when an episode is selected.
+- The shared player obtains the current VPS Alist playback URL when an episode is selected.
 - Episode resume position is periodically saved and restored when played again.
 - Playback speed can be selected from 0.5× to 2.0× and is saved independently for each episode.
 - Continue Listening lists unfinished episodes.

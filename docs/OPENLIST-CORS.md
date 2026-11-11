@@ -1,30 +1,37 @@
-# FRAME Audio · OpenList CORS 設定
+# FRAME Audio · VPS Alist CORS 設定
 
-FRAME Audio runs in the browser at `https://frame-audio.pages.dev` and calls the OpenList API at `https://openlist.kimkingv2.top` directly. Because these are different origins, OpenList must answer the browser's CORS preflight request.
+FRAME Audio runs in the browser at `https://frame-audio.pages.dev` and calls the VPS Alist API at `https://drive.kimkingv2.top` directly. The same VPS Alist source handles folder browsing, Music / Podcast scanning, file metadata reads and playback URL resolution.
 
 ## Required Production allowlist
 
-For the Production site, allow this exact origin:
+Allow this exact Production origin:
 
 ```text
 https://frame-audio.pages.dev
 ```
 
+If the Preview deployment is used for testing, also allow:
+
+```text
+https://cf-preview.frame-audio.pages.dev
+```
+
 FRAME Audio calls:
-- `POST /api/fs/list` to browse folders.
-- `POST /api/fs/get` to read file metadata and playback URLs.
-- `GET` with a `Range` header to read bounded audio metadata ranges (and later the selected audio source).
+- `POST /api/fs/list` to browse and scan folders.
+- `POST /api/fs/get` to read file metadata and obtain temporary playback URLs.
+- `GET` with a `Range` header to read bounded audio metadata ranges from the returned file URL.
 
-The OpenList CORS policy therefore needs the `POST`, `GET`, and `OPTIONS` methods and the `Authorization`, `Content-Type`, and `Range` request headers.
+The API CORS policy needs `POST`, `GET`, and `OPTIONS` methods and the `Authorization`, `Content-Type`, and `Range` request headers.
 
-## OpenList config.json
+## Alist CORS policy
 
-Edit the existing `cors` section in OpenList's `data/config.json`. Do not add a duplicate `cors` key. Use this policy for Production:
+Configure the existing CORS section for the VPS Alist instance. Do not add a duplicate CORS key. The policy should allow these origins, methods and request headers:
 
 ```json
-"cors": {
+{
   "allow_origins": [
-    "https://frame-audio.pages.dev"
+    "https://frame-audio.pages.dev",
+    "https://cf-preview.frame-audio.pages.dev"
   ],
   "allow_methods": [
     "GET",
@@ -39,27 +46,16 @@ Edit the existing `cors` section in OpenList's `data/config.json`. Do not add a 
 }
 ```
 
-If the Preview site also needs to connect, add its exact origin as a second entry:
-
-```json
-"https://cf-preview.frame-audio.pages.dev"
-```
+The exact configuration file location depends on the Alist Docker volume mapping. Edit the existing configuration, then restart the Alist container if required by the installed version. Do not expose the API token in URLs or public files.
 
 Do not use `*` for a private media library when an exact allowlist is available.
 
-Typical config locations:
-- Linux one-click installation: `/opt/openlist/data/config.json`
-- Manual Linux installation: `<openlist directory>/data/config.json`
-- Docker: the mounted OpenList data directory's `config.json`
-
-After saving the file, restart the OpenList service/container. OpenList reads configuration at startup.
-
 ## Verify the preflight
 
-Run this from a machine with access to the OpenList host:
+Run this from a machine with access to the VPS Alist endpoint:
 
 ```bash
-curl -i -X OPTIONS 'https://openlist.kimkingv2.top/api/fs/list' \
+curl -i -X OPTIONS 'https://drive.kimkingv2.top/api/fs/list' \
   -H 'Origin: https://frame-audio.pages.dev' \
   -H 'Access-Control-Request-Method: POST' \
   -H 'Access-Control-Request-Headers: authorization,content-type'
@@ -70,8 +66,10 @@ The response must include:
 - `Access-Control-Allow-Methods` including `POST` and `OPTIONS`
 - `Access-Control-Allow-Headers` including `authorization` and `content-type`
 
-If these headers are missing even after the OpenList restart, check the reverse proxy / CDN in front of OpenList. The proxy must forward `OPTIONS` to OpenList or answer it with the same allow-origin, allow-methods and allow-headers policy. Do not add a second, conflicting `Access-Control-Allow-Origin` header.
+If headers are missing, check the Alist CORS setting and the Cloudflare Tunnel / reverse proxy. The proxy must pass `OPTIONS` to Alist or answer it with the same policy. Do not add a second, conflicting `Access-Control-Allow-Origin` header.
 
-## Security boundary
+## Security and data boundaries
 
-The browser uses `credentials: omit` and supplies the OpenList API token in the `Authorization` header. Cookies are not required. The allowlist should contain only the FRAME Audio Production origin and any explicitly used Preview origin.
+The browser uses `credentials: omit` and sends the VPS Alist API token in the `Authorization` header. Cookies are not required. Use an Alist account with read-only permissions for browsing and scanning.
+
+Cloudflare D1 continues to store the catalogue, scan checkpoints, retry queues and listening history. Cloudflare R2 continues to store deduplicated artwork. Migrating the API source does not clear or rebuild those stores, and normal page load does not start a scan.

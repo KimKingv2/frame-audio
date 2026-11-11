@@ -1,6 +1,6 @@
 # FRAME Audio
 
-FRAME Audio 是以 OpenList 為音訊來源的私人音訊平台，包含 **Music** 與 **Podcasts**。兩者有獨立曲庫及掃描進度，共用播放核心、封面資產、續播與收聽統計服務。
+FRAME Audio 是以 VPS Alist 為音訊來源的私人音訊平台，包含 **Music** 與 **Podcasts**。兩者有獨立曲庫及掃描進度，共用播放核心、封面資產、續播與收聽統計服務。
 
 ## 產品功能
 
@@ -14,13 +14,13 @@ FRAME Audio 是以 OpenList 為音訊來源的私人音訊平台，包含 **Musi
 
 ## 資料安全原則
 
-- 原始音訊留在 OpenList，不搬移、不修改，也不把完整音訊上傳到 Cloudflare。
+- 原始音訊留在中國移動雲盤，透過 VPS Alist 提供目錄、索引及播放連結；不搬移、不修改，也不把完整音訊上傳到 Cloudflare。
 - 瀏覽器只透過有上限的 HTTP Range 讀取 metadata 所需區段。
 - Music 曲目與 Podcast 節目／單集分開保存。
 - D1 以新增／更新方式寫入；部分掃描、失敗掃描與路徑修復不會清空整個曲庫。
 - R2 封面以 SHA-256 去重保存。
 - 修復路徑時，先成功建立新索引，再將舊路徑的收聽事件及續播資料移轉到新索引。
-- OpenList Token 與 Cloudflare 管理金鑰只保留在當前頁面記憶體，不寫入 GitHub、網址或瀏覽器儲存空間。
+- VPS Alist Token 與 Cloudflare 管理金鑰只保留在當前頁面記憶體，不寫入 GitHub、網址或瀏覽器儲存空間。
 
 ## Cloudflare 資料表
 
@@ -42,7 +42,7 @@ FRAME Audio 是以 OpenList 為音訊來源的私人音訊平台，包含 **Musi
 - 路徑、大小及修改時間未變更時，增量掃描會跳過該項目。
 - 不自動刪除來源中已不存在的曲目或單集。
 
-- OpenList CORS：正式版與 Preview 的跨域來源、方法及標頭設定見 [docs/OPENLIST-CORS.md](docs/OPENLIST-CORS.md)。
+- VPS Alist CORS：正式版與 Preview 的跨域來源、方法及標頭設定見 [docs/OPENLIST-CORS.md](docs/OPENLIST-CORS.md)。
 
 ## 專案結構
 
