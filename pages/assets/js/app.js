@@ -307,6 +307,15 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     return Number.isSafeInteger(number) && number > 0 ? number : null;
   }
 
+  function metadataDebugValue(value) {
+    if (value == null) return "(null)";
+    const textValue = String(value);
+    const codePoints = Array.from(textValue, character =>
+      "U+" + character.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")
+    ).join(" ");
+    return JSON.stringify(textValue) + " [" + codePoints + "]";
+  }
+
   async function indexSingleAudioFile(path, button, options = {}) {
     const silent = options.silent === true;
     const listedFile = options.listedFile || null;
@@ -385,6 +394,10 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       const common = metadata.common || {};
       const format = metadata.format || {};
       const title = String(common.title || path.split("/").pop() || "未命名音訊");
+      log("Metadata 解析原始值｜" + path +
+        "｜TITLE=" + metadataDebugValue(common.title) +
+        "｜ALBUM=" + metadataDebugValue(common.album) +
+        "｜tagTypes=" + JSON.stringify(metadata.tagTypes || []));
       const id = await sha256Hex(new TextEncoder().encode(path));
       let artwork = null;
       let artworkNote = "沒有內嵌封面";
@@ -490,6 +503,35 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         throw new Error(data.error || ("D1 曲目寫入失敗（HTTP " + response.status + "）。"));
       }
       log("D1 曲目寫入完成：" + catalogWriteMs + " ms", "success");
+
+      try {
+        const verifyResponse = await fetch("/api/catalog/lookup", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            Authorization: "Bearer " + activeStorageToken,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ paths: [path] })
+        });
+        let verifyData = {};
+        try { verifyData = await verifyResponse.json(); } catch {}
+        const stored = (verifyData.items || []).find(item => item.path === path);
+        if (verifyResponse.ok && verifyData.ok && stored) {
+          log("D1 寫入後回讀｜" + path +
+            "｜TITLE=" + metadataDebugValue(stored.title) +
+            "｜ALBUM=" + metadataDebugValue(stored.album), "success");
+          if (stored.title !== track.title || stored.album !== track.album) {
+            log("警告：D1 回讀值與本次 Metadata 解析／送出值不同。", "error");
+          }
+        } else {
+          log("D1 寫入後回讀驗證未完成：" +
+            (verifyData.error || ("HTTP " + verifyResponse.status)), "warning");
+        }
+      } catch (verifyError) {
+        log("D1 寫入後回讀驗證發生錯誤：" +
+          (verifyError?.message || verifyError), "warning");
+      }
 
       const stats = result.stats || {};
       stats.openListInfoMs = openListInfoMs;

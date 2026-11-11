@@ -18,14 +18,16 @@ export async function onRequestPost({ request, env }) {
   try {
     const placeholders = paths.map(() => "?").join(",");
     const rows = await env.DB.prepare(
-      "SELECT path,file_size,modified_at FROM tracks WHERE path IN (" + placeholders + ")"
+      "SELECT path,file_size,modified_at,title,album FROM tracks WHERE path IN (" + placeholders + ")"
     ).bind(...paths).all();
     return json({
       ok: true,
       items: (rows.results || []).map(row => ({
         path: row.path,
         sizeBytes: Number(row.file_size || 0),
-        modifiedAt: row.modified_at || null
+        modifiedAt: row.modified_at || null,
+        title: row.title || null,
+        album: row.album || null
       }))
     });
   } catch {
