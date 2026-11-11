@@ -1,5 +1,5 @@
 import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo } from "./openlist-client.js?v=20261111-server-secrets1";
-import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261111-flac-synced-lyrics2";
+import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261111-sylt-native1";
 import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js?v=20261111-server-secrets1";
 import { initLibraryUI } from "./library-ui.js?v=20261111-now-playing-page1";
 
@@ -249,7 +249,14 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     layout.append(grid);
 
     const lyricsValues = Array.isArray(common.lyrics) ? common.lyrics : common.lyrics ? [common.lyrics] : [];
-    const lyricsText = lyricsValues.map(item => typeof item === "string" ? item : item?.text || "").filter(Boolean).join("\n\n");
+    const lyricsText = lyricsValues.map(item => {
+      if (typeof item === "string") return item;
+      const cues = Array.isArray(item?.cues) ? item.cues :
+        Array.isArray(item?.syncText) ? item.syncText :
+        Array.isArray(item?.synchronizedText) ? item.synchronizedText : null;
+      if (cues) return cues.map(cue => cue?.text ?? cue?.words ?? cue?.content ?? "").filter(Boolean).join("\n");
+      return item?.text || "";
+    }).filter(Boolean).join("\n\n");
     const lyrics = document.createElement("div");
     lyrics.className = "metadata-lyrics";
     const lyricsTitle = document.createElement("strong");
@@ -397,11 +404,22 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       const metadata = result.metadata || {};
       const common = metadata.common || {};
       const format = metadata.format || {};
-      const indexedLyrics = metadataStringList(common.lyrics);
-      const timedLyrics = indexedLyrics.filter(value => /\[[0-9]{1,3}:[0-5][0-9](?:[.,][0-9]{1,3})?\]|<[0-9]{1,3}:[0-5][0-9](?:[.,][0-9]{1,3})?>/.test(value));
-      log("歌詞索引診斷｜來源=" + (/\.flac$/i.test(path) ? "FLAC Vorbis 優先" : "metadata common") +
-        "｜文字區塊 " + indexedLyrics.length + "｜含時間戳區塊 " + timedLyrics.length,
+      const indexedLyrics = Array.isArray(result.lyrics) ? result.lyrics : metadataStringList(common.lyrics);
+      const timedLyrics = indexedLyrics.filter(value => {
+        if (typeof value === "string") {
+          return /[\[<({]\s*(?:[0-9]{1,3}:)?[0-9]{1,3}:[0-5][0-9](?:[.,][0-9]{1,3})?/.test(value);
+        }
+        const cues = Array.isArray(value?.cues) ? value.cues :
+          Array.isArray(value?.syncText) ? value.syncText :
+          Array.isArray(value?.synchronizedText) ? value.synchronizedText : [];
+        return cues.some(cue => cue && (cue.timestamp != null || cue.timeMs != null ||
+          cue.timestampMs != null || cue.startTimeMs != null || cue.time != null));
+      });
+      log("歌詞索引診斷｜來源=" + (result.lyricsSource || "metadata common") +
+        "｜選取區塊 " + indexedLyrics.length + "｜含時間資訊 " + timedLyrics.length,
         timedLyrics.length ? "success" : indexedLyrics.length ? "warning" : "info");
+      if (result.lyricsDiagnostics) log("歌詞原生標籤診斷｜" + result.lyricsDiagnostics,
+        timedLyrics.length ? "success" : "warning");
       const title = String(common.title || path.split("/").pop() || "未命名音訊");
       log("Metadata 解析原始值｜" + path +
         "｜TITLE=" + metadataDebugValue(common.title) +

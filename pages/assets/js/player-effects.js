@@ -44,14 +44,20 @@ export function parseSynchronizedLyrics(input) {
     return Number(match[1] || 0) * 3600 + Number(match[2] || 0) * 60 +
       Number(match[3] || 0) + (match[4] ? Number("0." + match[4]) : 0);
   };
-  const objectTime = cue => {
+  const objectTime = (cue, parent = {}) => {
     if (cue.timeMs != null) return Number(cue.timeMs) / 1000;
     if (cue.timestampMs != null) return Number(cue.timestampMs) / 1000;
     if (cue.startTimeMs != null) return Number(cue.startTimeMs) / 1000;
     const raw = cue.timestamp ?? cue.time ?? cue.startTime;
-    if (typeof raw === "string") return parseClock(raw);
+    const format = String(parent.timeStampFormat ?? parent.timestampFormat ?? "").toLowerCase();
+    const isMilliseconds = format === "2" || format === "ms" ||
+      format.includes("millisecond");
+    const isFrames = format === "1" || format.includes("frame");
+    if (typeof raw === "string" && /:/.test(raw)) return parseClock(raw);
     const numeric = Number(raw);
     if (!Number.isFinite(numeric)) return NaN;
+    if (isMilliseconds) return numeric / 1000;
+    if (isFrames) return numeric * (1152 / Number(parent.sampleRate || 44100));
     return Math.abs(numeric) >= 1000 ? numeric / 1000 : numeric;
   };
   const formatLrc = (seconds, text) => {
@@ -67,7 +73,7 @@ export function parseSynchronizedLyrics(input) {
       Array.isArray(value.syncText) ? value.syncText :
       Array.isArray(value.synchronizedText) ? value.synchronizedText : null;
     if (cueList) return cueList.map(cue =>
-      formatLrc(objectTime(cue), cue.text ?? cue.words ?? cue.content)
+      formatLrc(objectTime(cue, value), cue.text ?? cue.words ?? cue.content)
     ).filter(Boolean).join("\n");
     if (typeof value.text === "string") return value.text;
     if (typeof value.value === "string") return value.value;

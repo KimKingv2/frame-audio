@@ -366,39 +366,99 @@ function nativeTextValues(nativeTags, ids) {
 }
 
 
-function lyricTextValue(value) {
-  if (typeof value === "string") return value.trim();
-  if (!value || typeof value !== "object") return "";
-  if (typeof value.text === "string") return value.text.trim();
-  if (typeof value.value === "string") return value.value.trim();
-  return "";
-}
-function nativeLyricsValues(nativeTags, ids) {
-  const wanted = new Set(ids.map(id => String(id).toUpperCase()));
-  return (Array.isArray(nativeTags) ? nativeTags : [])
-    .filter(tag => wanted.has(String(tag?.id || "").toUpperCase()))
-    .flatMap(tag => Array.isArray(tag?.value) ? tag.value : [tag?.value])
-    .map(lyricTextValue).filter(Boolean);
+function lyricPayloadValues(value) {
+  if (Array.isArray(value)) return value.flatMap(lyricPayloadValues);
+  if (typeof value === "string") return value.trim() ? [value.trim()] : [];
+  if (!value || typeof value !== "object") return [];
+  const cueList = Array.isArray(value.cues) ? value.cues :
+    Array.isArray(value.syncText) ? value.syncText :
+    Array.isArray(value.synchronizedText) ? value.synchronizedText : null;
+  if (cueList) {
+    return [{
+      ...(Array.isArray(value.cues) ? { cues: cueList } :
+        Array.isArray(value.syncText) ? { syncText: cueList } : { synchronizedText: cueList }),
+      ...(value.timeStampFormat != null ? { timeStampFormat: value.timeStampFormat } : {}),
+      ...(value.timestampFormat != null ? { timestampFormat: value.timestampFormat } : {}),
+      ...(value.language ? { language: value.language } : {}),
+      ...(value.descriptor ? { descriptor: value.descriptor } : {})
+    }];
+  }
+  if (typeof value.text === "string" && value.text.trim()) return [value.text.trim()];
+  if (typeof value.value === "string" && value.value.trim()) return [value.value.trim()];
+  if (typeof value.lyrics === "string" && value.lyrics.trim()) return [value.lyrics.trim()];
+  return [];
 }
 function containsTimedLyrics(value) {
-  return /(?:\[[0-9]{1,3}:[0-5][0-9](?:[.,][0-9]{1,3})?\]|<[0-9]{1,3}:[0-5][0-9](?:[.,][0-9]{1,3})?>)/m.test(String(value || ""));
+  if (typeof value === "string") {
+    return /(?:[\[<({]\s*(?:[0-9]{1,3}:)?[0-9]{1,3}:[0-5][0-9](?:[.,][0-9]{1,3})?\s*[\]>)}]|^\s*(?:[0-9]{1,3}:)?[0-9]{1,3}:[0-5][0-9][.,][0-9]{1,3}\s*(?:-->|[-|]|\s))/m.test(value);
+  }
+  if (!value || typeof value !== "object") return false;
+  const cueList = Array.isArray(value.cues) ? value.cues :
+    Array.isArray(value.syncText) ? value.syncText :
+    Array.isArray(value.synchronizedText) ? value.synchronizedText : null;
+  return Boolean(cueList?.some(cue => cue && (
+    cue.timeMs != null || cue.timestampMs != null || cue.startTimeMs != null ||
+    cue.timestamp != null || cue.time != null || cue.startTime != null
+  )));
 }
-function preferFlacVorbisLyrics(metadata, path, common) {
-  if (!/\.flac$/i.test(String(path))) return common;
-  const vorbis = metadata.native?.vorbis || [];
-  const nativeLyrics = nativeLyricsValues(vorbis, ["LYRICS", "SYNCEDLYRICS", "SYNCED_LYRICS"]);
-  const timed = nativeLyrics.filter(containsTimedLyrics);
-  if (timed.length) {
-    common.lyrics = timed;
-    return common;
+function collectNativeLyrics(metadata) {
+  const candidates = [];
+  for (const [tagType, tags] of Object.entries(metadata.native || {})) {
+    for (const tag of (Array.isArray(tags) ? tags : [])) {
+      const id = String(tag?.id || "").trim();
+      if (!/LYRIC|SYLT|SLT|USLT/i.test(id)) continue;
+      for (const value of lyricPayloadValues(tag?.value)) {
+        candidates.push({ tagType, id, value, source: "native." + tagType + ":" + id });
+      }
+    }
   }
-  if (nativeLyrics.length) {
-    common.lyrics = nativeLyrics;
-    return common;
-  }
-  const unsynced = nativeLyricsValues(vorbis, ["UNSYNCEDLYRICS", "UNSYNCED_LYRICS"]);
-  if (unsynced.length && !common.lyrics) common.lyrics = unsynced;
-  return common;
+  return candidates;
+}
+function selectLyrics(metadata, common) {
+  const nativeCandidates = collectNativeLyrics(metadata);
+  const commonCandidates = lyricPayloadValues(common.lyrics).map(value => ({
+    tagType: "common", id: "lyrics", value, source: "common.lyrics"
+  }));
+  const candidates = [...nativeCandidates, ...commonCandidates];
+  const score = candidate => {
+    const type = String(candidate.tagType || "").toLowerCase();
+    const id = String(candidate.id || "").toUpperCase();
+    const timed = containsTimedLyrics(candidate.value);
+    const vorbis = type === "vorbis";
+    const sylt = /^(?:SYLT|SLT)$/.test(id);
+    if (timed && vorbis) return 0;
+    if (timed && sylt) return 1;
+    if (timed && type !== "common") return 2;
+    if (timed) return 3;
+    if (vorbis && /^(?:LYRICS|SYNCEDLYRICS|SYNCED_LYRICS)$/.test(id)) return 10;
+    if (vorbis && /UNSYNCED/i.test(id)) return 11;
+    if (type !== "common") return 12;
+    return 20;
+  };
+  candidates.sort((a, b) => score(a) - score(b));
+  const selected = candidates[0];
+  const values = selected
+    ? candidates.filter(candidate =>
+        score(candidate) === score(selected) &&
+        candidate.tagType === selected.tagType &&
+        candidate.id === selected.id
+      ).map(candidate => candidate.value)
+    : [];
+  const diagnostics = nativeCandidates.map(candidate => {
+    const value = candidate.value;
+    const cueList = value && typeof value === "object"
+      ? (value.cues || value.syncText || value.synchronizedText) : null;
+    const shape = Array.isArray(cueList)
+      ? "結構化 " + cueList.length + " cues"
+      : typeof value === "string" ? "文字 " + value.length + " chars" : "其他結構";
+    return candidate.tagType + ":" + candidate.id + "（" + shape +
+      (containsTimedLyrics(value) ? "；含時間" : "；未辨識時間") + "）";
+  });
+  return {
+    values,
+    source: selected?.source || (common.lyrics ? "common.lyrics" : "none"),
+    diagnostics: diagnostics.length ? diagnostics.join("；") : "沒有讀到原生歌詞標籤"
+  };
 }
 function joinNativeArtists(values) {
   if (values.length > 2) {
@@ -427,7 +487,7 @@ function preferFlacVorbisIdentity(metadata, path) {
     common.albumartists = albumArtists;
     common.albumartist = joinNativeArtists(albumArtists);
   }
-  return preferFlacVorbisLyrics(metadata, path, common);
+  return common;
 }
 
 function normalizeLyrics(value) {
@@ -502,16 +562,22 @@ export async function inspectAudioMetadata({
     const metadataReadElapsedMs = Math.round(performance.now() - parseStartedAt);
     emitLog(onEvent, "music-metadata parseFromTokenizer 完成：" + parseElapsedMs + " ms；首尾預取 " +
       metadataPrefetchMs + " ms；metadata 總耗時 " + metadataReadElapsedMs + " ms", "success");
+    const common = preferFlacVorbisIdentity(metadata, path);
+    const lyricSelection = selectLyrics(metadata, common);
+    if (lyricSelection.values.length) common.lyrics = lyricSelection.values;
     return {
       metadata: {
         // FLAC's Vorbis Comment is the canonical in-file tag block.
         // music-metadata ranks APEv2 above Vorbis, so a stale APEv2 footer
         // can otherwise override the user's current Vorbis values.
-        common: preferFlacVorbisIdentity(metadata, path),
+        common,
         native: metadata.native || {},
         format: metadata.format || {},
         tagTypes: metadata.format?.tagTypes || []
       },
+      lyrics: lyricSelection.values,
+      lyricsSource: lyricSelection.source,
+      lyricsDiagnostics: lyricSelection.diagnostics,
       stats: {
         ...tokenizer.getStats(),
         parserLoadMs,

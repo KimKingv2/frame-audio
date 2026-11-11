@@ -1,5 +1,5 @@
 import { getOpenListFileInfo } from "./openlist-client.js?v=20261111-server-secrets1";
-import { parseSynchronizedLyrics } from "./player-effects.js?v=20261111-flac-lyrics2";
+import { parseSynchronizedLyrics } from "./player-effects.js?v=20261111-sylt-ms1";
 
 const PERIODS = [["week","近 7 日"],["month","近 30 日"],["year","近 365 日"],["all","全部時間"]];
 
