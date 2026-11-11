@@ -207,3 +207,26 @@ body.is-now-playing .hero,body.is-now-playing .foot{display:none}
  .now-playing-lyric-line.active{font-size:17px}
 }
 
+
+/* Now Playing slides up from the dock and dismisses downward. */
+.now-playing-page.now-playing-enter{animation:now-playing-slide-up .46s cubic-bezier(.2,.78,.22,1) both}
+.now-playing-page.now-playing-exit{animation:now-playing-slide-down .4s cubic-bezier(.72,0,.84,.22) both;pointer-events:none}
+@keyframes now-playing-slide-up{
+  from{opacity:.7;transform:translateY(100%)}
+  to{opacity:1;transform:translateY(0)}
+}
+@keyframes now-playing-slide-down{
+  from{opacity:1;transform:translateY(0)}
+  to{opacity:.7;transform:translateY(100%)}
+}
+/* Keep lyrics floating on the page rather than inside a framed card. */
+.now-playing-lyrics-panel{border:0;border-radius:0;background:transparent;box-shadow:none;overflow:visible}
+.now-playing-lyrics-heading{border-bottom:0;padding-left:0;padding-right:0}
+.now-playing-lyrics-list{padding-left:0;padding-right:0}
+@media(max-width:680px){
+  .now-playing-lyrics-heading{padding-left:0;padding-right:0}
+  .now-playing-lyrics-list{padding-left:0;padding-right:0}
+}
+@media(prefers-reduced-motion:reduce){
+  .now-playing-page.now-playing-enter,.now-playing-page.now-playing-exit{animation-duration:.01ms!important}
+}

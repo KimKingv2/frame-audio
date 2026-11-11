@@ -159,7 +159,7 @@ export function initLibraryUI(options = {}) {
     const item=state.currentItem;
     if(!item){root.innerHTML='<div class="now-playing-empty"><button class="secondary" data-action="back-now-playing">← 返回曲庫</button><h2>尚未播放音訊</h2><p>從 Music 或 Podcast 選擇內容後，這裡會顯示目前歌曲與同步歌詞。</p></div>';return;}
     const parsed=currentLyrics(),kind=item.itemType==="episode"?"PODCAST":"MUSIC",artist=item.subtitle||item.albumArtist||item.album||"";
-    root.innerHTML='<section class="now-playing-page">'+
+    root.innerHTML='<section class="now-playing-page now-playing-enter">'+
       '<div class="now-playing-topbar"><button class="secondary" data-action="back-now-playing">← 返回曲庫</button><span class="kicker">NOW PLAYING</span><span class="now-playing-kind">'+kind+'</span></div>'+
       '<div class="now-playing-main">'+
        '<div class="now-playing-track"><div class="now-playing-art" id="now-playing-art"><span>'+esc(String(item.title||"FA").slice(0,1).toUpperCase())+'</span></div>'+
@@ -169,7 +169,31 @@ export function initLibraryUI(options = {}) {
        '<section class="now-playing-lyrics-panel" aria-label="同步歌詞"><div class="now-playing-lyrics-heading"><span class="kicker">LYRICS</span><span>'+(parsed.cues.length?parsed.cues.length+" 個時間點":parsed.plainLines.length?"純文字歌詞":"尚無歌詞")+'</span></div>'+
         '<div class="now-playing-lyrics-list" id="now-playing-lyrics-list" aria-live="polite">'+lyricsMarkup(parsed,"now-playing-lyric-line")+'</div></section>'+
       '</div></section>';
+    const page=root.querySelector(".now-playing-page");
+    page?.addEventListener("animationend",event=>{
+      if(event.target===page&&event.animationName==="now-playing-slide-up")page.classList.remove("now-playing-enter");
+    });
     syncNowPlayingArtwork(item);syncLyricsHighlight();
+  }
+  function closeNowPlaying() {
+    if(state.view!=="now-playing")return;
+    const page=root.querySelector(".now-playing-page");
+    if(!page){void showView(state.lastLibraryView||"music");return;}
+    if(page.classList.contains("now-playing-exit"))return;
+    page.classList.remove("now-playing-enter");
+    page.classList.add("now-playing-exit");
+    let finished=false;
+    let fallbackTimer=0;
+    const finish=event=>{
+      if(event&&(event.target!==page||event.animationName!=="now-playing-slide-down"))return;
+      if(finished)return;
+      finished=true;
+      if(fallbackTimer)clearTimeout(fallbackTimer);
+      page.removeEventListener("animationend",finish);
+      if(state.view==="now-playing")void showView(state.lastLibraryView||"music");
+    };
+    page.addEventListener("animationend",finish);
+    fallbackTimer=setTimeout(()=>finish(),600);
   }
   function syncNowPlayingArtwork(item) {
     const host=$("#now-playing-art");if(!host||!item?.artworkHash)return;
@@ -547,6 +571,7 @@ export function initLibraryUI(options = {}) {
     }
     document.body.classList.toggle("is-podcast-view",["shows","show-detail","continue"].includes(state.view));
     document.body.classList.toggle("is-now-playing",state.view==="now-playing");
+    $("#player-now-playing")?.setAttribute("aria-label",state.view==="now-playing"?"收起正在播放頁面":"展開正在播放頁面");
     animateLibraryContent();
   }
 
@@ -766,7 +791,7 @@ export function initLibraryUI(options = {}) {
     const action=b.dataset.action,i=Number(b.dataset.index);
     try{
       if(action==="navigate"){showView(b.dataset.view);return;}
-      if(action==="back-now-playing"){showView(state.lastLibraryView||"music");return;}
+      if(action==="back-now-playing"){closeNowPlaying();return;}
       if(action==="reindex-current-lyrics"){
         const item=state.currentItem,button=b,status=$("#now-playing-reindex-status");
         if(!item||item.itemType!=="track"||typeof options.reindexMusic!=="function")return;
@@ -863,9 +888,27 @@ export function initLibraryUI(options = {}) {
   audio.addEventListener("timeupdate",()=>{timeline();syncLyricsHighlight();maybePreloadNextItem();});
   audio.addEventListener("ended",()=>{
     accountTime();persistSession(true);saveProgress(true);state.session=null;
-    if(state.playMode==="repeat-one"){audio.currentTime=0;audio.play().catch(error=>message(error.message||"單曲循環播放失敗。","error"));}
-    else if(state.shuffleEnabled||state.playMode==="repeat-all")next(1);
-    else{$("#player-toggle").textContent="▶";document.body.classList.remove("is-audio-playing");}
+    if(state.playMode==="repeat-one"){
+      audio.currentTime=0;
+      audio.play().catch(error=>message(error.message||"單曲循環播放失敗。","error"));
+      return;
+    }
+    const targetIndex=nextQueueIndex(1);
+    if(targetIndex>=0&&targetIndex<state.queue.length){
+      console.info("[FRAME Audio] Queue ended; advancing to next track",{
+        queueIndex:state.queueIndex,nextQueueIndex:targetIndex,queueLength:state.queue.length,
+        playMode:state.playMode,shuffleEnabled:state.shuffleEnabled
+      });
+      void playItem(state.currentItem.itemType,state.queue[targetIndex],state.queue,targetIndex,{preserveQueue:true});
+    }else{
+      clearNextPreload();
+      $("#player-toggle").textContent="▶";
+      document.body.classList.remove("is-audio-playing");
+      console.info("[FRAME Audio] Queue finished",{
+        queueIndex:state.queueIndex,queueLength:state.queue.length,
+        playMode:state.playMode,shuffleEnabled:state.shuffleEnabled
+      });
+    }
   });
   $("#player-toggle")?.addEventListener("click",()=>{
     if(!audio.src){message("請先從曲庫選擇歌曲或 Podcast 單集。");return;}
@@ -914,7 +957,8 @@ export function initLibraryUI(options = {}) {
   });
   $("#player-now-playing")?.addEventListener("click",()=>{
     if(!state.currentItem){message("請先從曲庫選擇音訊。");return;}
-    void showView("now-playing");
+    if(state.view==="now-playing")closeNowPlaying();
+    else void showView("now-playing");
   });
   $("#lyrics-list")?.addEventListener("click",event=>{
     const line=event.target.closest("[data-lyric-index]");if(!line)return;
