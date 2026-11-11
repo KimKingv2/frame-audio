@@ -68,8 +68,11 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
       <div class="field"><label for="podcast-root-path">Podcast 節目根目錄</label><input id="podcast-root-path" type="text" value="/中國移動雲盤/Kim King/13 喜马拉雅" spellcheck="false"><div class="hint">Podcast 第一層資料夾各自作為節目；可手動修改，或在下方瀏覽資料夾後選為 Podcast 根目錄。</div></div>
       <div class="field"><label for="openlist-path">目前目錄瀏覽／連線測試路徑</label><input id="openlist-path" type="text" value="/" placeholder="/" spellcheck="false"><div class="hint">這個欄位只控制下方 OpenList 目錄瀏覽器，不會決定 Music 或 Podcast 的掃描根目錄。</div></div>
       <div class="field"><label for="cloudflare-admin-token">Cloudflare 儲存管理金鑰</label><input id="cloudflare-admin-token" type="password" placeholder="輸入 Cloudflare 管理金鑰（不會保存）" autocomplete="off" spellcheck="false"><div class="hint">這是 Cloudflare 儲存 API 專用金鑰，與 OpenList Token 不同。只保留在本次頁面記憶體。</div></div>
+      <div class="field"><label for="playback-openlist-url">VPS Alist 播放來源網址</label><input id="playback-openlist-url" type="url" value="https://drive.kimkingv2.top" placeholder="https://你的 Alist 網域" autocomplete="url" spellcheck="false"><div class="hint">正式播放器只使用這個 VPS Alist 取得播放網址。Cloudflare OpenList 仍負責目錄瀏覽及索引。</div></div>
+      <div class="field"><label for="playback-openlist-token">VPS Alist API Token</label><input id="playback-openlist-token" type="password" placeholder="貼上 VPS Alist 唯讀帳號 Token（不會保存）" autocomplete="off" spellcheck="false"><div class="hint">只保留在目前頁面記憶體，不寫入 localStorage、網址、D1、R2 或 GitHub。</div></div>
     </div>
-    <div class="actions"><button type="button" class="primary" id="test-connection">測試連線並讀取目錄</button><button type="button" class="secondary" id="browse-root" disabled>重新讀取目前路徑</button></div><div class="actions"><button type="button" class="secondary" id="test-storage">測試 Cloudflare 儲存</button></div>
+    <div class="actions"><button type="button" class="primary" id="test-connection">測試連線並讀取目錄</button><button type="button" class="secondary" id="browse-root" disabled>重新讀取目前路徑</button></div><div class="actions"><button type="button" class="secondary" id="test-storage">測試 Cloudflare 儲存</button><button type="button" class="secondary" id="test-vps-playback-source">測試 VPS 播放來源</button></div>
+    <div class="statusbox" id="vps-playback-result" role="status">正式播放來源：VPS Alist。請填入網址及唯讀 API Token 後測試連線。</div>
     <div class="statusbox" id="connection-result" role="status">尚未連線。這個測試只會呼叫 OpenList 的唯讀目錄列表 API，不會修改檔案。</div>
     <div class="statusbox" id="storage-result" role="status">Cloudflare D1 / R2 尚未測試。設定完成後可在此確認連線。</div>
     <div class="browser" id="directory-browser" hidden>
@@ -96,7 +99,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
       </details>
     </div>
     <div class="metadata-result" id="metadata-result" hidden></div>
-    <div class="privacy">安全提醒：請確認網址是你自己的 OpenList 網域。Token 只會傳送到你填寫的網址；不會寫入 GitHub、JSON、網址列或瀏覽器儲存空間。若遇到 CORS 錯誤，需要在 OpenList 允許目前 FRAME Audio 網域。</div>
+    <div class="privacy">安全提醒：曲庫與索引使用 Cloudflare OpenList；播放網址只由 VPS Alist 取得，不設自動備援。兩組 API Token 與 Cloudflare 管理金鑰只保留在本次頁面記憶體。VPS Alist 必須允許 https://frame-audio.pages.dev 的 CORS，並允許 POST、OPTIONS、Authorization、Content-Type。音訊仍由 HTML5 Audio 直接連接其 raw_url。</div>
   </div>
 </dialog>
 <script>
@@ -121,5 +124,5 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   });
 })();
 </script>
-<script type="module" src="/assets/js/app.js?v=20261110-playback-diagnostic1"></script>
+<script type="module" src="/assets/js/app.js?v=20261111-vps-only1"></script>
 </body></html>
