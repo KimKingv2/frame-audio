@@ -1,5 +1,5 @@
 import { getOpenListFileInfo } from "./openlist-client.js?v=20261111-server-secrets1";
-import { EQ_BANDS, parseFoobarFeq, parseSynchronizedLyrics } from "./player-effects.js?v=20261111-preload-lyrics-eq1";
+import { parseSynchronizedLyrics } from "./player-effects.js?v=20261111-pure302-lyrics1";
 
 const PERIODS = [["week","近 7 日"],["month","近 30 日"],["year","近 365 日"],["all","全部時間"]];
 
@@ -12,18 +12,11 @@ export function initLibraryUI(options = {}) {
     selectedShowId:"",selectedAlbum:null,search:"",searchComposing:false,items:[],itemType:"track",reportPeriod:"week",reportType:"episode",
     errors:[],currentItem:null,queue:[],queueIndex:-1,session:null,tickAt:0,speed:1,
     lastProgressSave:0,restorePositionMs:0,playRequestId:0,artworkUrls:new Set(),
-    preloadEntry:null,preloadAudio:null,preloadGeneration:0,currentStreamUrl:"",
-    playMode:"sequential",shuffleEnabled:false,shuffleOrder:[],shufflePosition:-1,eqEnabled:false,eqGains:Array(18).fill(0),currentRawUrl:"",
+    preloadEntry:null,preloadAudio:null,preloadGeneration:0,
+    playMode:"sequential",shuffleEnabled:false,shuffleOrder:[],shufflePosition:-1,
     lyricsCues:[],lyricsPlainLines:[],lyricsActiveIndex:-1
   };
   const PLAY_MODES=["sequential","repeat-one","repeat-all"];
-  const EQ_PRESETS={
-    flat:Array(18).fill(0),
-    bass:[5,5,4,3,2,1,0,0,0,0,0,0,0,0,0,0,0,0],
-    vocal:[-2,-1,0,2,3,2,1,1,2,2,1,0,-1,-1,0,1,1,0],
-    clarity:[-1,-1,0,0,1,1,0,1,2,2,2,1,0,1,2,2,1,0]
-  };
-  let eqContext=null,eqSource=null,eqFilters=[],eqOutput=null;
   const esc = value => String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const duration = value => {
     const n=Math.max(0,Math.floor(Number(value||0)/1000)),h=Math.floor(n/3600),m=Math.floor(n%3600/60),s=n%60;
@@ -34,8 +27,8 @@ export function initLibraryUI(options = {}) {
     return h ? h+" 小時 "+m+" 分" : m ? m+" 分鐘" : n+" 秒";
   };
   function getConfig(){return options.getCredentials?.()||{};}
-  function loadPlayerPreferences(){try{const saved=JSON.parse(localStorage.getItem("frame-audio-player-preferences")||"{}");if(PLAY_MODES.includes(saved.playMode))state.playMode=saved.playMode;state.shuffleEnabled=saved.shuffleEnabled===true;if(Array.isArray(saved.eqGains)&&saved.eqGains.length===EQ_BANDS.length)state.eqGains=saved.eqGains.map(value=>Math.max(-20,Math.min(20,Number(value)||0)));state.eqEnabled=saved.eqEnabled===true;}catch{}}
-  function savePlayerPreferences(){try{localStorage.setItem("frame-audio-player-preferences",JSON.stringify({playMode:state.playMode,shuffleEnabled:state.shuffleEnabled,eqEnabled:state.eqEnabled,eqGains:state.eqGains}));}catch{}}
+  function loadPlayerPreferences(){try{const saved=JSON.parse(localStorage.getItem("frame-audio-player-preferences")||"{}");if(PLAY_MODES.includes(saved.playMode))state.playMode=saved.playMode;state.shuffleEnabled=saved.shuffleEnabled===true;}catch{}}
+  function savePlayerPreferences(){try{localStorage.setItem("frame-audio-player-preferences",JSON.stringify({playMode:state.playMode,shuffleEnabled:state.shuffleEnabled}));}catch{}}
   function updatePlayerModeButton(){const button=$("#player-mode");if(!button)return;const config={sequential:{icon:"→",label:"順序播放"},"repeat-one":{icon:"↻¹",label:"單曲循環"},"repeat-all":{icon:"↻",label:"列表循環"}}[state.playMode]||{icon:"→",label:"順序播放"};button.textContent=config.icon;button.title=config.label;button.setAttribute("aria-label",config.label);button.classList.toggle("active",state.playMode!=="sequential");audio.loop=false;}
   function updateShuffleButton(){const button=$("#player-shuffle");if(!button)return;button.textContent="⤨";button.title=state.shuffleEnabled?"隨機播放：開啟":"隨機播放：關閉";button.setAttribute("aria-label",button.title);button.setAttribute("aria-pressed",String(state.shuffleEnabled));button.classList.toggle("active",state.shuffleEnabled);}
   function rebuildShuffleOrder(currentIndex=state.queueIndex){
@@ -125,18 +118,13 @@ export function initLibraryUI(options = {}) {
       if (!info || info.is_dir || !info.raw_url) throw new Error("下一首音訊沒有有效的播放網址。");
       entry.info = info;
 
-      const useStream = Boolean(eqSource || state.eqEnabled);
-      const sourceUrl = useStream ? info.stream_url : info.raw_url;
-      if (sourceUrl) {
-        const warmedAudio = new Audio();
-        warmedAudio.preload = "auto";
-        if (useStream) warmedAudio.crossOrigin = "anonymous";
-        warmedAudio.src = sourceUrl;
-        entry.audio = warmedAudio;
-        state.preloadAudio = warmedAudio;
-        try { warmedAudio.load(); } catch {}
-      }
-      console.info("[FRAME Audio] Next-track file info ready", { sizeBytes: Number(info.size || 0), warmedAudio: Boolean(entry.audio) });
+      const warmedAudio = new Audio();
+      warmedAudio.preload = "auto";
+      warmedAudio.src = info.raw_url;
+      entry.audio = warmedAudio;
+      state.preloadAudio = warmedAudio;
+      try { warmedAudio.load(); } catch {}
+      console.info("[FRAME Audio] Next-track file info ready", { sizeBytes: Number(info.size || 0), warmedAudio: true, transport: "direct-raw-url" });
       return info;
     }).catch(error => {
       if (state.preloadEntry === entry && state.preloadGeneration === generation) {
@@ -145,43 +133,6 @@ export function initLibraryUI(options = {}) {
       }
       return null;
     });
-  }
-  function updateEqStatus(text,type=""){const node=$("#eq-status");if(!node)return;node.textContent=text;node.className="eq-status"+(type?" "+type:"");}
-  function renderEqSliders(){const host=$("#eq-sliders");if(!host)return;host.innerHTML=EQ_BANDS.map((band,index)=>'<label class="eq-band"><span class="eq-band-value" id="eq-value-'+index+'">'+Number(state.eqGains[index]||0).toFixed(1)+'</span><input type="range" min="-20" max="20" step="0.5" value="'+Number(state.eqGains[index]||0)+'" data-eq-index="'+index+'" aria-label="'+band.label+' Hz"><span class="eq-band-label">'+band.shortLabel+'</span></label>').join("");}
-  function applyEqualizerGains(){if(!eqContext||!eqFilters.length)return;const now=eqContext.currentTime;let maxBoost=0;eqFilters.forEach((filter,index)=>{const gain=state.eqEnabled?Number(state.eqGains[index]||0):0;filter.gain.setTargetAtTime(gain,now,0.025);maxBoost=Math.max(maxBoost,gain);});if(eqOutput)eqOutput.gain.setTargetAtTime(Math.pow(10,-maxBoost/20),now,0.04);const headroom=$("#eq-headroom");if(headroom)headroom.textContent=maxBoost>0?"自動預留頭部空間："+(-maxBoost).toFixed(1)+" dB":"頭部空間：0 dB";}
-  function updateEqControls(){const toggle=$("#eq-enabled");if(toggle)toggle.checked=state.eqEnabled;root.querySelectorAll("[data-eq-index]").forEach(input=>{const index=Number(input.dataset.eqIndex);input.value=String(state.eqGains[index]||0);const output=$("#eq-value-"+index);if(output)output.textContent=Number(state.eqGains[index]||0).toFixed(1);});applyEqualizerGains();}
-  async function probeAudioCors(url){if(!url)return false;const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),10000);try{const response=await fetch(url,{method:"GET",mode:"cors",credentials:"same-origin",redirect:"follow",headers:{Range:"bytes=0-0"},signal:controller.signal});const supported=response.status===206&&response.type!=="opaque";try{await response.body?.cancel();}catch{}return supported;}catch{return false;}finally{clearTimeout(timeout);}}
-  async function createEqualizerGraph(){if(eqSource)return;const AudioContextClass=window.AudioContext||window.webkitAudioContext;if(!AudioContextClass)throw new Error("目前瀏覽器不支援 Web Audio 均衡器。");eqContext=new AudioContextClass();eqSource=eqContext.createMediaElementSource(audio);let previous=eqSource;eqFilters=EQ_BANDS.map(band=>{const filter=eqContext.createBiquadFilter();filter.type="peaking";filter.frequency.value=band.frequency;filter.Q.value=4;previous.connect(filter);previous=filter;return filter;});eqOutput=eqContext.createGain();previous.connect(eqOutput);eqOutput.connect(eqContext.destination);applyEqualizerGains();if(eqContext.state==="suspended")await eqContext.resume();}
-  function waitForAudioMetadata(timeoutMs=15000,force=false){if(!force&&audio.readyState>=1&&Number.isFinite(audio.duration))return Promise.resolve();return new Promise((resolve,reject)=>{let timer;const cleanup=()=>{clearTimeout(timer);audio.removeEventListener("loadedmetadata",onReady);audio.removeEventListener("error",onError);};const onReady=()=>{cleanup();resolve();};const onError=()=>{cleanup();reject(new Error("重新載入音訊以啟用均衡器失敗。"));};timer=setTimeout(()=>{cleanup();reject(new Error("等待音訊重新載入逾時。"));},timeoutMs);audio.addEventListener("loadedmetadata",onReady,{once:true});audio.addEventListener("error",onError,{once:true});});}
-  async function setEqualizerEnabled(enabled){
-    clearNextPreload();
-    if(!enabled){
-      state.eqEnabled=false;savePlayerPreferences();updateEqControls();
-      updateEqStatus(eqSource?"均衡器已停用；同源串流播放鏈保留，音色回到平直。":"均衡器已停用，原生 HTML5 播放路徑保持不變。");
-      return;
-    }
-    if(!state.currentRawUrl||!audio.src){
-      state.eqEnabled=true;savePlayerPreferences();updateEqControls();
-      updateEqStatus("已啟用。下一首播放會經過受 Access 保護的同源音訊串流，再建立效果器。");
-      return;
-    }
-    const url=state.currentStreamUrl;
-    if(!url)throw new Error("目前歌曲沒有可用的同源音訊串流網址。");
-    if(!await probeAudioCors(url)){
-      state.eqEnabled=false;updateEqControls();
-      updateEqStatus("同源音訊串流未通過 Range 檢查，已保持原生播放。","error");
-      throw new Error("Cloudflare 同源音訊串流暫時無法讀取；均衡器沒有啟用。");
-    }
-    const position=Number(audio.currentTime||0),wasPlaying=!audio.paused;
-    accountTime();saveProgress(true);audio.pause();
-    audio.crossOrigin="anonymous";
-    await createEqualizerGraph();
-    state.eqEnabled=true;savePlayerPreferences();updateEqControls();
-    const ready=waitForAudioMetadata(20000,true);
-    audio.src=url;audio.load();await ready;
-    if(Number.isFinite(audio.duration)&&position<audio.duration)audio.currentTime=position;
-    if(wasPlaying)await audio.play();
-    updateEqStatus("均衡器已啟用。音訊透過受 Access 保護的 Cloudflare 同源串流播放。","ok");
   }
   function renderLyricsPanel(){const item=state.currentItem,list=$("#lyrics-list"),title=$("#lyrics-title"),subtitle=$("#lyrics-subtitle"),status=$("#lyrics-status");if(!list)return;state.lyricsActiveIndex=-1;const raw=Array.isArray(item?.lyrics)?item.lyrics:(item?.lyrics?[item.lyrics]:[]);const parsed=parseSynchronizedLyrics(raw);state.lyricsCues=parsed.cues;state.lyricsPlainLines=parsed.plainLines;if(title)title.textContent=item?.title||"尚未選擇音訊";if(subtitle)subtitle.textContent=item?.subtitle||item?.album||"";if(parsed.cues.length){list.innerHTML=parsed.cues.map((cue,index)=>'<button class="lyrics-line" data-lyric-index="'+index+'" type="button">'+esc(cue.text)+'</button>').join("");if(status)status.textContent="同步歌詞 · "+parsed.cues.length+" 行。點擊歌詞可跳轉到對應時間。";}else if(parsed.plainLines.length){list.innerHTML=parsed.plainLines.map(line=>'<p class="lyrics-plain-line">'+esc(line)+'</p>').join("");if(status)status.textContent="目前只有純文字歌詞，沒有時間標記，因此無法逐句同步高亮。支援內嵌 LRC 時間標記。";}else{list.innerHTML='<div class="lyrics-empty">這首音訊沒有讀到內嵌歌詞。</div>';if(status)status.textContent="支援含時間戳記的 LRC 歌詞；不會修改原始音訊。";}}
   function syncLyricsHighlight(){if(!$("#lyrics-dialog")?.open||!state.lyricsCues.length)return;const time=Number(audio.currentTime||0);let low=0,high=state.lyricsCues.length-1,active=-1;while(low<=high){const mid=(low+high)>>1;if(state.lyricsCues[mid].time<=time){active=mid;low=mid+1;}else high=mid-1;}if(active===state.lyricsActiveIndex)return;state.lyricsActiveIndex=active;const list=$("#lyrics-list");list?.querySelectorAll(".lyrics-line").forEach((node,index)=>node.classList.toggle("active",index===active));const current=active>=0?list?.querySelector('[data-lyric-index="'+active+'"]'):null;current?.scrollIntoView?.({block:"center",behavior:"smooth"});}
@@ -601,6 +552,7 @@ export function initLibraryUI(options = {}) {
       /play\(\).*interrupted|interrupted by a call to pause|interrupted by a new load request/i.test(messageText);
   }
   async function playItem(type,raw,queue=[raw],index=0,playOptions={}) {
+    const selectionStartedAt=performance.now();
     const requestId=++state.playRequestId;
     const isCurrentRequest=()=>requestId===state.playRequestId;
     const config=getConfig();
@@ -613,46 +565,37 @@ export function initLibraryUI(options = {}) {
     if(!cachedEntry)clearNextPreload();
 
     try {
+      const infoStartedAt=performance.now();
       const infoRequest=cachedEntry?.promise
         ? cachedEntry.promise.then(info=>info||getOpenListFileInfo({baseUrl:config.baseUrl,path:item.path,timeoutMs:60000}))
         : getOpenListFileInfo({baseUrl:config.baseUrl,path:item.path,timeoutMs:60000});
-      const lookupStartedAt=performance.now();
-      const [info,saved]=await Promise.all([
-        infoRequest,
-        api("/api/listening?view=progress&itemType="+type+"&itemId="+encodeURIComponent(item.id)).catch(()=>({item:null}))
-      ]);
-      console.info("[FRAME Audio] Playback file info ready", {
-        source: cachedEntry ? "preload" : "api",
-        elapsedMs: Math.round(performance.now()-lookupStartedAt),
-        sizeBytes: Number(info?.size || 0)
+      const infoPromise=infoRequest.then(info=>({info,elapsedMs:Math.round(performance.now()-infoStartedAt)}));
+      const progressStartedAt=performance.now();
+      const progressPromise=type==="episode"
+        ? api("/api/listening?view=progress&itemType="+type+"&itemId="+encodeURIComponent(item.id))
+            .then(data=>({data,elapsedMs:Math.round(performance.now()-progressStartedAt)}))
+            .catch(()=>({data:{item:null},elapsedMs:Math.round(performance.now()-progressStartedAt)}))
+        : Promise.resolve({data:{item:null},elapsedMs:0});
+      const [infoResult,progressResult]=await Promise.all([infoPromise,progressPromise]);
+      const info=infoResult.info;
+      const saved=progressResult.data;
+      const fileInfoElapsedMs=infoResult.elapsedMs;
+      const progressLookupMs=progressResult.elapsedMs;
+      console.info("[FRAME Audio] Playback preparation", {
+        fileInfoMs:fileInfoElapsedMs,
+        podcastProgressMs:type==="episode"?progressLookupMs:null,
+        source:cachedEntry?"preload":"api",
+        sizeBytes:Number(info?.size||0),
+        transport:"direct-raw-url"
       });
       if(!isCurrentRequest())return;
       if(!info||info.is_dir)throw new Error("VPS Alist 回傳的項目是資料夾，不是音訊檔案。");
       if(!info.raw_url)throw new Error("VPS Alist /api/fs/get 沒有提供 raw_url。");
       if(!Number.isFinite(Number(info.size))||Number(info.size)<=0)throw new Error("VPS Alist 沒有提供有效檔案大小。");
 
-      // Validate same-origin relay first. A failed probe must not interrupt the
-      // currently playing item; without an existing graph, we can safely fall
-      // back to native playback.
-      let playUrl=info.raw_url;
-      let useWebAudio=Boolean(eqSource);
-      const needsStream=Boolean(eqSource||state.eqEnabled);
-      if(needsStream){
-        if(!info.stream_url){
-          if(eqSource)throw new Error("均衡器播放需要同源串流網址，但伺服器沒有產生有效授權。");
-          state.eqEnabled=false;savePlayerPreferences();updateEqControls();
-          updateEqStatus("此音訊來源無法建立受控同源串流，已改用原生播放；均衡器未啟用。","error");
-        }else if(!await probeAudioCors(info.stream_url)){
-          if(eqSource)throw new Error("同源音訊串流未通過 Range 測試；為避免 Web Audio 靜音，本首歌曲尚未切換。");
-          state.eqEnabled=false;savePlayerPreferences();updateEqControls();
-          updateEqStatus("同源音訊串流測試未通過，已改用原生播放；均衡器未啟用。","error");
-        }else{
-          playUrl=info.stream_url;
-          useWebAudio=true;
-        }
-      }
-      if(!useWebAudio)audio.removeAttribute("crossorigin");
-      else audio.crossOrigin="anonymous";
+      // Every item uses the Alist raw_url directly. The browser follows the
+      // source's HTTP redirects; Pages never relays or transcodes audio.
+      audio.removeAttribute("crossorigin");
 
       accountTime();persistSession(false);saveProgress(true);
       if(!audio.paused) {
@@ -681,19 +624,13 @@ export function initLibraryUI(options = {}) {
       setDock(item);
       $("#player-type").textContent=(type==="episode"?"PODCAST":"MUSIC")+" · VPS ALIST";
 
-      if(useWebAudio&&!eqSource)await createEqualizerGraph();
-      if(!eqSource&&state.eqEnabled){
-        state.eqEnabled=false;savePlayerPreferences();updateEqControls();
-      }
-
-      state.currentRawUrl=info.raw_url;
-      state.currentStreamUrl=info.stream_url||"";
+      const mediaLoadStartedAt=performance.now();
       const warmedAudio=cachedEntry?.audio||null;
       if(cachedEntry&&state.preloadEntry===cachedEntry){
         state.preloadEntry=null;
         state.preloadAudio=null;
       }
-      audio.src=playUrl;
+      audio.src=info.raw_url;
       audio.load();
       audio.playbackRate=state.speed;
       if(warmedAudio){
@@ -711,7 +648,13 @@ export function initLibraryUI(options = {}) {
       try {
         await audio.play();
         if(!isCurrentRequest())return;
-        console.info("[FRAME Audio] Playback started", { elapsedSinceSelectionMs: Math.round(performance.now()-lookupStartedAt) });
+        console.info("[FRAME Audio] Playback started", {
+          fileInfoMs:fileInfoElapsedMs,
+          podcastProgressMs:type==="episode"?progressLookupMs:null,
+          mediaStartMs:Math.round(performance.now()-mediaLoadStartedAt),
+          totalMs:Math.round(performance.now()-selectionStartedAt),
+          transport:"direct-raw-url-302"
+        });
         $("#player-toggle").textContent="Ⅱ";
       } catch(e) {
         if(!isCurrentRequest()||isPlaybackInterruption(e))return;
@@ -864,7 +807,6 @@ export function initLibraryUI(options = {}) {
     state.playRequestId+=1;
     clearNextPreload();
     accountTime();persistSession(false);saveProgress(true);audio.pause();audio.removeAttribute("src");audio.removeAttribute("crossorigin");audio.load();
-    state.currentRawUrl="";state.currentStreamUrl="";
     state.currentItem=null;state.session=null;state.queue=[];state.queueIndex=-1;state.shuffleOrder=[];state.shufflePosition=-1;setDock(null);timeline();
   });
   $("#player-seek")?.addEventListener("change",e=>{if(Number.isFinite(audio.duration)&&audio.duration>0)audio.currentTime=audio.duration*Number(e.target.value)/1000;});
@@ -883,53 +825,6 @@ export function initLibraryUI(options = {}) {
     clearNextPreload();
     updatePlayerModeButton();savePlayerPreferences();
   });
-  $("#player-eq")?.addEventListener("click",()=>{
-    renderEqSliders();updateEqControls();openModal($("#equalizer-dialog"));
-  });
-  $("#eq-close")?.addEventListener("click",()=>$("#equalizer-dialog")?.close());
-  $("#eq-enabled")?.addEventListener("change",event=>{
-    void setEqualizerEnabled(event.target.checked).catch(error=>{
-      state.eqEnabled=Boolean(eqSource);updateEqControls();
-      updateEqStatus(error.message||"無法啟用均衡器。","error");
-    });
-  });
-  $("#eq-sliders")?.addEventListener("input",event=>{
-    const input=event.target.closest("[data-eq-index]");if(!input)return;
-    const index=Number(input.dataset.eqIndex);
-    state.eqGains[index]=Math.max(-20,Math.min(20,Number(input.value)||0));
-    const output=$("#eq-value-"+index);if(output)output.textContent=state.eqGains[index].toFixed(1);
-    applyEqualizerGains();savePlayerPreferences();
-  });
-  $("#eq-preset-select")?.addEventListener("change",event=>{
-    const key=event.target.value;if(!EQ_PRESETS[key])return;
-    state.eqGains=[...EQ_PRESETS[key]];state.eqEnabled=true;
-    savePlayerPreferences();updateEqControls();
-    if(!eqSource&&state.currentRawUrl){
-      void setEqualizerEnabled(true).catch(error=>updateEqStatus(error.message||"無法套用預設。","error"));
-    }else updateEqStatus("已套用預設："+event.target.selectedOptions[0].textContent);
-    event.target.value="";
-  });
-  $("#eq-import")?.addEventListener("click",()=>$("#eq-file")?.click());
-  $("#eq-file")?.addEventListener("change",async event=>{
-    const file=event.target.files?.[0];if(!file)return;
-    try{
-      const gains=parseFoobarFeq(await file.text());
-      state.eqGains=gains;state.eqEnabled=true;savePlayerPreferences();updateEqControls();
-      if(!eqSource&&state.currentRawUrl)await setEqualizerEnabled(true);
-      updateEqStatus("已匯入 "+file.name+"（foobar2000 18 段 .feq）。","ok");
-    }catch(error){updateEqStatus(error.message||"無法讀取 .feq 檔案。","error");}
-    finally{event.target.value="";}
-  });
-  $("#eq-export")?.addEventListener("click",()=>{
-    const contents=state.eqGains.map(value=>String(Math.round(value))).join("\n")+"\n";
-    const url=URL.createObjectURL(new Blob([contents],{type:"text/plain;charset=utf-8"}));
-    const anchor=document.createElement("a");anchor.href=url;anchor.download="FRAME-Audio-Equalizer.feq";
-    document.body.append(anchor);anchor.click();anchor.remove();URL.revokeObjectURL(url);
-    updateEqStatus("已匯出 foobar2000 相容的 18 行 .feq 預設。","ok");
-  });
-  $("#eq-reset")?.addEventListener("click",()=>{
-    state.eqGains=Array(18).fill(0);updateEqControls();savePlayerPreferences();updateEqStatus("所有頻段已歸零。");
-  });
   $("#lyrics-close")?.addEventListener("click",()=>$("#lyrics-dialog")?.close());
   $("#player-lyrics")?.addEventListener("click",()=>{
     if(!state.currentItem){message("請先播放一首歌曲。");return;}
@@ -945,7 +840,7 @@ export function initLibraryUI(options = {}) {
   window.addEventListener("pagehide",()=>{accountTime();persistSession(false);saveProgress(true);});
   async function showView(name){state.view=name==="podcasts"?"shows":name;state.search="";if(!state.loaded)await load(true);else render();animateLibraryContent();}
   async function refresh(){state.loaded=false;await load(true);}
-  loadPlayerPreferences();updatePlayerModeButton();updateShuffleButton();renderEqSliders();updateEqControls();
+  loadPlayerPreferences();updatePlayerModeButton();updateShuffleButton();
   setDock(null);void showView("music");
   return {showView,refresh,load};
 }

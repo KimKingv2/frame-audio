@@ -72,7 +72,6 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
         <button class="player-utility" id="player-mode" type="button" aria-label="順序播放" title="順序播放">→</button>
         <span class="player-control-separator" aria-hidden="true"></span>
         <button class="player-utility" id="player-lyrics" type="button" disabled aria-label="歌詞" title="歌詞">♫</button>
-        <button class="player-utility" id="player-eq" type="button" aria-label="均衡器" title="均衡器">EQ</button>
         <select id="player-speed" aria-label="播放速度" title="播放速度">
           <option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2×</option>
         </select>
@@ -89,32 +88,6 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 <audio id="audio-player" preload="none"></audio>
 
 
-<dialog id="equalizer-dialog" class="feature-dialog">
-  <div class="dialog-head">
-    <div><span class="kicker">PLAYER DSP</span><h2>18 段均衡器</h2></div>
-    <button class="close" id="eq-close" aria-label="關閉">×</button>
-  </div>
-  <div class="dialog-body">
-    <div class="eq-toolbar">
-      <label class="eq-switch"><input id="eq-enabled" type="checkbox"><span>啟用均衡器</span></label>
-      <select id="eq-preset-select" aria-label="內建均衡器預設">
-        <option value="">選擇預設</option>
-        <option value="flat">Flat · 平直</option>
-        <option value="bass">Bass · 低音增強</option>
-        <option value="vocal">Vocal · 人聲清晰</option>
-        <option value="clarity">Clarity · 通透</option>
-      </select>
-      <button class="secondary" id="eq-import" type="button">匯入 foobar2000 .feq</button>
-      <button class="secondary" id="eq-export" type="button">匯出 .feq</button>
-      <button class="secondary" id="eq-reset" type="button">歸零</button>
-      <input id="eq-file" type="file" accept=".feq,.txt,text/plain" hidden>
-    </div>
-    <div class="eq-bands" id="eq-sliders"></div>
-    <div class="eq-footer"><span id="eq-headroom">頭部空間：0 dB</span><span>18 bands · -20 至 +20 dB</span></div>
-    <div class="eq-status" id="eq-status" role="status">可匯入 foobar2000 標準 18 段 .feq 純文字預設。</div>
-    <p class="library-muted eq-note">啟用均衡器時，音訊會改由 Cloudflare Pages 的 Access 保護同源串流傳送，以避開檔案主機未提供 CORS 的限制；一般播放仍維持原本直連。EQ 模式會增加 Cloudflare 串流流量。</p>
-  </div>
-</dialog>
 <dialog id="lyrics-dialog" class="feature-dialog lyrics-dialog">
   <div class="dialog-head">
     <div><span class="kicker">NOW PLAYING</span><h2 id="lyrics-title">同步歌詞</h2><p id="lyrics-subtitle"></p></div>
@@ -155,7 +128,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
       </details>
     </div>
     <div class="metadata-result" id="metadata-result" hidden></div>
-    <div class="privacy">瀏覽器只會收到必要的目錄與檔案資訊。音訊播放仍使用 VPS Alist 回傳的 raw_url，由 HTML5 Audio 直接連接音訊來源，不經 Cloudflare 代理或轉碼。伺服器端 API 請求不再需要 VPS Alist 的瀏覽器 CORS 預檢；若要使用 metadata Range 或 Web Audio 均衡器，raw_url 最終音訊來源仍須允許本網站的跨來源 Range 讀取。</div>
+    <div class="privacy">瀏覽器只會收到必要的目錄與檔案資訊。所有音樂與 Podcast 播放都只使用 VPS Alist 回傳的 raw_url，由 HTML5 Audio 直接連接並跟隨來源端 HTTP 302 重新導向；Cloudflare Pages 不代理、不轉碼，也不接收音訊資料。伺服器端 API 請求不需要 VPS Alist 的瀏覽器 CORS 預檢；曲庫 metadata 的 Range 讀取仍須由最終檔案主機允許本網站跨來源讀取。</div>
   </div>
 </dialog>
 <script>
@@ -180,5 +153,5 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   });
 })();
 </script>
-<script type="module" src="/assets/js/app.js?v=20261111-server-secrets1"></script>
+<script type="module" src="/assets/js/app.js?v=20261111-pure302-audio1"></script>
 </body></html>

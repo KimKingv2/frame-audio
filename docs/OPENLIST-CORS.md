@@ -7,13 +7,13 @@ FRAME Audio now separates private API access from media delivery:
 
 ## When CORS is still required
 
-The standard HTML5 audio element can play a cross-origin media URL without exposing its bytes to JavaScript. However, FRAME Audio's metadata inspector and Web Audio equalizer use browser Fetch with Range requests. For these features, the **final media host** reached by the Alist `raw_url` must allow the Production origin:
+The standard HTML5 audio element can play a cross-origin media URL without exposing its bytes to JavaScript. FRAME Audio playback is deliberately pure direct playback: the browser follows the Alist `raw_url` redirects itself, and Pages never proxies audio. The metadata inspector still uses browser Fetch with Range requests; for that feature, the **final media host** reached by the Alist `raw_url` must allow the Production origin:
 
 ```text
 https://frame-audio.pages.dev
 ```
 
-If the media URL redirects through `drive.kimkingv2.top`, that host must allow the origin. If it redirects to a cloud-drive CDN, CORS must be supported by that final CDN host as well. A CORS setting on the Alist API hostname cannot override a missing CORS header from a different final media host.
+If the media URL redirects through `drive.kimkingv2.top`, that host must allow the origin. If it redirects to a cloud-drive CDN, CORS must be supported by that final CDN host as well for metadata Range inspection. This does not affect normal HTML5 audio playback. A CORS setting on the Alist API hostname cannot override a missing CORS header from a different final media host.
 
 For Preview tests, also allow the applicable Preview origin, for example:
 
