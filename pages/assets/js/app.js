@@ -1,7 +1,7 @@
-import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo } from "./openlist-client.js";
+import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo } from "./openlist-client.js?v=20261111-vps-only1";
 import { inspectAudioMetadata } from "./metadata-inspector.js";
 import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js";
-import { initLibraryUI } from "./library-ui.js";
+import { initLibraryUI } from "./library-ui.js?v=20261111-vps-only1";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
 (() => {
@@ -11,6 +11,9 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   const dialog = $("#connection-dialog");
   const urlInput = $("#openlist-url");
   const tokenInput = $("#openlist-token");
+  const playbackUrlInput = $("#playback-openlist-url");
+  const playbackTokenInput = $("#playback-openlist-token");
+  const playbackResultBox = $("#vps-playback-result");
   const storageTokenInput = $("#cloudflare-admin-token");
   const musicRootInput = $("#music-root-path");
   const podcastRootInput = $("#podcast-root-path");
@@ -38,6 +41,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   // component encounters an initialization problem.
   $("#test-connection")?.addEventListener("click", testConnection);
   $("#test-storage")?.addEventListener("click", testCloudflareStorage);
+  $("#test-vps-playback-source")?.addEventListener("click", testVpsPlaybackSource);
   browseButton?.addEventListener("click", () => loadDirectory(pathInput.value.trim() || "/"));
 
   const views = {
@@ -1402,6 +1406,43 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     }
   }
 
+  async function testVpsPlaybackSource() {
+    const button = $("#test-vps-playback-source");
+    const baseUrl = playbackUrlInput.value.trim();
+    const token = playbackTokenInput.value;
+    const path = getConfiguredRoot(musicRootInput, "Music");
+    if (!baseUrl || !token.trim()) {
+      playbackResultBox.textContent = "請填入 VPS Alist 網址及 API Token。正式播放只使用 VPS Alist，不會回退 Cloudflare OpenList。";
+      playbackResultBox.className = "statusbox error";
+      return;
+    }
+    button.disabled = true;
+    playbackResultBox.textContent = "正在以唯讀 /api/fs/list 測試 VPS Alist……";
+    playbackResultBox.className = "statusbox";
+    try {
+      const result = await listOpenListDirectory({
+        baseUrl,
+        token,
+        path,
+        page: 1,
+        perPage: 1
+      });
+      playbackResultBox.textContent =
+        "PASS：VPS Alist API 可連線。\n測試目錄：" + path +
+        "\n讀取項目：" + result.items.length +
+        "；API 回報總數：" + result.total +
+        "\n正式播放來源已固定為 VPS Alist；若其 API 或音訊播放失敗，播放器會顯示錯誤，不會自動切換其他來源。";
+      playbackResultBox.className = "statusbox ok";
+    } catch (error) {
+      playbackResultBox.textContent =
+        "FAIL：VPS Alist API 測試失敗。\n" + (error.message || "未知錯誤") +
+        "\n請檢查網址、Token、唯讀目錄權限及 Production CORS。";
+      playbackResultBox.className = "statusbox error";
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   async function testConnection() {
     const button = $("#test-connection");
     activeBaseUrl = urlInput.value.trim();
@@ -1502,7 +1543,9 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       adminToken: activeStorageToken,
       openListToken: activeToken,
       baseUrl: activeBaseUrl,
-      connected
+      connected,
+      playbackBaseUrl: playbackUrlInput.value.trim(),
+      playbackToken: playbackTokenInput.value
     }),
     reindexMusic: path => indexSingleAudioFile(path, { disabled: false }, {
       silent: true,
