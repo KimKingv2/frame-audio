@@ -1,7 +1,7 @@
 import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo } from "./openlist-client.js?v=20261111-server-secrets1";
-import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261111-flac-vorbis-priority1";
+import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261111-flac-synced-lyrics2";
 import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js?v=20261111-server-secrets1";
-import { initLibraryUI } from "./library-ui.js?v=20261111-pure302-player1";
+import { initLibraryUI } from "./library-ui.js?v=20261111-now-playing-page1";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
 (() => {
@@ -397,6 +397,11 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       const metadata = result.metadata || {};
       const common = metadata.common || {};
       const format = metadata.format || {};
+      const indexedLyrics = metadataStringList(common.lyrics);
+      const timedLyrics = indexedLyrics.filter(value => /\[[0-9]{1,3}:[0-5][0-9](?:[.,][0-9]{1,3})?\]|<[0-9]{1,3}:[0-5][0-9](?:[.,][0-9]{1,3})?>/.test(value));
+      log("歌詞索引診斷｜來源=" + (/\.flac$/i.test(path) ? "FLAC Vorbis 優先" : "metadata common") +
+        "｜文字區塊 " + indexedLyrics.length + "｜含時間戳區塊 " + timedLyrics.length,
+        timedLyrics.length ? "success" : indexedLyrics.length ? "warning" : "info");
       const title = String(common.title || path.split("/").pop() || "未命名音訊");
       log("Metadata 解析原始值｜" + path +
         "｜TITLE=" + metadataDebugValue(common.title) +
@@ -492,7 +497,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
           channels: Number.isFinite(Number(format.numberOfChannels)) ? Number(format.numberOfChannels) : null,
           lossless: typeof format.lossless === "boolean" ? format.lossless : null
         },
-        lyrics: metadataStringList(common.lyrics),
+        lyrics: indexedLyrics,
         artwork,
         metadata: { tagTypes: metadata.tagTypes || [], common: commonSafe }
       };

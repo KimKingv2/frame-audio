@@ -37,89 +37,92 @@ export function parseFoobarFeq(input) {
 }
 
 export function parseSynchronizedLyrics(input) {
-  const sources = Array.isArray(input) ? input : input == null ? [] : [input];
-  const text = sources.map(value => {
+  const sources = Array.isArray(input) ? input.flat(Infinity) : input == null ? [] : [input];
+  const parseClock = value => {
+    const match = String(value).trim().replace(",", ".").match(/^(?:(\d{1,3}):)?(\d{1,3}):([0-5]\d)(?:\.(\d{1,3}))?$/);
+    if (!match) return NaN;
+    return Number(match[1] || 0) * 3600 + Number(match[2] || 0) * 60 +
+      Number(match[3] || 0) + (match[4] ? Number("0." + match[4]) : 0);
+  };
+  const objectTime = cue => {
+    if (cue.timeMs != null) return Number(cue.timeMs) / 1000;
+    if (cue.timestampMs != null) return Number(cue.timestampMs) / 1000;
+    if (cue.startTimeMs != null) return Number(cue.startTimeMs) / 1000;
+    const raw = cue.timestamp ?? cue.time ?? cue.startTime;
+    if (typeof raw === "string") return parseClock(raw);
+    const numeric = Number(raw);
+    if (!Number.isFinite(numeric)) return NaN;
+    return Math.abs(numeric) >= 1000 ? numeric / 1000 : numeric;
+  };
+  const formatLrc = (seconds, text) => {
+    if (!Number.isFinite(seconds) || typeof text !== "string" || !text.trim()) return "";
+    const safe = Math.max(0, seconds), minutes = Math.floor(safe / 60);
+    const remainder = (safe % 60).toFixed(3).padStart(6, "0");
+    return "[" + String(minutes).padStart(2, "0") + ":" + remainder + "]" + text.trim();
+  };
+  const sourceText = sources.map(value => {
     if (typeof value === "string") return value;
-    if (value && typeof value.text === "string") return value.text;
-    if (value && Array.isArray(value.cues)) {
-      return value.cues.map(cue => {
-        const milliseconds = Number(cue.timeMs ?? cue.timestampMs ?? cue.time);
-        const seconds = Number.isFinite(milliseconds)
-          ? (milliseconds > 10000 ? milliseconds / 1000 : milliseconds)
-          : NaN;
-        if (!Number.isFinite(seconds) || typeof cue.text !== "string") return "";
-        const minutes = Math.floor(seconds / 60);
-        const remainder = (seconds % 60).toFixed(3).padStart(6, "0");
-        return "[" + String(minutes).padStart(2, "0") + ":" + remainder + "]" + cue.text;
-      }).filter(Boolean).join("\n");
-    }
+    if (!value || typeof value !== "object") return "";
+    const cueList = Array.isArray(value.cues) ? value.cues :
+      Array.isArray(value.syncText) ? value.syncText :
+      Array.isArray(value.synchronizedText) ? value.synchronizedText : null;
+    if (cueList) return cueList.map(cue =>
+      formatLrc(objectTime(cue), cue.text ?? cue.words ?? cue.content)
+    ).filter(Boolean).join("\n");
+    if (typeof value.text === "string") return value.text;
+    if (typeof value.value === "string") return value.value;
+    if (typeof value.lyrics === "string") return value.lyrics;
     return "";
   }).filter(Boolean).join("\n").replace(/^\uFEFF/, "");
-  const cues = [];
-  const plainLines = [];
-  const timestampPattern = /[\[<{]((?:\d{1,2}:)?\d{1,3}:[0-5]\d(?:[.,]\d{1,3})?)[\]}>]/g;
-  const bareTimestampPattern = /^((?:\d{1,2}:)?\d{1,3}:[0-5]\d(?:[.,]\d{1,3})?)(?:\s*[-|]\s*|\s+)(.+)$/;
-  const metadataPattern = /^\[(?:ar|al|ti|by|re|ve|length):/i;
+
+  const cues = [], plainLines = [];
+  const marker = /[\[<({]((?:\d{1,3}:)?\d{1,3}:[0-5]\d(?:[.,]\d{1,3})?)[\]>)}]/g;
+  const bare = /^((?:\d{1,3}:)?\d{1,3}:[0-5]\d(?:[.,]\d{1,3})?)(?:\s*(?:-->|[-|])\s*|\s+)(.+)$/;
+  const lone = /^\[?((?:\d{1,3}:)?\d{1,3}:[0-5]\d(?:[.,]\d{1,3})?)\]?$/;
+  const lines = sourceText.replace(/\r\n?/g, "\n").split("\n");
   let offsetSeconds = 0;
-  const parseTime = value => {
-    const [clock, fractionText = ""] = String(value).replace(",", ".").split(".");
-    const parts = clock.split(":").map(Number);
-    if (parts.some(part => !Number.isFinite(part))) return NaN;
-    const fraction = fractionText ? Number("0." + fractionText) : 0;
-    if (parts.length === 2) return parts[0] * 60 + parts[1] + fraction;
-    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2] + fraction;
-    return NaN;
-  };
-  const addCue = (rawTime, lyricText) => {
-    const time = parseTime(rawTime);
-    const value = String(lyricText || "").replace(/^[\s,;|]+|[\s,;|]+$/g, "").trim();
-    if (Number.isFinite(time) && value) cues.push({ time: Math.max(0, time + offsetSeconds), text: value });
-  };
-  const lines = text.replace(/\r/g, "\n").split(/\n+/);
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index].trim();
-    if (!line) continue;
-    const offsetMatch = line.match(/^\[offset:([+-]?\d+)\]$/i);
-    if (offsetMatch) {
-      offsetSeconds = Number(offsetMatch[1]) / 1000;
-      continue;
-    }
-    if (metadataPattern.test(line)) continue;
-
-    const subtitleRange = line.match(/^((?:\d{1,2}:)?\d{1,3}:[0-5]\d[.,]\d{1,3})\s*-->\s*((?:\d{1,2}:)?\d{1,3}:[0-5]\d[.,]\d{1,3})$/);
-    if (subtitleRange) {
-      let next = index + 1;
-      while (next < lines.length && !lines[next].trim()) next += 1;
-      if (next < lines.length && !/^\d+$/.test(lines[next].trim())) {
-        addCue(subtitleRange[1], lines[next]);
-        index = next;
-        continue;
-      }
-    }
-
-    const matches = [...line.matchAll(timestampPattern)];
-    if (matches.length) {
-      const segments = matches.map((match, cueIndex) => {
-        const start = match.index + match[0].length;
-        const end = cueIndex + 1 < matches.length ? matches[cueIndex + 1].index : line.length;
-        return line.slice(start, end).replace(/^[\s,;|]+|[\s,;|]+$/g, "").trim();
-      });
-      const nonEmpty = segments.filter(Boolean);
-      if (matches.length > 1 && nonEmpty.length === 1 && segments.slice(0, -1).every(value => !value)) {
-        matches.forEach(match => addCue(match[1], nonEmpty[0]));
-      } else {
-        matches.forEach((match, cueIndex) => addCue(match[1], segments[cueIndex]));
-      }
-      continue;
-    }
-
-    const bareMatch = line.match(bareTimestampPattern);
-    if (bareMatch) {
-      addCue(bareMatch[1], bareMatch[2]);
-      continue;
-    }
-    if (!/^\[(?:\d{1,3}:)?\d{1,3}\]$/.test(line)) plainLines.push(line);
+  for (const line of lines) {
+    const match = line.trim().match(/^\[offset:([+-]?\d+)\]$/i);
+    if (match) offsetSeconds = Number(match[1]) / 1000;
   }
-  cues.sort((a, b) => a.time - b.time);
-  return { cues, plainLines };
+  const addCue = (rawTime, rawText) => {
+    const time = parseClock(rawTime);
+    const text = String(rawText || "").replace(/^(?:v\d+:)+/i, "")
+      .replace(/^[\s,;|]+|[\s,;|]+$/g, "").trim();
+    if (Number.isFinite(time) && text) cues.push({time:Math.max(0,time+offsetSeconds),text});
+  };
+  for (let index=0; index<lines.length; index+=1) {
+    const line=lines[index].trim();
+    if (!line || /^\[offset:[+-]?\d+\]$/i.test(line) || /^\[(?:ar|al|ti|by|re|ve|length):/i.test(line)) continue;
+    const range=line.match(/^((?:\d{1,3}:)?\d{1,3}:[0-5]\d[.,]\d{1,3})\s*-->\s*((?:\d{1,3}:)?\d{1,3}:[0-5]\d[.,]\d{1,3})(?:\s+.*)?$/);
+    if (range) {
+      let next=index+1;
+      while(next<lines.length&&(!lines[next].trim()||/^\d+$/.test(lines[next].trim())))next+=1;
+      if(next<lines.length){addCue(range[1],lines[next]);index=next;continue;}
+    }
+    const matches=[...line.matchAll(marker)];
+    if(matches.length){
+      const segments=matches.map((match,i)=>{
+        const start=match.index+match[0].length,end=i+1<matches.length?matches[i+1].index:line.length;
+        return line.slice(start,end).replace(/^[\s,;|]+|[\s,;|]+$/g,"").trim();
+      });
+      const nonEmpty=segments.filter(Boolean);
+      if(matches.length>1&&nonEmpty.length===1&&segments.slice(0,-1).every(x=>!x))matches.forEach(match=>addCue(match[1],nonEmpty[0]));
+      else matches.forEach((match,i)=>addCue(match[1],segments[i]));
+      continue;
+    }
+    const bareMatch=line.match(bare);
+    if(bareMatch){addCue(bareMatch[1],bareMatch[2]);continue;}
+    const loneMatch=line.match(lone);
+    if(loneMatch){
+      let next=index+1;
+      while(next<lines.length&&(!lines[next].trim()||/^\d+$/.test(lines[next].trim())))next+=1;
+      if(next<lines.length){addCue(loneMatch[1],lines[next]);index=next;}
+      continue;
+    }
+    if(!/^\d+$/.test(line))plainLines.push(line.replace(/^(?:v\d+:)+/i,"").trim());
+  }
+  cues.sort((a,b)=>a.time-b.time);
+  const unique=cues.filter((cue,i)=>i===0||cue.time!==cues[i-1].time||cue.text!==cues[i-1].text);
+  return {cues:unique,plainLines};
 }

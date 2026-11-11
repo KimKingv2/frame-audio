@@ -365,6 +365,41 @@ function nativeTextValues(nativeTags, ids) {
     .filter(Boolean);
 }
 
+
+function lyricTextValue(value) {
+  if (typeof value === "string") return value.trim();
+  if (!value || typeof value !== "object") return "";
+  if (typeof value.text === "string") return value.text.trim();
+  if (typeof value.value === "string") return value.value.trim();
+  return "";
+}
+function nativeLyricsValues(nativeTags, ids) {
+  const wanted = new Set(ids.map(id => String(id).toUpperCase()));
+  return (Array.isArray(nativeTags) ? nativeTags : [])
+    .filter(tag => wanted.has(String(tag?.id || "").toUpperCase()))
+    .flatMap(tag => Array.isArray(tag?.value) ? tag.value : [tag?.value])
+    .map(lyricTextValue).filter(Boolean);
+}
+function containsTimedLyrics(value) {
+  return /(?:\[[0-9]{1,3}:[0-5][0-9](?:[.,][0-9]{1,3})?\]|<[0-9]{1,3}:[0-5][0-9](?:[.,][0-9]{1,3})?>)/m.test(String(value || ""));
+}
+function preferFlacVorbisLyrics(metadata, path, common) {
+  if (!/\.flac$/i.test(String(path))) return common;
+  const vorbis = metadata.native?.vorbis || [];
+  const nativeLyrics = nativeLyricsValues(vorbis, ["LYRICS", "SYNCEDLYRICS", "SYNCED_LYRICS"]);
+  const timed = nativeLyrics.filter(containsTimedLyrics);
+  if (timed.length) {
+    common.lyrics = timed;
+    return common;
+  }
+  if (nativeLyrics.length) {
+    common.lyrics = nativeLyrics;
+    return common;
+  }
+  const unsynced = nativeLyricsValues(vorbis, ["UNSYNCEDLYRICS", "UNSYNCED_LYRICS"]);
+  if (unsynced.length && !common.lyrics) common.lyrics = unsynced;
+  return common;
+}
 function joinNativeArtists(values) {
   if (values.length > 2) {
     return values.slice(0, -1).join(", ") + " & " + values[values.length - 1];
@@ -392,7 +427,7 @@ function preferFlacVorbisIdentity(metadata, path) {
     common.albumartists = albumArtists;
     common.albumartist = joinNativeArtists(albumArtists);
   }
-  return common;
+  return preferFlacVorbisLyrics(metadata, path, common);
 }
 
 function normalizeLyrics(value) {

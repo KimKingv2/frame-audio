@@ -1,5 +1,5 @@
 import { getOpenListFileInfo } from "./openlist-client.js?v=20261111-server-secrets1";
-import { parseSynchronizedLyrics } from "./player-effects.js?v=20261111-pure302-lyrics1";
+import { parseSynchronizedLyrics } from "./player-effects.js?v=20261111-flac-lyrics2";
 
 const PERIODS = [["week","近 7 日"],["month","近 30 日"],["year","近 365 日"],["all","全部時間"]];
 
@@ -8,7 +8,7 @@ export function initLibraryUI(options = {}) {
   const audio = document.querySelector("#audio-player");
   const $ = selector => document.querySelector(selector);
   const state = {
-    view:"music",tracks:[],folders:[],shows:[],episodes:[],loaded:false,loadedAt:0,busy:false,
+    view:"music",lastLibraryView:"music",tracks:[],folders:[],shows:[],episodes:[],loaded:false,loadedAt:0,busy:false,
     selectedShowId:"",selectedAlbum:null,search:"",searchComposing:false,items:[],itemType:"track",reportPeriod:"week",reportType:"episode",
     errors:[],currentItem:null,queue:[],queueIndex:-1,session:null,tickAt:0,speed:1,
     lastProgressSave:0,restorePositionMs:0,playRequestId:0,artworkUrls:new Set(),
@@ -134,8 +134,62 @@ export function initLibraryUI(options = {}) {
       return null;
     });
   }
-  function renderLyricsPanel(){const item=state.currentItem,list=$("#lyrics-list"),title=$("#lyrics-title"),subtitle=$("#lyrics-subtitle"),status=$("#lyrics-status");if(!list)return;state.lyricsActiveIndex=-1;const raw=Array.isArray(item?.lyrics)?item.lyrics:(item?.lyrics?[item.lyrics]:[]);const parsed=parseSynchronizedLyrics(raw);state.lyricsCues=parsed.cues;state.lyricsPlainLines=parsed.plainLines;if(title)title.textContent=item?.title||"尚未選擇音訊";if(subtitle)subtitle.textContent=item?.subtitle||item?.album||"";if(parsed.cues.length){list.innerHTML=parsed.cues.map((cue,index)=>'<button class="lyrics-line" data-lyric-index="'+index+'" type="button">'+esc(cue.text)+'</button>').join("");if(status)status.textContent="同步歌詞 · "+parsed.cues.length+" 行。點擊歌詞可跳轉到對應時間。";}else if(parsed.plainLines.length){list.innerHTML=parsed.plainLines.map(line=>'<p class="lyrics-plain-line">'+esc(line)+'</p>').join("");if(status)status.textContent="目前只有純文字歌詞，沒有時間標記，因此無法逐句同步高亮。支援內嵌 LRC 時間標記。";}else{list.innerHTML='<div class="lyrics-empty">這首音訊沒有讀到內嵌歌詞。</div>';if(status)status.textContent="支援含時間戳記的 LRC 歌詞；不會修改原始音訊。";}}
-  function syncLyricsHighlight(){if(!$("#lyrics-dialog")?.open||!state.lyricsCues.length)return;const time=Number(audio.currentTime||0);let low=0,high=state.lyricsCues.length-1,active=-1;while(low<=high){const mid=(low+high)>>1;if(state.lyricsCues[mid].time<=time){active=mid;low=mid+1;}else high=mid-1;}if(active===state.lyricsActiveIndex)return;state.lyricsActiveIndex=active;const list=$("#lyrics-list");list?.querySelectorAll(".lyrics-line").forEach((node,index)=>node.classList.toggle("active",index===active));const current=active>=0?list?.querySelector('[data-lyric-index="'+active+'"]'):null;current?.scrollIntoView?.({block:"center",behavior:"smooth"});}
+
+  function currentLyrics() {
+    const item=state.currentItem,raw=Array.isArray(item?.lyrics)?item.lyrics:item?.lyrics?[item.lyrics]:[];
+    const parsed=parseSynchronizedLyrics(raw);
+    state.lyricsCues=parsed.cues;state.lyricsPlainLines=parsed.plainLines;state.lyricsActiveIndex=-1;
+    return parsed;
+  }
+  function lyricsMarkup(parsed,className="lyrics-line") {
+    if(parsed.cues.length)return parsed.cues.map((cue,index)=>'<button class="'+className+'" data-lyric-index="'+index+'" type="button">'+esc(cue.text)+'</button>').join("");
+    if(parsed.plainLines.length)return parsed.plainLines.map(line=>'<p class="lyrics-plain-line">'+esc(line)+'</p>').join("");
+    return '<div class="lyrics-empty">這首音訊沒有讀到歌詞。<br>若 FLAC 原始標籤含 LRC 時間戳，請單獨重新索引這首歌曲。</div>';
+  }
+  function renderLyricsPanel() {
+    const item=state.currentItem,list=$("#lyrics-list"),title=$("#lyrics-title"),subtitle=$("#lyrics-subtitle"),status=$("#lyrics-status");
+    if(!list)return;const parsed=currentLyrics();
+    if(title)title.textContent=item?.title||"尚未選擇音訊";
+    if(subtitle)subtitle.textContent=item?.subtitle||item?.album||"";
+    list.innerHTML=lyricsMarkup(parsed);
+    if(status)status.textContent=parsed.cues.length?"同步歌詞 · "+parsed.cues.length+" 個時間點。點擊歌詞可跳轉。":parsed.plainLines.length?"目前讀到的是純文字歌詞，沒有可辨識的時間戳。":"沒有讀到內嵌歌詞。";
+    syncLyricsHighlight();
+  }
+  function renderNowPlaying() {
+    const item=state.currentItem;
+    if(!item){root.innerHTML='<div class="now-playing-empty"><button class="secondary" data-action="back-now-playing">← 返回曲庫</button><h2>尚未播放音訊</h2><p>從 Music 或 Podcast 選擇內容後，這裡會顯示目前歌曲與同步歌詞。</p></div>';return;}
+    const parsed=currentLyrics(),kind=item.itemType==="episode"?"PODCAST":"MUSIC",artist=item.subtitle||item.albumArtist||item.album||"";
+    root.innerHTML='<section class="now-playing-page">'+
+      '<div class="now-playing-topbar"><button class="secondary" data-action="back-now-playing">← 返回曲庫</button><span class="kicker">NOW PLAYING</span><span class="now-playing-kind">'+kind+'</span></div>'+
+      '<div class="now-playing-main">'+
+       '<div class="now-playing-track"><div class="now-playing-art" id="now-playing-art"><span>'+esc(String(item.title||"FA").slice(0,1).toUpperCase())+'</span></div>'+
+        '<div class="now-playing-track-copy"><span class="kicker">CURRENT TRACK</span><h1>'+esc(item.title||"未命名音訊")+'</h1><p>'+esc(artist)+'</p><div class="now-playing-track-meta"><span>'+kind+'</span><span>'+duration(item.durationMs)+'</span></div></div>'+
+        (item.itemType==="track"&&pathOf(item)&&typeof options.reindexMusic==="function"?'<button class="secondary now-playing-reindex" data-action="reindex-current-lyrics">重新讀取這首歌的標籤</button>':"")+
+        '<p class="now-playing-reindex-status" id="now-playing-reindex-status" role="status"></p></div>'+
+       '<section class="now-playing-lyrics-panel" aria-label="同步歌詞"><div class="now-playing-lyrics-heading"><span class="kicker">LYRICS</span><span>'+(parsed.cues.length?parsed.cues.length+" 個時間點":parsed.plainLines.length?"純文字歌詞":"尚無歌詞")+'</span></div>'+
+        '<div class="now-playing-lyrics-list" id="now-playing-lyrics-list" aria-live="polite">'+lyricsMarkup(parsed,"now-playing-lyric-line")+'</div></section>'+
+      '</div></section>';
+    syncNowPlayingArtwork(item);syncLyricsHighlight();
+  }
+  function syncNowPlayingArtwork(item) {
+    const host=$("#now-playing-art");if(!host||!item?.artworkHash)return;
+    fetch("/api/artwork/"+item.artworkHash,{credentials:"same-origin"}).then(response=>response.ok?response.blob():null).then(blob=>{
+      if(!blob||state.currentItem?.id!==item.id||state.view!=="now-playing")return;
+      const url=URL.createObjectURL(blob);state.artworkUrls.add(url);host.style.backgroundImage="url('"+url+"')";host.classList.add("has-artwork");
+      const fallback=host.querySelector("span");if(fallback)fallback.hidden=true;
+    }).catch(()=>{});
+  }
+  function syncLyricsHighlight() {
+    if((state.view!=="now-playing"&&!$("#lyrics-dialog")?.open)||!state.lyricsCues.length)return;
+    const time=Number(audio.currentTime||0);let low=0,high=state.lyricsCues.length-1,active=-1;
+    while(low<=high){const mid=(low+high)>>1;if(state.lyricsCues[mid].time<=time){active=mid;low=mid+1;}else high=mid-1;}
+    state.lyricsActiveIndex=active;
+    for(const list of [$("#lyrics-list"),$("#now-playing-lyrics-list")].filter(Boolean)){
+      list.querySelectorAll("[data-lyric-index]").forEach((node,index)=>node.classList.toggle("active",index===active));
+      const current=active>=0?list.querySelector('[data-lyric-index="'+active+'"]'):null;
+      current?.scrollIntoView?.({block:"center",behavior:"smooth"});
+    }
+  }
   function animateLibraryContent(){root.classList.remove("view-enter");void root.offsetWidth;root.classList.add("view-enter");}
   function openModal(dialog){if(!dialog||dialog.open)return;try{dialog.showModal();}catch{dialog.setAttribute("open","");}}
   async function api(url,init={}) {
@@ -488,9 +542,11 @@ export function initLibraryUI(options = {}) {
       case "continue":void renderContinue().catch(e=>message(e.message,"error"));break;
       case "reports":void renderReports().catch(e=>message(e.message,"error"));break;
       case "errors":void renderErrors().catch(e=>message(e.message,"error"));break;
+      case "now-playing":renderNowPlaying();break;
       default:renderHome();
     }
     document.body.classList.toggle("is-podcast-view",["shows","show-detail","continue"].includes(state.view));
+    document.body.classList.toggle("is-now-playing",state.view==="now-playing");
     animateLibraryContent();
   }
 
@@ -498,7 +554,9 @@ export function initLibraryUI(options = {}) {
     $("#player-title").textContent=item?.title||"尚未選擇音訊";
     $("#player-subtitle").textContent=item?.subtitle||item?.path||"連接私人音訊庫後即可播放";
     $("#player-type").textContent=item?.itemType==="episode"?"PODCAST":item?"MUSIC":"READY";
+    const nowTile=$("#player-now-playing");if(nowTile)nowTile.disabled=!item;
     if($("#lyrics-dialog")?.open)renderLyricsPanel();
+    if(state.view==="now-playing")renderNowPlaying();
     const lyricsButton=$("#player-lyrics");
     if(lyricsButton)lyricsButton.disabled=!item;
     const coverNode=$("#player-cover");coverNode.textContent=(item?.title||"FA").slice(0,1).toUpperCase();coverNode.style.backgroundImage="";
@@ -698,10 +756,34 @@ export function initLibraryUI(options = {}) {
     }catch(e){if(status)status.textContent="更新失敗："+(e.message||e);if(button)button.disabled=false;}
   }
   async function handleClick(event) {
+    const lyricLine=event.target.closest("[data-lyric-index]");
+    if(lyricLine&&root.contains(lyricLine)){
+      const cue=state.lyricsCues[Number(lyricLine.dataset.lyricIndex)];
+      if(cue&&Number.isFinite(cue.time)){audio.currentTime=cue.time;syncLyricsHighlight();}
+      return;
+    }
     const b=event.target.closest("[data-action]");if(!b)return;
     const action=b.dataset.action,i=Number(b.dataset.index);
     try{
       if(action==="navigate"){showView(b.dataset.view);return;}
+      if(action==="back-now-playing"){showView(state.lastLibraryView||"music");return;}
+      if(action==="reindex-current-lyrics"){
+        const item=state.currentItem,button=b,status=$("#now-playing-reindex-status");
+        if(!item||item.itemType!=="track"||typeof options.reindexMusic!=="function")return;
+        button.disabled=true;if(status)status.textContent="正在單獨重新讀取這首 FLAC 的原生 Vorbis 歌詞標籤……";
+        try{
+          const result=await options.reindexMusic(pathOf(item));
+          if(!result?.ok)throw new Error(result?.error||"單首重新索引失敗。");
+          state.loaded=false;await load(true);
+          const updated=state.tracks.find(track=>track.id===item.id||pathOf(track)===pathOf(item));
+          if(updated)state.currentItem=playable(updated,"track");
+          setDock(state.currentItem);
+          if(state.view==="now-playing")renderNowPlaying();
+          const latest=$("#now-playing-reindex-status");
+          if(latest)latest.textContent="PASS：已更新本首歌的歌詞與標籤，原始音訊未修改。";
+        }catch(error){if(status)status.textContent="重新索引失敗："+(error.message||error);button.disabled=false;}
+        return;
+      }
       if(action==="open-show"){state.selectedShowId=b.dataset.id;state.view="show-detail";renderShowDetail();animateLibraryContent();return;}
       if(action==="open-album"){state.selectedAlbum=state.items[i]||null;state.view="album-detail";renderAlbumDetail();animateLibraryContent();return;}
       if(action==="open-track-album"){openAlbumFromTrack(state.items[i]);return;}
@@ -830,6 +912,10 @@ export function initLibraryUI(options = {}) {
     if(!state.currentItem){message("請先播放一首歌曲。");return;}
     renderLyricsPanel();openModal($("#lyrics-dialog"));syncLyricsHighlight();
   });
+  $("#player-now-playing")?.addEventListener("click",()=>{
+    if(!state.currentItem){message("請先從曲庫選擇音訊。");return;}
+    void showView("now-playing");
+  });
   $("#lyrics-list")?.addEventListener("click",event=>{
     const line=event.target.closest("[data-lyric-index]");if(!line)return;
     const cue=state.lyricsCues[Number(line.dataset.lyricIndex)];
@@ -838,7 +924,14 @@ export function initLibraryUI(options = {}) {
 
   window.setInterval(()=>{if(!state.currentItem||audio.paused)return;accountTime();persistSession(false);saveProgress(false);timeline();},15000);
   window.addEventListener("pagehide",()=>{accountTime();persistSession(false);saveProgress(true);});
-  async function showView(name){state.view=name==="podcasts"?"shows":name;state.search="";if(!state.loaded)await load(true);else render();animateLibraryContent();}
+  async function showView(name){
+    const target=name==="podcasts"?"shows":name;
+    if(target==="now-playing"&&!state.currentItem){message("請先從曲庫選擇音訊。");return;}
+    if(target!=="now-playing")state.lastLibraryView=target;
+    state.view=target;state.search="";
+    if(!state.loaded)await load(true);else render();
+    animateLibraryContent();
+  }
   async function refresh(){state.loaded=false;await load(true);}
   loadPlayerPreferences();updatePlayerModeButton();updateShuffleButton();
   setDock(null);void showView("music");
