@@ -14,7 +14,8 @@ export function initLibraryUI(options = {}) {
     lastProgressSave:0,restorePositionMs:0,playRequestId:0,artworkUrls:new Set(),
     preloadEntry:null,preloadAudio:null,preloadGeneration:0,
     playMode:"sequential",shuffleEnabled:false,shuffleOrder:[],shufflePosition:-1,
-    lyricsCues:[],lyricsPlainLines:[],lyricsActiveIndex:-1
+    lyricsCues:[],lyricsPlainLines:[],lyricsActiveIndex:-1,
+    lyricsScrollPause:new WeakMap(),libraryScrollPosition:null
   };
   const PLAY_MODES=["sequential","repeat-one","repeat-all"];
   const esc = value => String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -153,7 +154,8 @@ export function initLibraryUI(options = {}) {
     if(subtitle)subtitle.textContent=item?.subtitle||item?.album||"";
     list.innerHTML=lyricsMarkup(parsed);
     if(status)status.textContent=parsed.cues.length?"同步歌詞 · "+parsed.cues.length+" 個時間點。點擊歌詞可跳轉。":parsed.plainLines.length?"目前讀到的是純文字歌詞，沒有可辨識的時間戳。":"沒有讀到內嵌歌詞。";
-    syncLyricsHighlight();
+    bindLyricsManualScroll(list);
+    syncLyricsHighlight({forceScroll:true});
   }
   function renderNowPlaying() {
     if(root.querySelector(".now-playing-page")?.dataset.closing==="true")return;
@@ -175,7 +177,8 @@ export function initLibraryUI(options = {}) {
     page?.addEventListener("animationend",event=>{
       if(event.target===page&&event.animationName==="now-playing-panel-in")page.classList.remove("now-playing-enter");
     });
-    syncNowPlayingArtwork(item);syncLyricsHighlight();
+    bindLyricsManualScroll($("#now-playing-lyrics-list"));
+    syncNowPlayingArtwork(item);syncLyricsHighlight({forceScroll:true});
   }
   function closeNowPlaying() {
     if(state.view!=="now-playing")return;
@@ -223,15 +226,50 @@ export function initLibraryUI(options = {}) {
       const fallback=host.querySelector("span");if(fallback)fallback.hidden=true;
     }).catch(()=>{});
   }
-  function syncLyricsHighlight() {
+  function bindLyricsManualScroll(list) {
+    if(!list||list.dataset.autoFollowBound==="true")return;
+    list.dataset.autoFollowBound="true";
+    const pauseAutoFollow=()=>{
+      const previous=state.lyricsScrollPause.get(list);
+      if(previous?.timer)clearTimeout(previous.timer);
+      const timer=setTimeout(()=>{
+        state.lyricsScrollPause.delete(list);
+        if(list.isConnected)syncLyricsHighlight({forceScroll:true,list});
+      },5000);
+      state.lyricsScrollPause.set(list,{timer,until:Date.now()+5000});
+    };
+    const pointerMove=event=>{if(event.buttons>0)pauseAutoFollow();};
+    list.addEventListener("wheel",pauseAutoFollow,{passive:true});
+    list.addEventListener("touchstart",pauseAutoFollow,{passive:true});
+    list.addEventListener("touchmove",pauseAutoFollow,{passive:true});
+    list.addEventListener("pointerdown",pauseAutoFollow,{passive:true});
+    list.addEventListener("pointermove",pointerMove,{passive:true});
+    list.addEventListener("keydown",pauseAutoFollow);
+  }
+  function scrollLyricIntoList(list,line) {
+    if(!list||!line)return;
+    const listRect=list.getBoundingClientRect();
+    const lineRect=line.getBoundingClientRect();
+    const targetTop=list.scrollTop+lineRect.top-listRect.top-(list.clientHeight-lineRect.height)/2;
+    list.scrollTo({top:Math.max(0,targetTop),behavior:"smooth"});
+  }
+  function syncLyricsHighlight(options={}) {
     if((state.view!=="now-playing"&&!$("#lyrics-dialog")?.open)||!state.lyricsCues.length)return;
     const time=Number(audio.currentTime||0);let low=0,high=state.lyricsCues.length-1,active=-1;
     while(low<=high){const mid=(low+high)>>1;if(state.lyricsCues[mid].time<=time){active=mid;low=mid+1;}else high=mid-1;}
+    const activeChanged=active!==state.lyricsActiveIndex;
     state.lyricsActiveIndex=active;
-    for(const list of [$("#lyrics-list"),$("#now-playing-lyrics-list")].filter(Boolean)){
+    const lists=[];
+    if(state.view==="now-playing")lists.push($("#now-playing-lyrics-list"));
+    if($("#lyrics-dialog")?.open)lists.push($("#lyrics-list"));
+    for(const list of [...new Set(lists.filter(Boolean))]){
       list.querySelectorAll("[data-lyric-index]").forEach((node,index)=>node.classList.toggle("active",index===active));
       const current=active>=0?list.querySelector('[data-lyric-index="'+active+'"]'):null;
-      current?.scrollIntoView?.({block:"center",behavior:"smooth"});
+      if(!current)continue;
+      const pause=state.lyricsScrollPause.get(list);
+      const manuallyPaused=Number(pause?.until||0)>Date.now();
+      const forced=options.forceScroll===true&&(!options.list||options.list===list);
+      if(forced||(activeChanged&&!manuallyPaused))scrollLyricIntoList(list,current);
     }
   }
   function animateLibraryContent(){
@@ -1015,7 +1053,7 @@ export function initLibraryUI(options = {}) {
   $("#lyrics-list")?.addEventListener("click",event=>{
     const line=event.target.closest("[data-lyric-index]");if(!line)return;
     const cue=state.lyricsCues[Number(line.dataset.lyricIndex)];
-    if(cue&&Number.isFinite(cue.time)){audio.currentTime=cue.time;syncLyricsHighlight();}
+    if(cue&&Number.isFinite(cue.time)){audio.currentTime=cue.time;syncLyricsHighlight({forceScroll:true});}
   });
 
   window.setInterval(()=>{if(!state.currentItem||audio.paused)return;accountTime();persistSession(false);saveProgress(false);timeline();},15000);
@@ -1023,9 +1061,22 @@ export function initLibraryUI(options = {}) {
   async function showView(name){
     const target=name==="podcasts"?"shows":name;
     if(target==="now-playing"&&!state.currentItem){message("請先從曲庫選擇音訊。");return;}
+    const returningFromNowPlaying=state.view==="now-playing"&&target!=="now-playing";
+    if(target==="now-playing"&&state.view!=="now-playing"){
+      state.libraryScrollPosition={x:window.scrollX||0,y:window.scrollY||0,rootTop:root.scrollTop||0};
+    }
+    const restorePosition=returningFromNowPlaying?state.libraryScrollPosition:null;
     if(target!=="now-playing")state.lastLibraryView=target;
-    state.view=target;state.search="";
+    state.view=target;
+    if(target!=="now-playing"&&!returningFromNowPlaying)state.search="";
     if(!state.loaded)await load(true);else render();
+    if(restorePosition){
+      state.libraryScrollPosition=null;
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        window.scrollTo(restorePosition.x,restorePosition.y);
+        root.scrollTop=restorePosition.rootTop;
+      }));
+    }
   }
   async function refresh(){state.loaded=false;await load(true);}
   loadPlayerPreferences();updatePlayerModeButton();updateShuffleButton();
