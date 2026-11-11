@@ -8,9 +8,9 @@ export function initLibraryUI(options = {}) {
   const $ = selector => document.querySelector(selector);
   const state = {
     view:"music",tracks:[],folders:[],shows:[],episodes:[],loaded:false,loadedAt:0,busy:false,
-    selectedShowId:"",search:"",items:[],itemType:"track",reportPeriod:"week",reportType:"episode",
+    selectedShowId:"",selectedAlbum:null,search:"",items:[],itemType:"track",reportPeriod:"week",reportType:"episode",
     errors:[],currentItem:null,queue:[],queueIndex:-1,session:null,tickAt:0,speed:1,
-    lastProgressSave:0,restorePositionMs:0,artworkUrls:new Set()
+    lastProgressSave:0,restorePositionMs:0,playRequestId:0,artworkUrls:new Set()
   };
   const esc = value => String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const duration = value => {
@@ -124,11 +124,38 @@ export function initLibraryUI(options = {}) {
     const albums=[...map.values()].filter(a=>!state.search||[a.title,a.artist].join(" ").toLocaleLowerCase().includes(state.search.toLocaleLowerCase())).sort((a,b)=>a.title.localeCompare(b.title,"zh-Hant"));
     state.items=albums;state.itemType="album";
     root.innerHTML=searchBar("搜尋專輯或專輯藝人")+sectionHead("ALBUMS","專輯",'<span class="library-muted">'+albums.length+' 張</span>')+
-      '<div class="media-card-grid">'+albums.slice(0,300).map((a,i)=>'<button class="media-card" data-action="play-group" data-index="'+i+'">'+
+      '<div class="media-card-grid">'+albums.slice(0,300).map((a,i)=>'<button class="media-card" data-action="open-album" data-index="'+i+'">'+
       cover(artworkOf(a.tracks[0]),a.title,"media-card-cover")+'<strong>'+esc(a.title)+'</strong><span>'+esc(a.artist||"未知藝人")+'</span><small>'+a.tracks.length+' 首</small></button>').join("")+'</div>';
     loadCovers();
   }
-  function renderArtists() {
+  function orderedAlbumTracks(tracks) {
+    const order = value => {
+      const number = Number(value);
+      return Number.isFinite(number) && number > 0 ? number : Number.MAX_SAFE_INTEGER;
+    };
+    return [...(tracks || [])].sort((a,b) =>
+      order(a.discNumber)-order(b.discNumber) ||
+      order(a.trackNumber)-order(b.trackNumber) ||
+      String(a.title||"").localeCompare(String(b.title||""),"zh-Hant")
+    );
+  }
+  function renderAlbumDetail() {
+    const album=state.selectedAlbum;
+    if(!album){state.view="albums";renderAlbums();return;}
+    const tracks=orderedAlbumTracks(album.tracks);
+    const years=[...new Set(tracks.map(t=>Number(t.year)).filter(y=>Number.isInteger(y)&&y>0))];
+    const yearLabel=years.length===1?String(years[0]):"";
+    const totalDuration=tracks.reduce((sum,t)=>sum+Math.max(0,Number(t.durationMs)||0),0);
+    const details=[yearLabel,tracks.length+" 首歌曲",duration(totalDuration)].filter(Boolean).join(" · ");
+    root.innerHTML='<button class="back-link" data-action="back-albums">← 所有專輯</button>'+
+      '<div class="show-detail album-detail">'+cover(artworkOf(tracks[0]),album.title,"show-detail-cover")+
+      '<div><span class="kicker">ALBUM</span><h3>'+esc(album.title)+'</h3><p>'+esc(album.artist||"未知歌手")+'</p>'+
+      '<span class="library-muted">'+esc(details)+'</span>'+
+      '<div class="album-detail-actions"><button class="primary" data-action="play-album">▶ 播放整張專輯</button></div></div></div>'+
+      sectionHead("TRACK LIST","曲目清單",'<span class="library-muted">'+tracks.length+' 首</span>')+
+      trackRows(tracks,"track");
+    loadCovers();
+  }  function renderArtists() {
     const map=new Map();
     for(const t of state.tracks){for(const artist of (t.artists?.length?t.artists:[t.albumArtist||"未知藝人"])){if(!map.has(artist))map.set(artist,[]);map.get(artist).push(t);}}
     const artists=[...map.entries()].filter(([name])=>!state.search||name.toLocaleLowerCase().includes(state.search.toLocaleLowerCase())).sort((a,b)=>a[0].localeCompare(b[0],"zh-Hant"));
@@ -202,6 +229,7 @@ export function initLibraryUI(options = {}) {
       case "music":renderHome();break;
       case "tracks":renderTracks();break;
       case "albums":renderAlbums();break;
+      case "album-detail":renderAlbumDetail();break;
       case "artists":renderArtists();break;
       case "folders":renderFolders();break;
       case "shows":renderShows();break;
@@ -263,7 +291,14 @@ export function initLibraryUI(options = {}) {
     }
     state.tickAt=performance.now();persistSession(false);
   }
+  function isPlaybackInterruption(error) {
+    const messageText=String(error?.message||error||"");
+    return error?.name==="AbortError" ||
+      /play\(\).*interrupted|interrupted by a call to pause|interrupted by a new load request/i.test(messageText);
+  }
   async function playItem(type,raw,queue=[raw],index=0) {
+    const requestId=++state.playRequestId;
+    const isCurrentRequest=()=>requestId===state.playRequestId;
     const config=getConfig();
     if(!config.connected||!config.openListToken||!config.baseUrl){message("播放前請先測試 VPS Alist 唯讀 API 連線。","error");$("#open-settings")?.click();return;}
     const item=playable(raw,type);if(!item.path||!item.id){message("這筆索引缺少檔案路徑或識別碼。","error");return;}
@@ -277,6 +312,7 @@ export function initLibraryUI(options = {}) {
         }),
         api("/api/listening?view=progress&itemType="+type+"&itemId="+encodeURIComponent(item.id)).catch(()=>({item:null}))
       ]);
+      if(!isCurrentRequest())return;
       if(info.is_dir)throw new Error("VPS Alist 回傳的項目是資料夾，不是音訊檔案。");
       if(!info.raw_url)throw new Error("VPS Alist /api/fs/get 沒有提供 raw_url。");
       if(!Number.isFinite(Number(info.size))||Number(info.size)<=0)throw new Error("VPS Alist 沒有提供有效檔案大小。");
@@ -286,6 +322,7 @@ export function initLibraryUI(options = {}) {
         audio.pause();
         await pauseDone;
       }
+      if(!isCurrentRequest())return;
       state.currentItem=item;state.queue=queue.map(x=>({...x}));state.queueIndex=index;state.session=null;
       state.restorePositionMs=Number(saved.item?.position_ms||0);state.lastProgressSave=0;
       state.speed = type === "episode" && Number.isFinite(Number(saved.item?.playback_rate))
@@ -294,11 +331,20 @@ export function initLibraryUI(options = {}) {
       setDock(item);
       $("#player-type").textContent=(type==="episode"?"PODCAST":"MUSIC")+" · VPS ALIST";
       audio.src=info.raw_url;audio.load();audio.playbackRate=state.speed;
-      try{await audio.play();$("#player-toggle").textContent="Ⅱ";}
-      catch(e){$("#player-toggle").textContent="▶";message("VPS Alist 音訊網址已載入，但瀏覽器未能開始播放。"+(e.message?" "+e.message:""),"error");}
-    }catch(e){message("VPS Alist 播放失敗（未切換其他來源）："+(e.message||e),"error");}
-  }
-  function next(delta) {
+      try {
+        await audio.play();
+        if(!isCurrentRequest())return;
+        $("#player-toggle").textContent="Ⅱ";
+      } catch(e) {
+        if(!isCurrentRequest()||isPlaybackInterruption(e))return;
+        $("#player-toggle").textContent="▶";
+        message("VPS Alist 音訊網址已載入，但瀏覽器未能開始播放。"+(e.message?" "+e.message:""),"error");
+      }
+    }catch(e){
+      if(!isCurrentRequest())return;
+      message("VPS Alist 播放失敗（未切換其他來源）："+(e.message||e),"error");
+    }
+  }  function next(delta) {
     if(!state.queue.length||state.queueIndex<0)return;
     const i=state.queueIndex+delta;if(i<0||i>=state.queue.length)return;
     void playItem(state.currentItem.itemType,state.queue[i],state.queue,i);
@@ -329,6 +375,8 @@ export function initLibraryUI(options = {}) {
     try{
       if(action==="navigate"){showView(b.dataset.view);return;}
       if(action==="open-show"){state.selectedShowId=b.dataset.id;state.view="show-detail";renderShowDetail();return;}
+      if(action==="open-album"){state.selectedAlbum=state.items[i]||null;state.view="album-detail";renderAlbumDetail();return;}
+      if(action==="back-albums"){state.view="albums";renderAlbums();return;}
       if(action==="back-shows"){state.view="shows";state.selectedShowId="";renderShows();return;}
       if(action==="play"){
         const item=state.items[i];
@@ -337,6 +385,10 @@ export function initLibraryUI(options = {}) {
         }else await playItem(state.itemType,item,state.items,i);
         return;
       }
+      if(action==="play-album"){
+        const list=orderedAlbumTracks(state.selectedAlbum?.tracks||[]);
+        if(list.length)await playItem("track",list[0],list,0);return;
+      }
       if(action==="play-show"){
         const show=state.shows.find(s=>s.id===state.selectedShowId),list=state.episodes.filter(e=>e.showId===show?.id).map(e=>({...e,showTitle:show.title}));
         if(list.length)await playItem("episode",list[0],list,0);return;
@@ -344,7 +396,7 @@ export function initLibraryUI(options = {}) {
       if(action==="play-group"){
         const group=state.items[i];if(!group)return;
         let list=[];
-        if(state.itemType==="album"||state.itemType==="artist")list=state.itemType==="album"?group.tracks:group[1];
+        if(state.itemType==="artist")list=group[1];
         else if(state.itemType==="folder")list=state.tracks.filter(t=>t.file?.path===group.path||t.file?.path?.startsWith(group.path.replace(/\/$/,"")+"/"));
         if(list.length)await playItem("track",list[0],list,0);return;
       }
@@ -359,6 +411,7 @@ export function initLibraryUI(options = {}) {
     if(event.target.id==="library-search"){state.search=event.target.value;const pos=event.target.selectionStart;render();const input=$("#library-search");if(input){input.focus();input.setSelectionRange(pos,pos);}}
   });
   audio.addEventListener("error",()=>{
+    if(!state.currentItem||!audio.src)return;
     const code=audio.error?audio.error.code:"未知";
     $("#player-toggle").textContent="▶";
     $("#player-type").textContent="VPS ALIST ERROR";
@@ -375,11 +428,24 @@ export function initLibraryUI(options = {}) {
   audio.addEventListener("ended",()=>{accountTime();persistSession(true);saveProgress(true);state.session=null;next(1);});
   $("#player-toggle")?.addEventListener("click",()=>{
     if(!audio.src){message("請先從曲庫選擇歌曲或 Podcast 單集。");return;}
-    if(audio.paused)audio.play().catch(e=>message(e.message,"error"));else audio.pause();
+    if(audio.paused){
+      const requestId=++state.playRequestId;
+      audio.play().then(()=>{
+        if(requestId===state.playRequestId)$("#player-toggle").textContent="Ⅱ";
+      }).catch(error=>{
+        if(requestId!==state.playRequestId||isPlaybackInterruption(error))return;
+        $("#player-toggle").textContent="▶";
+        message(error.message||"瀏覽器無法開始播放。","error");
+      });
+    }else{
+      state.playRequestId+=1;
+      audio.pause();
+    }
   });
   $("#player-prev")?.addEventListener("click",()=>next(-1));
   $("#player-next")?.addEventListener("click",()=>next(1));
   $("#player-stop")?.addEventListener("click",()=>{
+    state.playRequestId+=1;
     accountTime();persistSession(false);saveProgress(true);audio.pause();audio.removeAttribute("src");audio.load();
     state.currentItem=null;state.session=null;state.queue=[];state.queueIndex=-1;setDock(null);timeline();
   });
