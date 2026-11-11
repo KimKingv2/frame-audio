@@ -96,7 +96,7 @@
  .report-row{grid-template-columns:minmax(0,1fr) auto;gap:8px}
  .report-row span{grid-column:1/-1}
  .dock{grid-template-columns:minmax(0,1fr);padding:8px 14px}
- .player-transport{position:absolute;right:14px;top:10px}
+ .player-transport{position:static;inset:auto}
  .controls{text-align:left;padding-top:4px}
  .controls .timeline{margin-top:5px}
  #player-type,.player-stop{display:none}
