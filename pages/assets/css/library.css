@@ -234,7 +234,7 @@ body.is-podcast-view .hero{background:radial-gradient(ellipse at 78% 50%,#5c81a8
 .now-playing-page{
   position:fixed;
   inset:0;
-  z-index:80;
+  z-index:90;
   width:100vw;
   height:100vh;
   height:100dvh;

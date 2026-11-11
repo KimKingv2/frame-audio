@@ -158,7 +158,7 @@ export function initLibraryUI(options = {}) {
     syncLyricsHighlight({forceScroll:true});
   }
   function renderNowPlaying() {
-    let page=root.querySelector(".now-playing-page");
+    let page=document.querySelector(".now-playing-page");
     if(page?.dataset.closing==="true")return;
     const item=state.currentItem;
     if(!page){
@@ -168,7 +168,9 @@ export function initLibraryUI(options = {}) {
       page.addEventListener("animationend",event=>{
         if(event.target===page&&event.animationName==="now-playing-panel-in")page.classList.remove("now-playing-enter");
       });
-      root.append(page);
+      // The overlay lives outside the library DOM, so delegate its controls here.
+      page.addEventListener("click",handleClick);
+      document.body.append(page);
     }
     const pendingNotice=root.querySelector(":scope > .now-playing-notice");
     if(pendingNotice)page.prepend(pendingNotice);
@@ -191,7 +193,7 @@ export function initLibraryUI(options = {}) {
   }
   function closeNowPlaying() {
     if(state.view!=="now-playing")return;
-    const page=root.querySelector(".now-playing-page");
+    const page=document.querySelector(".now-playing-page");
     if(!page){void showView(state.lastLibraryView||"music");return;}
     if(page.dataset.closing==="true")return;
 
@@ -309,7 +311,7 @@ export function initLibraryUI(options = {}) {
   }
   function message(text,type=""){
     if(state.view==="now-playing"){
-      const page=root.querySelector(".now-playing-page");
+      const page=document.querySelector(".now-playing-page");
       const host=page||root;
       let notice=host.querySelector(".now-playing-notice");
       if(!notice){
@@ -724,7 +726,7 @@ export function initLibraryUI(options = {}) {
       '<div class="statusbox" id="error-status">成功索引後，對應錯誤會從清單解除。</div>';
   }
   function render() {
-    const returningFromNowPlaying=state.view!=="now-playing"&&root.querySelector(".now-playing-page");
+    const returningFromNowPlaying=state.view!=="now-playing"&&document.querySelector(".now-playing-page");
     if(returningFromNowPlaying){
       returningFromNowPlaying.remove();
       document.body.classList.toggle("is-podcast-view",["shows","show-detail","continue"].includes(state.view));
@@ -962,7 +964,7 @@ export function initLibraryUI(options = {}) {
   }
   async function handleClick(event) {
     const lyricLine=event.target.closest("[data-lyric-index]");
-    if(lyricLine&&root.contains(lyricLine)){
+    if(lyricLine&&(root.contains(lyricLine)||lyricLine.closest(".now-playing-page"))){
       const cue=state.lyricsCues[Number(lyricLine.dataset.lyricIndex)];
       if(cue&&Number.isFinite(cue.time)){audio.currentTime=cue.time;syncLyricsHighlight();}
       return;
