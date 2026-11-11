@@ -1,4 +1,4 @@
-import { getOpenListFileInfo } from "./openlist-client.js";
+import { getOpenListFileInfo } from "./openlist-client.js?v=20261111-vps-playback1";
 
 const PERIODS = [["week","近 7 日"],["month","近 30 日"],["year","近 365 日"],["all","全部時間"]];
 
@@ -462,6 +462,9 @@ export function initLibraryUI(options = {}) {
   $("#player-prev")?.addEventListener("click",()=>next(-1));
   $("#player-next")?.addEventListener("click",()=>next(1));
   $("#player-stop")?.addEventListener("click",()=>{
+    state.playRequestId++;
+    state.currentPlaybackSource="";
+    state.playbackFallbackInProgress=false;
     accountTime();persistSession(false);saveProgress(true);audio.pause();audio.removeAttribute("src");audio.load();
     state.currentItem=null;state.session=null;state.queue=[];state.queueIndex=-1;setDock(null);timeline();
   });
