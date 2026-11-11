@@ -112,7 +112,7 @@ export function initLibraryUI(options = {}) {
     entry.promise = getOpenListFileInfo({
       baseUrl: config.baseUrl,
       path: entry.path,
-      timeoutMs: 60000
+      timeoutMs: 180000
     }).then(info => {
       if (state.preloadEntry !== entry || state.preloadGeneration !== generation) return null;
       if (!info || info.is_dir || !info.raw_url) throw new Error("下一首音訊沒有有效的播放網址。");
@@ -625,8 +625,8 @@ export function initLibraryUI(options = {}) {
     try {
       const infoStartedAt=performance.now();
       const infoRequest=cachedEntry?.promise
-        ? cachedEntry.promise.then(info=>info||getOpenListFileInfo({baseUrl:config.baseUrl,path:item.path,timeoutMs:60000}))
-        : getOpenListFileInfo({baseUrl:config.baseUrl,path:item.path,timeoutMs:60000});
+        ? cachedEntry.promise.then(info=>info||getOpenListFileInfo({baseUrl:config.baseUrl,path:item.path,timeoutMs:180000}))
+        : getOpenListFileInfo({baseUrl:config.baseUrl,path:item.path,timeoutMs:180000});
       const infoPromise=infoRequest.then(info=>({info,elapsedMs:Math.round(performance.now()-infoStartedAt)}));
       const progressStartedAt=performance.now();
       const progressPromise=type==="episode"

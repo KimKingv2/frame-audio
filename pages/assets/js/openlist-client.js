@@ -1,4 +1,4 @@
-const DEFAULT_TIMEOUT_MS = 20000;
+const DEFAULT_TIMEOUT_MS = 180000;
 const DIRECTORY_LIST_TIMEOUT_MS = 45000;
 const DIRECTORY_LIST_MAX_ATTEMPTS = 2;
 const DIRECTORY_LIST_RETRY_DELAY_MS = 900;
@@ -133,7 +133,7 @@ export async function getOpenListFileInfo({ baseUrl, token, path, timeoutMs = DE
   const safePath = String(path || "").trim();
   if (!safePath.startsWith("/") || safePath.includes("\\0")) throw new Error("檔案路徑必須是以 / 開頭的完整路徑。");
   const controller = new AbortController();
-  const safeTimeoutMs = Number.isFinite(Number(timeoutMs)) ? Math.max(1000, Math.min(60000, Number(timeoutMs))) : DEFAULT_TIMEOUT_MS;
+  const safeTimeoutMs = Number.isFinite(Number(timeoutMs)) ? Math.max(1000, Math.min(180000, Number(timeoutMs))) : DEFAULT_TIMEOUT_MS;
   const timeout = setTimeout(() => controller.abort(), safeTimeoutMs);
   let response;
   try {
@@ -146,7 +146,7 @@ export async function getOpenListFileInfo({ baseUrl, token, path, timeoutMs = DE
       signal: controller.signal
     });
   } catch (error) {
-    if (error?.name === "AbortError") throw new Error("讀取 OpenList 檔案資訊逾時（已等待 60 秒）。");
+    if (error?.name === "AbortError") throw new Error("讀取 OpenList 檔案資訊逾時（已等待 " + Math.round(safeTimeoutMs / 1000) + " 秒）。");
     throw new Error("無法讀取伺服器端 OpenList 檔案資訊。請確認 Cloudflare Access 與 Pages Functions 設定。");
   } finally {
     clearTimeout(timeout);
