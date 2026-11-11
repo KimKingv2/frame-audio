@@ -543,3 +543,246 @@
   .now-playing-tools-host .player-utility,
   .now-playing-tools-host .player-stop{transition:none!important}
 }
+
+
+/* Final transport layout guard: neutralize legacy absolute positioning on phones. */
+.dock-transport-host .player-transport,
+.now-playing-transport-host .player-transport{
+  position:static!important;
+  inset:auto!important;
+  top:auto!important;
+  right:auto!important;
+  bottom:auto!important;
+  left:auto!important;
+  transform:none!important;
+  -webkit-transform:none!important;
+  margin:0;
+  flex-direction:row;
+  flex-wrap:nowrap;
+}
+.dock-transport-host .player-transport{
+  gap:8px;
+  width:auto;
+  min-height:48px;
+}
+.now-playing-transport-host{
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+  min-height:66px;
+  padding:4px 0;
+}
+.now-playing-transport-host .player-transport{
+  display:flex!important;
+  align-items:center;
+  justify-content:center;
+  gap:18px;
+  width:min(100%,250px);
+  min-height:60px;
+}
+
+/* One consistent rounded-square language for every playback action. */
+.dock-transport-host .player-transport button,
+.now-playing-transport-host .player-transport button{
+  box-sizing:border-box;
+  display:grid;
+  place-items:center;
+  flex:0 0 44px;
+  width:44px;
+  min-width:44px;
+  max-width:44px;
+  height:44px;
+  min-height:44px;
+  max-height:44px;
+  margin:0;
+  padding:0;
+  border:1px solid rgba(218,199,241,.13);
+  border-radius:14px;
+  color:#ddd2e9;
+  background:rgba(255,255,255,.045);
+  line-height:1;
+  font-size:18px;
+}
+.dock-transport-host .player-transport button:hover,
+.now-playing-transport-host .player-transport button:hover{
+  color:#fff;
+  border-color:rgba(218,199,241,.27);
+  background:rgba(255,255,255,.09);
+}
+.dock-transport-host .player-transport .player-play,
+.now-playing-transport-host .player-transport .player-play{
+  flex:0 0 56px;
+  width:56px;
+  min-width:56px;
+  max-width:56px;
+  height:56px;
+  min-height:56px;
+  max-height:56px;
+  border:1px solid rgba(235,218,255,.35);
+  border-radius:16px;
+  color:#fff;
+  background:linear-gradient(145deg,#c7a9ea,#805da9);
+  box-shadow:0 7px 22px rgba(137,100,183,.28);
+  font-size:21px;
+}
+.dock-transport-host .player-transport .player-play:hover,
+.now-playing-transport-host .player-transport .player-play:hover{
+  background:linear-gradient(145deg,#d2b9ef,#9673bd);
+}
+.now-playing-tools-host .controls .player-utility,
+.now-playing-tools-host .controls .player-stop{
+  box-sizing:border-box;
+  flex:0 0 38px;
+  width:38px;
+  min-width:38px;
+  max-width:38px;
+  height:38px;
+  min-height:38px;
+  max-height:38px;
+  border-radius:12px;
+}
+.now-playing-tools-host #player-speed{
+  height:38px;
+  border-radius:12px;
+}
+
+@media(max-width:760px){
+  /* The old library.css rule positioned every .player-transport at top:10px.
+     Both current hosts must explicitly remain in normal layout flow. */
+  .dock-transport-host,
+  .now-playing-transport-host{
+    position:relative!important;
+    inset:auto!important;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:100%;
+    min-width:0;
+  }
+  .dock-transport-host .player-transport,
+  .now-playing-transport-host .player-transport{
+    position:static!important;
+    inset:auto!important;
+    top:auto!important;
+    right:auto!important;
+    bottom:auto!important;
+    left:auto!important;
+    transform:none!important;
+    -webkit-transform:none!important;
+    margin:0 auto!important;
+  }
+  .dock-transport-host .player-transport{
+    gap:5px;
+    min-height:48px;
+  }
+  .dock-transport-host .player-transport button{
+    flex-basis:36px;
+    width:36px;
+    min-width:36px;
+    max-width:36px;
+    height:38px;
+    min-height:38px;
+    max-height:38px;
+    border-radius:12px;
+    font-size:15px;
+  }
+  .dock-transport-host .player-transport .player-play{
+    flex-basis:46px;
+    width:46px;
+    min-width:46px;
+    max-width:46px;
+    height:46px;
+    min-height:46px;
+    max-height:46px;
+    border-radius:14px;
+    font-size:16px;
+  }
+  .now-playing-transport-host{
+    min-height:64px;
+    margin:2px auto 0;
+    overflow:visible;
+  }
+  .now-playing-transport-host .player-transport{
+    position:static!important;
+    display:flex!important;
+    flex:0 0 auto;
+    gap:clamp(12px,5vw,22px);
+    width:auto!important;
+    min-width:0;
+    max-width:100%;
+    min-height:60px;
+    align-items:center;
+    justify-content:center;
+    overflow:visible;
+  }
+  .now-playing-transport-host .player-transport button{
+    flex:0 0 44px;
+    width:44px;
+    min-width:44px;
+    max-width:44px;
+    height:44px;
+    min-height:44px;
+    max-height:44px;
+    border-radius:14px;
+    font-size:18px;
+  }
+  .now-playing-transport-host .player-transport .player-play{
+    flex:0 0 56px;
+    width:56px;
+    min-width:56px;
+    max-width:56px;
+    height:56px;
+    min-height:56px;
+    max-height:56px;
+    border-radius:16px;
+    font-size:21px;
+  }
+  .now-playing-tools-host .controls .player-utility,
+  .now-playing-tools-host .controls .player-stop{
+    flex:0 0 36px;
+    width:36px;
+    min-width:36px;
+    max-width:36px;
+    height:36px;
+    min-height:36px;
+    max-height:36px;
+    border-radius:12px;
+  }
+  .now-playing-tools-host #player-speed{
+    height:36px;
+    border-radius:12px;
+  }
+}
+@media(max-width:390px){
+  .dock-transport-host .player-transport{gap:3px}
+  .dock-transport-host .player-transport button{
+    flex-basis:32px;
+    width:32px;
+    min-width:32px;
+    max-width:32px;
+    height:36px;
+    min-height:36px;
+    max-height:36px;
+    border-radius:11px;
+    font-size:14px;
+  }
+  .dock-transport-host .player-transport .player-play{
+    flex-basis:42px;
+    width:42px;
+    min-width:42px;
+    max-width:42px;
+    height:42px;
+    min-height:42px;
+    max-height:42px;
+    border-radius:13px;
+  }
+  .now-playing-transport-host .player-transport{
+    gap:clamp(10px,4vw,16px);
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .dock-transport-host .player-transport button,
+  .now-playing-transport-host .player-transport button{transition:none!important}
+}
