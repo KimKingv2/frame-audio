@@ -1,5 +1,6 @@
 import { readJson, error } from "../../_lib/api.js";
 import { postOpenList, validOpenListPath, normalizedRawUrl, json } from "../../_lib/openlist.js";
+import { createStreamTicket } from "../../_lib/stream-ticket.js";
 
 export async function onRequestPost({ request, env }) {
   let body;
@@ -20,6 +21,10 @@ export async function onRequestPost({ request, env }) {
     const rawUrl = normalizedRawUrl(payload.data.raw_url, result.baseUrl);
     if (!rawUrl) return error("OpenList 回傳的 raw_url 格式不受支援。", 502);
     payload.data.raw_url = rawUrl;
+    const ticket = await createStreamTicket(env, rawUrl);
+    payload.data.stream_url = ticket
+      ? "/api/openlist/stream?ticket=" + encodeURIComponent(ticket)
+      : null;
   }
   return json(payload);
 }

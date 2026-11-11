@@ -307,8 +307,34 @@ def _extract_picture(audio: Any) -> tuple[bytes, str] | None:
 def _extract_lyrics(tags: Any) -> str:
     if tags is None:
         return ""
+
+    # ID3 SYLT stores synchronized text/timestamp pairs in milliseconds.
     getall = getattr(tags, "getall", None)
     if callable(getall):
+        try:
+            for frame in getall("SYLT"):
+                entries = getattr(frame, "text", None) or []
+                synchronized = []
+                for entry in entries:
+                    if not isinstance(entry, (list, tuple)) or len(entry) < 2:
+                        continue
+                    lyric, timestamp = entry[0], entry[1]
+                    try:
+                        milliseconds = max(0, int(timestamp))
+                    except (TypeError, ValueError):
+                        continue
+                    minutes, remainder = divmod(milliseconds, 60_000)
+                    seconds, millis = divmod(remainder, 1_000)
+                    lyric_text = _raw_text(lyric)
+                    if lyric_text:
+                        synchronized.append(
+                            f"[{minutes:02d}:{seconds:02d}.{millis:03d}]{lyric_text}"
+                        )
+                if synchronized:
+                    return "\n".join(synchronized)
+        except (KeyError, TypeError, ValueError):
+            pass
+
         try:
             for frame in getall("USLT"):
                 text = _raw_text(getattr(frame, "text", ""))
@@ -316,7 +342,29 @@ def _extract_lyrics(tags: Any) -> str:
                     return text
         except (KeyError, TypeError):
             pass
-    return _tag(tags, "lyrics", "LYRICS", "unsyncedlyrics", "©lyr", "WM/Lyrics")
+
+    # Vorbis comments may contain repeated LYRICS values. Keep each value on
+    # its own line so timestamps are not flattened into one long lyric line.
+    for key in (
+        "lyrics", "LYRICS", "syncedlyrics", "SYNCEDLYRICS",
+        "synced_lyrics", "SYNCED_LYRICS", "lrc", "LRC",
+        "unsyncedlyrics", "©lyr", "WM/Lyrics",
+    ):
+        try:
+            value = tags.get(key)
+        except (AttributeError, TypeError):
+            value = None
+        if isinstance(value, (list, tuple)) and not (
+            len(value) == 2 and all(isinstance(part, int) for part in value)
+        ):
+            text = "\n".join(
+                part for part in (_raw_text(item) for item in value) if part
+            )
+        else:
+            text = _raw_text(value)
+        if text:
+            return text
+    return ""
 
 
 def extract_metadata(reader: RangeReader, path: str) -> tuple[dict[str, Any], tuple[bytes, str] | None]:

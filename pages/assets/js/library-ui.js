@@ -1,5 +1,5 @@
 import { getOpenListFileInfo } from "./openlist-client.js?v=20261111-server-secrets1";
-import { EQ_BANDS, parseFoobarFeq, parseSynchronizedLyrics } from "./player-effects.js?v=20261111-player-experience1";
+import { EQ_BANDS, parseFoobarFeq, parseSynchronizedLyrics } from "./player-effects.js?v=20261111-preload-lyrics-eq1";
 
 const PERIODS = [["week","近 7 日"],["month","近 30 日"],["year","近 365 日"],["all","全部時間"]];
 
@@ -12,6 +12,7 @@ export function initLibraryUI(options = {}) {
     selectedShowId:"",selectedAlbum:null,search:"",searchComposing:false,items:[],itemType:"track",reportPeriod:"week",reportType:"episode",
     errors:[],currentItem:null,queue:[],queueIndex:-1,session:null,tickAt:0,speed:1,
     lastProgressSave:0,restorePositionMs:0,playRequestId:0,artworkUrls:new Set(),
+    preloadEntry:null,preloadAudio:null,preloadGeneration:0,currentStreamUrl:"",
     playMode:"sequential",shuffleEnabled:false,shuffleOrder:[],shufflePosition:-1,eqEnabled:false,eqGains:Array(18).fill(0),currentRawUrl:"",
     lyricsCues:[],lyricsPlainLines:[],lyricsActiveIndex:-1
   };
@@ -52,10 +53,39 @@ export function initLibraryUI(options = {}) {
   function renderEqSliders(){const host=$("#eq-sliders");if(!host)return;host.innerHTML=EQ_BANDS.map((band,index)=>'<label class="eq-band"><span class="eq-band-value" id="eq-value-'+index+'">'+Number(state.eqGains[index]||0).toFixed(1)+'</span><input type="range" min="-20" max="20" step="0.5" value="'+Number(state.eqGains[index]||0)+'" data-eq-index="'+index+'" aria-label="'+band.label+' Hz"><span class="eq-band-label">'+band.shortLabel+'</span></label>').join("");}
   function applyEqualizerGains(){if(!eqContext||!eqFilters.length)return;const now=eqContext.currentTime;let maxBoost=0;eqFilters.forEach((filter,index)=>{const gain=state.eqEnabled?Number(state.eqGains[index]||0):0;filter.gain.setTargetAtTime(gain,now,0.025);maxBoost=Math.max(maxBoost,gain);});if(eqOutput)eqOutput.gain.setTargetAtTime(Math.pow(10,-maxBoost/20),now,0.04);const headroom=$("#eq-headroom");if(headroom)headroom.textContent=maxBoost>0?"自動預留頭部空間："+(-maxBoost).toFixed(1)+" dB":"頭部空間：0 dB";}
   function updateEqControls(){const toggle=$("#eq-enabled");if(toggle)toggle.checked=state.eqEnabled;root.querySelectorAll("[data-eq-index]").forEach(input=>{const index=Number(input.dataset.eqIndex);input.value=String(state.eqGains[index]||0);const output=$("#eq-value-"+index);if(output)output.textContent=Number(state.eqGains[index]||0).toFixed(1);});applyEqualizerGains();}
-  async function probeAudioCors(url){if(!url)return false;const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),10000);try{const response=await fetch(url,{method:"GET",mode:"cors",credentials:"omit",redirect:"follow",headers:{Range:"bytes=0-0"},signal:controller.signal});const supported=response.status===206&&response.type!=="opaque";try{await response.body?.cancel();}catch{}return supported;}catch{return false;}finally{clearTimeout(timeout);}}
+  async function probeAudioCors(url){if(!url)return false;const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),10000);try{const response=await fetch(url,{method:"GET",mode:"cors",credentials:"same-origin",redirect:"follow",headers:{Range:"bytes=0-0"},signal:controller.signal});const supported=response.status===206&&response.type!=="opaque";try{await response.body?.cancel();}catch{}return supported;}catch{return false;}finally{clearTimeout(timeout);}}
   async function createEqualizerGraph(){if(eqSource)return;const AudioContextClass=window.AudioContext||window.webkitAudioContext;if(!AudioContextClass)throw new Error("目前瀏覽器不支援 Web Audio 均衡器。");eqContext=new AudioContextClass();eqSource=eqContext.createMediaElementSource(audio);let previous=eqSource;eqFilters=EQ_BANDS.map(band=>{const filter=eqContext.createBiquadFilter();filter.type="peaking";filter.frequency.value=band.frequency;filter.Q.value=4;previous.connect(filter);previous=filter;return filter;});eqOutput=eqContext.createGain();previous.connect(eqOutput);eqOutput.connect(eqContext.destination);applyEqualizerGains();if(eqContext.state==="suspended")await eqContext.resume();}
   function waitForAudioMetadata(timeoutMs=15000,force=false){if(!force&&audio.readyState>=1&&Number.isFinite(audio.duration))return Promise.resolve();return new Promise((resolve,reject)=>{let timer;const cleanup=()=>{clearTimeout(timer);audio.removeEventListener("loadedmetadata",onReady);audio.removeEventListener("error",onError);};const onReady=()=>{cleanup();resolve();};const onError=()=>{cleanup();reject(new Error("重新載入音訊以啟用均衡器失敗。"));};timer=setTimeout(()=>{cleanup();reject(new Error("等待音訊重新載入逾時。"));},timeoutMs);audio.addEventListener("loadedmetadata",onReady,{once:true});audio.addEventListener("error",onError,{once:true});});}
-  async function setEqualizerEnabled(enabled){if(!enabled){state.eqEnabled=false;savePlayerPreferences();updateEqControls();updateEqStatus(eqSource?"均衡器已停用；音訊仍經過已建立的 Web Audio 播放鏈。":"均衡器已停用，原生 HTML5 播放路徑保持不變。");return;}if(!state.currentRawUrl||!audio.src){state.eqEnabled=true;savePlayerPreferences();updateEqControls();updateEqStatus("已啟用。下一首音訊載入時會先檢查 CORS，再建立效果器。");return;}const url=state.currentRawUrl;if(!await probeAudioCors(url)){state.eqEnabled=false;updateEqControls();updateEqStatus("目前音訊來源未通過 CORS／Range 檢查，已保持原生播放。","error");throw new Error("音訊來源不允許跨網域 Web Audio；為避免播放變成無聲，均衡器沒有啟用。");}const position=Number(audio.currentTime||0),wasPlaying=!audio.paused;accountTime();saveProgress(true);audio.pause();audio.crossOrigin="anonymous";await createEqualizerGraph();state.eqEnabled=true;savePlayerPreferences();updateEqControls();const ready=waitForAudioMetadata(15000,true);audio.src=url;audio.load();await ready;if(Number.isFinite(audio.duration)&&position<audio.duration)audio.currentTime=position;if(wasPlaying)await audio.play();updateEqStatus("均衡器已啟用，已確認目前來源可用 CORS Range。","ok");}
+  async function setEqualizerEnabled(enabled){
+    clearNextPreload();
+    if(!enabled){
+      state.eqEnabled=false;savePlayerPreferences();updateEqControls();
+      updateEqStatus(eqSource?"均衡器已停用；同源串流播放鏈保留，音色回到平直。":"均衡器已停用，原生 HTML5 播放路徑保持不變。");
+      return;
+    }
+    if(!state.currentRawUrl||!audio.src){
+      state.eqEnabled=true;savePlayerPreferences();updateEqControls();
+      updateEqStatus("已啟用。下一首播放會經過受 Access 保護的同源音訊串流，再建立效果器。");
+      return;
+    }
+    const url=state.currentStreamUrl;
+    if(!url)throw new Error("目前歌曲沒有可用的同源音訊串流網址。");
+    if(!await probeAudioCors(url)){
+      state.eqEnabled=false;updateEqControls();
+      updateEqStatus("同源音訊串流未通過 Range 檢查，已保持原生播放。","error");
+      throw new Error("Cloudflare 同源音訊串流暫時無法讀取；均衡器沒有啟用。");
+    }
+    const position=Number(audio.currentTime||0),wasPlaying=!audio.paused;
+    accountTime();saveProgress(true);audio.pause();
+    audio.crossOrigin="anonymous";
+    await createEqualizerGraph();
+    state.eqEnabled=true;savePlayerPreferences();updateEqControls();
+    const ready=waitForAudioMetadata(20000,true);
+    audio.src=url;audio.load();await ready;
+    if(Number.isFinite(audio.duration)&&position<audio.duration)audio.currentTime=position;
+    if(wasPlaying)await audio.play();
+    updateEqStatus("均衡器已啟用。音訊透過受 Access 保護的 Cloudflare 同源串流播放。","ok");
+  }
   function renderLyricsPanel(){const item=state.currentItem,list=$("#lyrics-list"),title=$("#lyrics-title"),subtitle=$("#lyrics-subtitle"),status=$("#lyrics-status");if(!list)return;state.lyricsActiveIndex=-1;const raw=Array.isArray(item?.lyrics)?item.lyrics:(item?.lyrics?[item.lyrics]:[]);const parsed=parseSynchronizedLyrics(raw);state.lyricsCues=parsed.cues;state.lyricsPlainLines=parsed.plainLines;if(title)title.textContent=item?.title||"尚未選擇音訊";if(subtitle)subtitle.textContent=item?.subtitle||item?.album||"";if(parsed.cues.length){list.innerHTML=parsed.cues.map((cue,index)=>'<button class="lyrics-line" data-lyric-index="'+index+'" type="button">'+esc(cue.text)+'</button>').join("");if(status)status.textContent="同步歌詞 · "+parsed.cues.length+" 行。點擊歌詞可跳轉到對應時間。";}else if(parsed.plainLines.length){list.innerHTML=parsed.plainLines.map(line=>'<p class="lyrics-plain-line">'+esc(line)+'</p>').join("");if(status)status.textContent="目前只有純文字歌詞，沒有時間標記，因此無法逐句同步高亮。支援內嵌 LRC 時間標記。";}else{list.innerHTML='<div class="lyrics-empty">這首音訊沒有讀到內嵌歌詞。</div>';if(status)status.textContent="支援含時間戳記的 LRC 歌詞；不會修改原始音訊。";}}
   function syncLyricsHighlight(){if(!$("#lyrics-dialog")?.open||!state.lyricsCues.length)return;const time=Number(audio.currentTime||0);let low=0,high=state.lyricsCues.length-1,active=-1;while(low<=high){const mid=(low+high)>>1;if(state.lyricsCues[mid].time<=time){active=mid;low=mid+1;}else high=mid-1;}if(active===state.lyricsActiveIndex)return;state.lyricsActiveIndex=active;const list=$("#lyrics-list");list?.querySelectorAll(".lyrics-line").forEach((node,index)=>node.classList.toggle("active",index===active));const current=active>=0?list?.querySelector('[data-lyric-index="'+active+'"]'):null;current?.scrollIntoView?.({block:"center",behavior:"smooth"});}
   function animateLibraryContent(){root.classList.remove("view-enter");void root.offsetWidth;root.classList.add("view-enter");}
@@ -478,20 +508,49 @@ export function initLibraryUI(options = {}) {
     const isCurrentRequest=()=>requestId===state.playRequestId;
     const config=getConfig();
     if(!config.connected||!config.storageReady||!config.baseUrl){message("伺服器端 VPS Alist 或 Cloudflare 連線尚未就緒。","error");$("#open-settings")?.click();return;}
-    const item=playable(raw,type);if(!item.path||!item.id){message("這筆索引缺少檔案路徑或識別碼。","error");return;}
+    const item=playable(raw,type);
+    if(!item.path||!item.id){message("這筆索引缺少檔案路徑或識別碼。","error");return;}
+
+    const cachedEntry=state.preloadEntry?.itemId===item.id&&state.preloadEntry?.path===item.path
+      ? state.preloadEntry : null;
+    if(!cachedEntry)clearNextPreload();
+
     try {
+      const infoRequest=cachedEntry?.promise
+        ? cachedEntry.promise.then(info=>info||getOpenListFileInfo({baseUrl:config.baseUrl,path:item.path,timeoutMs:60000}))
+        : getOpenListFileInfo({baseUrl:config.baseUrl,path:item.path,timeoutMs:60000});
       const [info,saved]=await Promise.all([
-        getOpenListFileInfo({
-          baseUrl:config.baseUrl,
-          path:item.path,
-          timeoutMs:60000
-        }),
+        infoRequest,
         api("/api/listening?view=progress&itemType="+type+"&itemId="+encodeURIComponent(item.id)).catch(()=>({item:null}))
       ]);
       if(!isCurrentRequest())return;
-      if(info.is_dir)throw new Error("VPS Alist 回傳的項目是資料夾，不是音訊檔案。");
+      if(!info||info.is_dir)throw new Error("VPS Alist 回傳的項目是資料夾，不是音訊檔案。");
       if(!info.raw_url)throw new Error("VPS Alist /api/fs/get 沒有提供 raw_url。");
       if(!Number.isFinite(Number(info.size))||Number(info.size)<=0)throw new Error("VPS Alist 沒有提供有效檔案大小。");
+
+      // Validate same-origin relay first. A failed probe must not interrupt the
+      // currently playing item; without an existing graph, we can safely fall
+      // back to native playback.
+      let playUrl=info.raw_url;
+      let useWebAudio=Boolean(eqSource);
+      const needsStream=Boolean(eqSource||state.eqEnabled);
+      if(needsStream){
+        if(!info.stream_url){
+          if(eqSource)throw new Error("均衡器播放需要同源串流網址，但伺服器沒有產生有效授權。");
+          state.eqEnabled=false;savePlayerPreferences();updateEqControls();
+          updateEqStatus("此音訊來源無法建立受控同源串流，已改用原生播放；均衡器未啟用。","error");
+        }else if(!await probeAudioCors(info.stream_url)){
+          if(eqSource)throw new Error("同源音訊串流未通過 Range 測試；為避免 Web Audio 靜音，本首歌曲尚未切換。");
+          state.eqEnabled=false;savePlayerPreferences();updateEqControls();
+          updateEqStatus("同源音訊串流測試未通過，已改用原生播放；均衡器未啟用。","error");
+        }else{
+          playUrl=info.stream_url;
+          useWebAudio=true;
+        }
+      }
+      if(!useWebAudio)audio.removeAttribute("crossorigin");
+      else audio.crossOrigin="anonymous";
+
       accountTime();persistSession(false);saveProgress(true);
       if(!audio.paused) {
         const pauseDone = new Promise(resolve => audio.addEventListener("pause", resolve, { once: true }));
@@ -499,6 +558,7 @@ export function initLibraryUI(options = {}) {
         await pauseDone;
       }
       if(!isCurrentRequest())return;
+
       state.currentItem=item;
       if(playOptions.preserveQueue){
         state.queueIndex=index;
@@ -510,30 +570,41 @@ export function initLibraryUI(options = {}) {
         rebuildShuffleOrder(index);
       }
       state.session=null;
-      state.restorePositionMs=Number(saved.item?.position_ms||0);state.lastProgressSave=0;
-      state.speed = type === "episode" && Number.isFinite(Number(saved.item?.playback_rate))
-        ? Math.min(2,Math.max(.5,Number(saved.item.playback_rate))) : 1;
+      state.restorePositionMs=type==="episode"?Number(saved.item?.position_ms||0):0;
+      state.lastProgressSave=0;
+      state.speed=type==="episode"&&Number.isFinite(Number(saved.item?.playback_rate))
+        ?Math.min(2,Math.max(.5,Number(saved.item.playback_rate))):1;
       $("#player-speed").value=String(state.speed);
       setDock(item);
       $("#player-type").textContent=(type==="episode"?"PODCAST":"MUSIC")+" · VPS ALIST";
-      if(eqSource){
-        if(!await probeAudioCors(info.raw_url))
-          throw new Error("均衡器已建立 Web Audio 播放鏈，但新音訊網址未通過 CORS／Range 檢查。請重新整理頁面以回到原生播放路徑，或改用允許 CORS 的來源。");
-      }else if(state.eqEnabled){
-        if(await probeAudioCors(info.raw_url)){
-          audio.crossOrigin="anonymous";
-          try{await createEqualizerGraph();}
-          catch(eqError){
-            state.eqEnabled=false;savePlayerPreferences();updateEqControls();
-            updateEqStatus(eqError.message||"Web Audio 初始化失敗，已改用原生播放。","error");
-          }
-        }else{
-          state.eqEnabled=false;savePlayerPreferences();updateEqControls();
-          updateEqStatus("本首音訊來源不支援 CORS Web Audio，已保留原生播放。","error");
+
+      if(useWebAudio&&!eqSource)await createEqualizerGraph();
+      if(!eqSource&&state.eqEnabled){
+        state.eqEnabled=false;savePlayerPreferences();updateEqControls();
+      }
+
+      state.currentRawUrl=info.raw_url;
+      state.currentStreamUrl=info.stream_url||"";
+      const warmedAudio=cachedEntry?.audio||null;
+      if(cachedEntry&&state.preloadEntry===cachedEntry){
+        state.preloadEntry=null;
+        state.preloadAudio=null;
+      }
+      audio.src=playUrl;
+      audio.load();
+      audio.playbackRate=state.speed;
+      if(warmedAudio){
+        const releaseWarm=()=>{
+          warmedAudio.pause();
+          warmedAudio.removeAttribute("src");
+          try{warmedAudio.load();}catch{}
+        };
+        if(audio.readyState>=1)releaseWarm();
+        else{
+          audio.addEventListener("loadedmetadata",releaseWarm,{once:true});
+          audio.addEventListener("error",releaseWarm,{once:true});
         }
       }
-      state.currentRawUrl=info.raw_url;
-      audio.src=info.raw_url;audio.load();audio.playbackRate=state.speed;
       try {
         await audio.play();
         if(!isCurrentRequest())return;
@@ -548,34 +619,7 @@ export function initLibraryUI(options = {}) {
       message("VPS Alist 播放失敗（未切換其他來源）："+(e.message||e),"error");
     }
   }
-  function next(delta) {
-    if(!state.queue.length||state.queueIndex<0||!state.currentItem)return;
-    if(delta<0&&Number(audio.currentTime||0)>3){audio.currentTime=0;return;}
-    let target=-1;
-    if(state.shuffleEnabled){
-      if(state.shuffleOrder.length!==state.queue.length)rebuildShuffleOrder(state.queueIndex);
-      let position=state.shuffleOrder.indexOf(state.queueIndex);
-      if(position<0){rebuildShuffleOrder(state.queueIndex);position=state.shufflePosition;}
-      let targetPosition=position+delta;
-      if(targetPosition<0||targetPosition>=state.shuffleOrder.length){
-        if(state.playMode!=="repeat-all")return;
-        if(state.queue.length===1)target=state.queueIndex;
-        else{
-          rebuildShuffleOrder(state.queueIndex);
-          targetPosition=delta>0?1:state.shuffleOrder.length-1;
-          target=state.shuffleOrder[targetPosition]??-1;
-        }
-      }else target=state.shuffleOrder[targetPosition]??-1;
-    }else{
-      target=state.queueIndex+delta;
-      if(delta>0&&target>=state.queue.length){
-        if(state.playMode!=="repeat-all")return;
-        target=0;
-      }
-    }
-    if(target<0||target>=state.queue.length)return;
-    void playItem(state.currentItem.itemType,state.queue[target],state.queue,target,{preserveQueue:true});
-  }
+
   async function reindexError(i) {
     const entry=state.errors[i];if(!entry)return;
     const input=root.querySelector('[data-error-path="'+i+'"]'),newPath=String(input?.value||"").trim();
@@ -677,7 +721,7 @@ export function initLibraryUI(options = {}) {
     if(state.restorePositionMs>3000&&Number.isFinite(audio.duration)&&state.restorePositionMs<audio.duration*1000-5000)audio.currentTime=state.restorePositionMs/1000;
     state.restorePositionMs=0;timeline();
   });
-  audio.addEventListener("timeupdate",()=>{timeline();syncLyricsHighlight();});
+  audio.addEventListener("timeupdate",()=>{timeline();syncLyricsHighlight();maybePreloadNextItem();});
   audio.addEventListener("ended",()=>{
     accountTime();persistSession(true);saveProgress(true);state.session=null;
     if(state.playMode==="repeat-one"){audio.currentTime=0;audio.play().catch(error=>message(error.message||"單曲循環播放失敗。","error"));}
@@ -704,7 +748,9 @@ export function initLibraryUI(options = {}) {
   $("#player-next")?.addEventListener("click",()=>next(1));
   $("#player-stop")?.addEventListener("click",()=>{
     state.playRequestId+=1;
-    accountTime();persistSession(false);saveProgress(true);audio.pause();audio.removeAttribute("src");audio.load();
+    clearNextPreload();
+    accountTime();persistSession(false);saveProgress(true);audio.pause();audio.removeAttribute("src");audio.removeAttribute("crossorigin");audio.load();
+    state.currentRawUrl="";state.currentStreamUrl="";
     state.currentItem=null;state.session=null;state.queue=[];state.queueIndex=-1;state.shuffleOrder=[];state.shufflePosition=-1;setDock(null);timeline();
   });
   $("#player-seek")?.addEventListener("change",e=>{if(Number.isFinite(audio.duration)&&audio.duration>0)audio.currentTime=audio.duration*Number(e.target.value)/1000;});
@@ -712,6 +758,7 @@ export function initLibraryUI(options = {}) {
 
   $("#player-shuffle")?.addEventListener("click",()=>{
     state.shuffleEnabled=!state.shuffleEnabled;
+    clearNextPreload();
     rebuildShuffleOrder(state.queueIndex);
     updateShuffleButton();
     savePlayerPreferences();
@@ -719,6 +766,7 @@ export function initLibraryUI(options = {}) {
   $("#player-mode")?.addEventListener("click",()=>{
     const index=PLAY_MODES.indexOf(state.playMode);
     state.playMode=PLAY_MODES[(index+1)%PLAY_MODES.length];
+    clearNextPreload();
     updatePlayerModeButton();savePlayerPreferences();
   });
   $("#player-eq")?.addEventListener("click",()=>{

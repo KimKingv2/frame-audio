@@ -28,7 +28,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 </style>
 <link rel="stylesheet" href="/assets/css/metadata.css">
 <link rel="stylesheet" href="/assets/css/library.css?v=20261111-mobile-dock2">
-<link rel="stylesheet" href="/assets/css/interaction.css?v=20261111-mobile-dock2">
+<link rel="stylesheet" href="/assets/css/interaction.css?v=20261111-refined-dock1">
 </head>
 <body>
 <div class="shell">
@@ -51,7 +51,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   <footer class="foot"><span>FRAME AUDIO</span><span>PRIVATE LISTENING SPACE · V1.0 PRIVATE RELEASE</span></footer>
 </main>
 </div>
-<div class="dock">
+<div class="dock" role="region" aria-label="音訊播放器">
   <div class="now">
     <div class="cover" id="player-cover">FA</div>
     <div class="now-copy">
@@ -67,17 +67,17 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
         <button class="player-utility" id="player-mode" type="button" aria-label="順序播放" title="順序播放">→</button>
       </div>
       <div class="player-transport" aria-label="播放控制">
-        <button id="player-prev" type="button" aria-label="上一首" title="上一首">|◀</button>
-        <button id="player-toggle" type="button" aria-label="播放／暫停" title="播放／暫停">▶</button>
-        <button id="player-next" type="button" aria-label="下一首" title="下一首">▶|</button>
+        <button id="player-prev" type="button" aria-label="上一首" title="上一首">⏮</button>
+        <button id="player-toggle" class="player-play" type="button" aria-label="播放／暫停" title="播放／暫停">▶</button>
+        <button id="player-next" type="button" aria-label="下一首" title="下一首">⏭</button>
       </div>
       <div class="player-tools player-tools-right" aria-label="播放器工具">
-        <button class="player-utility" id="player-lyrics" type="button" disabled title="歌詞">歌詞</button>
-        <button class="player-utility" id="player-eq" type="button" title="均衡器">EQ</button>
+        <button class="player-utility" id="player-lyrics" type="button" disabled aria-label="歌詞" title="歌詞">♫</button>
+        <button class="player-utility" id="player-eq" type="button" aria-label="均衡器" title="均衡器">EQ</button>
         <select id="player-speed" aria-label="播放速度" title="播放速度">
-          <option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1.0×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2.0×</option>
+          <option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2×</option>
         </select>
-        <button class="player-stop" id="player-stop" type="button" aria-label="停止播放" title="停止播放">停止</button>
+        <button class="player-stop" id="player-stop" type="button" aria-label="停止播放" title="停止播放">■</button>
       </div>
     </div>
     <div class="timeline">
@@ -113,7 +113,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
     <div class="eq-bands" id="eq-sliders"></div>
     <div class="eq-footer"><span id="eq-headroom">頭部空間：0 dB</span><span>18 bands · -20 至 +20 dB</span></div>
     <div class="eq-status" id="eq-status" role="status">可匯入 foobar2000 標準 18 段 .feq 純文字預設。</div>
-    <p class="library-muted eq-note">為避免跨網域音訊被 Web Audio 靜音，啟用前會先檢查目前音訊來源的 CORS 與 Range。第一次啟用可能重新載入當前歌曲並恢復播放位置。</p>
+    <p class="library-muted eq-note">啟用均衡器時，音訊會改由 Cloudflare Pages 的 Access 保護同源串流傳送，以避開檔案主機未提供 CORS 的限制；一般播放仍維持原本直連。EQ 模式會增加 Cloudflare 串流流量。</p>
   </div>
 </dialog>
 <dialog id="lyrics-dialog" class="feature-dialog lyrics-dialog">

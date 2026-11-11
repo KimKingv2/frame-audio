@@ -41,29 +41,85 @@ export function parseSynchronizedLyrics(input) {
   const text = sources.map(value => {
     if (typeof value === "string") return value;
     if (value && typeof value.text === "string") return value.text;
+    if (value && Array.isArray(value.cues)) {
+      return value.cues.map(cue => {
+        const milliseconds = Number(cue.timeMs ?? cue.timestampMs ?? cue.time);
+        const seconds = Number.isFinite(milliseconds)
+          ? (milliseconds > 10000 ? milliseconds / 1000 : milliseconds)
+          : NaN;
+        if (!Number.isFinite(seconds) || typeof cue.text !== "string") return "";
+        const minutes = Math.floor(seconds / 60);
+        const remainder = (seconds % 60).toFixed(3).padStart(6, "0");
+        return "[" + String(minutes).padStart(2, "0") + ":" + remainder + "]" + cue.text;
+      }).filter(Boolean).join("\n");
+    }
     return "";
-  }).filter(Boolean).join("\n");
+  }).filter(Boolean).join("\n").replace(/^\uFEFF/, "");
   const cues = [];
   const plainLines = [];
-  const timestampPattern = /\[(\d{1,3}):([0-5]\d)(?:[.:](\d{1,3}))?\]/g;
-  const metadataPattern = /^\[(?:ar|al|ti|by|re|ve|length|offset):/i;
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.trim();
+  const timestampPattern = /[\[<{]((?:\d{1,2}:)?\d{1,3}:[0-5]\d(?:[.,]\d{1,3})?)[\]}>]/g;
+  const bareTimestampPattern = /^((?:\d{1,2}:)?\d{1,3}:[0-5]\d(?:[.,]\d{1,3})?)(?:\s*[-|]\s*|\s+)(.+)$/;
+  const metadataPattern = /^\[(?:ar|al|ti|by|re|ve|length):/i;
+  let offsetSeconds = 0;
+  const parseTime = value => {
+    const [clock, fractionText = ""] = String(value).replace(",", ".").split(".");
+    const parts = clock.split(":").map(Number);
+    if (parts.some(part => !Number.isFinite(part))) return NaN;
+    const fraction = fractionText ? Number("0." + fractionText) : 0;
+    if (parts.length === 2) return parts[0] * 60 + parts[1] + fraction;
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2] + fraction;
+    return NaN;
+  };
+  const addCue = (rawTime, lyricText) => {
+    const time = parseTime(rawTime);
+    const value = String(lyricText || "").replace(/^[\s,;|]+|[\s,;|]+$/g, "").trim();
+    if (Number.isFinite(time) && value) cues.push({ time: Math.max(0, time + offsetSeconds), text: value });
+  };
+  const lines = text.replace(/\r/g, "\n").split(/\n+/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index].trim();
     if (!line) continue;
+    const offsetMatch = line.match(/^\[offset:([+-]?\d+)\]$/i);
+    if (offsetMatch) {
+      offsetSeconds = Number(offsetMatch[1]) / 1000;
+      continue;
+    }
+    if (metadataPattern.test(line)) continue;
+
+    const subtitleRange = line.match(/^((?:\d{1,2}:)?\d{1,3}:[0-5]\d[.,]\d{1,3})\s*-->\s*((?:\d{1,2}:)?\d{1,3}:[0-5]\d[.,]\d{1,3})$/);
+    if (subtitleRange) {
+      let next = index + 1;
+      while (next < lines.length && !lines[next].trim()) next += 1;
+      if (next < lines.length && !/^\d+$/.test(lines[next].trim())) {
+        addCue(subtitleRange[1], lines[next]);
+        index = next;
+        continue;
+      }
+    }
+
     const matches = [...line.matchAll(timestampPattern)];
     if (matches.length) {
-      const lyricText = line.replace(timestampPattern, "").trim();
-      if (!lyricText) continue;
-      for (const match of matches) {
-        const fractionText = match[3] || "0";
-        const fraction = Number(fractionText.padEnd(3, "0").slice(0, 3)) / 1000;
-        const time = Number(match[1]) * 60 + Number(match[2]) + fraction;
-        cues.push({time,text:lyricText});
+      const segments = matches.map((match, cueIndex) => {
+        const start = match.index + match[0].length;
+        const end = cueIndex + 1 < matches.length ? matches[cueIndex + 1].index : line.length;
+        return line.slice(start, end).replace(/^[\s,;|]+|[\s,;|]+$/g, "").trim();
+      });
+      const nonEmpty = segments.filter(Boolean);
+      if (matches.length > 1 && nonEmpty.length === 1 && segments.slice(0, -1).every(value => !value)) {
+        matches.forEach(match => addCue(match[1], nonEmpty[0]));
+      } else {
+        matches.forEach((match, cueIndex) => addCue(match[1], segments[cueIndex]));
       }
-    } else if (!metadataPattern.test(line) && !/^\[(?:\d{1,3}:)?\d{1,3}\]$/.test(line)) {
-      plainLines.push(line);
+      continue;
     }
+
+    const bareMatch = line.match(bareTimestampPattern);
+    if (bareMatch) {
+      addCue(bareMatch[1], bareMatch[2]);
+      continue;
+    }
+    if (!/^\[(?:\d{1,3}:)?\d{1,3}\]$/.test(line)) plainLines.push(line);
   }
-  cues.sort((a,b) => a.time-b.time);
-  return {cues,plainLines};
+  cues.sort((a, b) => a.time - b.time);
+  return { cues, plainLines };
 }
