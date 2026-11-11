@@ -27,13 +27,14 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 @media(max-width:520px){.scan-log-toolbar{align-items:flex-start;flex-direction:column}.scan-log-toolbar>div{width:100%}.scan-log-button{flex:1}}
 </style>
 <link rel="stylesheet" href="/assets/css/metadata.css">
-<link rel="stylesheet" href="/assets/css/library.css?v=20261112-mobile-transport-static1">
+<link rel="stylesheet" href="/assets/css/library.css?v=20261112-mobile-sidebar-drawer1">
 <link rel="stylesheet" href="/assets/css/interaction.css?v=20261112-mobile-transport-polish2">
 </head>
 <body>
+<button class="mobile-nav-scrim" id="mobile-nav-scrim" type="button" aria-label="關閉導覽選單" aria-hidden="true" tabindex="-1"></button>
 <div class="shell">
-<aside>
-  <div class="brand"><span class="mark">F</span><span>FRAME <b>Audio</b></span></div>
+<aside id="site-sidebar" aria-label="主要導覽">
+  <div class="brand"><span class="mark">F</span><span class="brand-name">FRAME <b>Audio</b></span><button class="mobile-nav-toggle" id="mobile-nav-toggle" type="button" aria-controls="site-sidebar" aria-expanded="false" aria-label="展開導覽選單"><span aria-hidden="true">☰</span><span>選單</span></button></div></div>
   <div class="label">LIBRARY</div>
   <nav class="nav"><button class="active" data-view="music">◉　Music</button><button data-view="podcasts">▤　Podcasts</button></nav>
   <div class="gapline"></div><div class="label">MUSIC</div>
@@ -157,5 +158,5 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   });
 })();
 </script>
-<script type="module" src="/assets/js/app.js?v=20261111-minimal-player-dock1"></script>
+<script type="module" src="/assets/js/app.js?v=20261112-mobile-sidebar1"></script>
 </body></html>

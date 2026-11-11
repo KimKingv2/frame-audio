@@ -7,6 +7,9 @@ export function initLibraryUI(options = {}) {
   const root = document.querySelector("#library-content");
   const audio = document.querySelector("#audio-player");
   const $ = selector => document.querySelector(selector);
+  const defaultDocumentTitle = document.title || "FRAME Audio";
+  let lastMediaPositionUpdate = 0;
+  let mediaMetadataItemKey = "";
   const state = {
     view:"music",lastLibraryView:"music",tracks:[],folders:[],shows:[],episodes:[],loaded:false,loadedAt:0,busy:false,
     selectedShowId:"",selectedAlbum:null,search:"",searchComposing:false,items:[],itemType:"track",reportPeriod:"week",reportType:"episode",
@@ -780,6 +783,7 @@ export function initLibraryUI(options = {}) {
   }
 
   function setDock(item) {
+    syncMediaSessionMetadata(item);
     $("#player-title").textContent=item?.title||"尚未選擇音訊";
     const artist=item?(item.subtitle||item.albumArtist||item.album||(item.itemType==="episode"?"Podcast":"")):"";
     $("#player-subtitle").textContent=artist||"選擇歌曲後即可播放";
@@ -799,11 +803,124 @@ export function initLibraryUI(options = {}) {
       }).catch(()=>{});
     }
   }
+  function updateMediaPositionState(force=false) {
+    const session = navigator.mediaSession;
+    if (!session || typeof session.setPositionState !== "function" || !state.currentItem) return;
+    const mediaDuration = Number(audio.duration);
+    if (!Number.isFinite(mediaDuration) || mediaDuration <= 0) return;
+    const currentPosition = Math.max(0, Math.min(mediaDuration, Number(audio.currentTime) || 0));
+    const now = performance.now();
+    if (!force && now - lastMediaPositionUpdate < 900) return;
+    try {
+      session.setPositionState({
+        duration: mediaDuration,
+        position: currentPosition,
+        playbackRate: Number(audio.playbackRate) > 0 ? Number(audio.playbackRate) : 1
+      });
+      lastMediaPositionUpdate = now;
+    } catch {
+      // Some iOS/Safari builds expose Media Session but not position state.
+    }
+  }
+
+  function syncMediaSessionPlaybackState(forcePosition=true) {
+    const session = navigator.mediaSession;
+    if (session) {
+      try {
+        session.playbackState = !state.currentItem ? "none" : audio.paused ? "paused" : "playing";
+      } catch {}
+    }
+    if (forcePosition) updateMediaPositionState(true);
+  }
+
+  function syncMediaSessionMetadata(item) {
+    const session = navigator.mediaSession;
+    const title = item?.title || "";
+    const artist = item ? (item.subtitle || item.albumArtist || item.album || (item.itemType === "episode" ? "Podcast" : "")) : "";
+    document.title = item
+      ? [title, artist].filter(Boolean).join(" · ") + " | FRAME Audio"
+      : defaultDocumentTitle;
+    if (!session) return;
+
+    const itemKey = item ? String(item.itemType || "audio") + ":" + String(item.id || item.path || title) : "";
+    const changed = itemKey !== mediaMetadataItemKey;
+    mediaMetadataItemKey = itemKey;
+    try {
+      if (!item) {
+        session.metadata = null;
+        session.playbackState = "none";
+        if (typeof session.setPositionState === "function") session.setPositionState({});
+        lastMediaPositionUpdate = 0;
+        return;
+      }
+      if (typeof MediaMetadata !== "undefined") {
+        const metadata = {
+          title: String(title || "未命名音訊"),
+          artist: String(artist || "FRAME Audio"),
+          album: String(item.album || item.showTitle || (item.itemType === "episode" ? artist : ""))
+        };
+        if (item.artworkHash) {
+          const artworkUrl = new URL("/api/artwork/" + encodeURIComponent(item.artworkHash), window.location.origin).href;
+          metadata.artwork = ["96x96","128x128","192x192","256x256","384x384","512x512"].map(size => ({src:artworkUrl,sizes:size}));
+        }
+        session.metadata = new MediaMetadata(metadata);
+      }
+      session.playbackState = audio.paused ? "paused" : "playing";
+      if (changed && typeof session.setPositionState === "function") {
+        session.setPositionState({});
+        lastMediaPositionUpdate = 0;
+      } else {
+        updateMediaPositionState(true);
+      }
+    } catch {
+      // Keep HTML5 playback working even when the platform rejects metadata.
+    }
+  }
+
+  function setupMediaSessionActions() {
+    const session = navigator.mediaSession;
+    if (!session || typeof session.setActionHandler !== "function") return;
+    const handlers = {
+      play: () => { if (state.currentItem && audio.src && audio.paused) audio.play().catch(() => {}); },
+      pause: () => { if (!audio.paused) audio.pause(); },
+      previoustrack: () => next(-1),
+      nexttrack: () => next(1),
+      seekbackward: details => {
+        const offset = Number(details?.seekOffset) > 0 ? Number(details.seekOffset) : 10;
+        audio.currentTime = Math.max(0, Number(audio.currentTime || 0) - offset);
+        updateMediaPositionState(true);
+      },
+      seekforward: details => {
+        const offset = Number(details?.seekOffset) > 0 ? Number(details.seekOffset) : 10;
+        const target = Number(audio.currentTime || 0) + offset;
+        audio.currentTime = Number.isFinite(audio.duration) ? Math.min(audio.duration, target) : target;
+        updateMediaPositionState(true);
+      },
+      seekto: details => {
+        const position = Number(details?.seekTime);
+        if (!Number.isFinite(position) || !Number.isFinite(audio.duration) || audio.duration <= 0) return;
+        const target = Math.max(0, Math.min(audio.duration, position));
+        if (details?.fastSeek && typeof audio.fastSeek === "function") audio.fastSeek(target);
+        else audio.currentTime = target;
+        updateMediaPositionState(true);
+        timeline();
+      },
+      stop: () => $("#player-stop")?.click()
+    };
+    for (const [action, handler] of Object.entries(handlers)) {
+      try { session.setActionHandler(action, handler); }
+      catch {
+        // Unsupported actions are omitted individually; supported actions remain active.
+      }
+    }
+  }
+
   function timeline() {
     const d=Number(audio.duration||0),p=Number(audio.currentTime||0);
     $("#player-seek").value=d>0?String(Math.round(p/d*1000)):"0";
     $("#player-current").textContent=duration(p*1000);
     $("#player-duration").textContent=duration((d||state.currentItem?.durationMs/1000||0)*1000);
+    updateMediaPositionState();
   }
   function accountTime() {
     if(!state.session)return;
@@ -961,12 +1078,15 @@ export function initLibraryUI(options = {}) {
     if (!state.queue.length || state.queueIndex < 0 || !state.currentItem) return;
     if (delta < 0 && Number(audio.currentTime || 0) > 3) {
       audio.currentTime = 0;
+      updateMediaPositionState(true);
       return;
     }
     const target = nextQueueIndex(delta);
     if (target < 0 || target >= state.queue.length) return;
     void playItem(state.currentItem.itemType, state.queue[target], state.queue, target, { preserveQueue: true });
   }
+  setupMediaSessionActions();
+
   async function reindexError(i) {
     const entry=state.errors[i];if(!entry)return;
     const input=root.querySelector('[data-error-path="'+i+'"]'),newPath=String(input?.value||"").trim();
@@ -1084,14 +1204,26 @@ export function initLibraryUI(options = {}) {
     $("#player-toggle").textContent="▶";
     $("#player-type").textContent="VPS ALIST ERROR";
     $("#player-subtitle").textContent="VPS Alist 音訊載入失敗，MediaError code："+code+"。未自動切換其他來源。";
+    syncMediaSessionPlaybackState();
     console.error("[FRAME Audio] VPS Alist HTML5 Audio MediaError code:",code);
   });
-  audio.addEventListener("play",()=>{startSession();$("#player-toggle").textContent="Ⅱ";document.body.classList.add("is-audio-playing");});
-  audio.addEventListener("pause",()=>{accountTime();persistSession(false);saveProgress(true);$("#player-toggle").textContent="▶";document.body.classList.remove("is-audio-playing");});
+  audio.addEventListener("play",()=>{
+    startSession();$("#player-toggle").textContent="Ⅱ";
+    document.body.classList.add("is-audio-playing");
+    syncMediaSessionPlaybackState();
+  });
+  audio.addEventListener("pause",()=>{
+    accountTime();persistSession(false);saveProgress(true);$("#player-toggle").textContent="▶";
+    document.body.classList.remove("is-audio-playing");
+    syncMediaSessionPlaybackState();
+  });
   audio.addEventListener("loadedmetadata",()=>{
     if(state.restorePositionMs>3000&&Number.isFinite(audio.duration)&&state.restorePositionMs<audio.duration*1000-5000)audio.currentTime=state.restorePositionMs/1000;
-    state.restorePositionMs=0;timeline();maybePreloadNextItem();
+    state.restorePositionMs=0;timeline();updateMediaPositionState(true);maybePreloadNextItem();
   });
+  audio.addEventListener("durationchange",()=>updateMediaPositionState(true));
+  audio.addEventListener("seeked",()=>updateMediaPositionState(true));
+  audio.addEventListener("ratechange",()=>updateMediaPositionState(true));
   audio.addEventListener("timeupdate",()=>{timeline();syncLyricsHighlight();maybePreloadNextItem();});
   audio.addEventListener("ended",()=>{
     accountTime();persistSession(true);saveProgress(true);state.session=null;
@@ -1111,6 +1243,7 @@ export function initLibraryUI(options = {}) {
       clearNextPreload();
       $("#player-toggle").textContent="▶";
       document.body.classList.remove("is-audio-playing");
+      syncMediaSessionPlaybackState();
       console.info("[FRAME Audio] Queue finished",{
         queueIndex:state.queueIndex,queueLength:state.queue.length,
         playMode:state.playMode,shuffleEnabled:state.shuffleEnabled

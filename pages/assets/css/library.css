@@ -330,3 +330,39 @@ body.is-now-playing .dock{border-top-color:transparent}
   .now-playing-page.now-playing-enter,.now-playing-page.now-playing-exit{animation-duration:.01ms!important}
   .now-playing-topbar .secondary,.now-playing-art,.now-playing-lyric-line{transition:none!important}
 }
+
+
+/* Mobile navigation: compact brand bar + temporary off-canvas sidebar. */
+.mobile-nav-scrim{display:none;position:fixed;inset:0;z-index:300;width:100vw;height:100vh;height:100dvh;margin:0;padding:0;border:0;border-radius:0;background:rgba(8,6,14,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);cursor:default}
+.mobile-nav-toggle{display:none}
+@media(max-width:760px){
+  #site-sidebar{position:static;width:100%;min-width:0;height:auto;min-height:0;padding:12px 15px;overflow:visible;border:0;border-bottom:1px solid var(--line);background:#191622}
+  #site-sidebar .brand{display:flex;align-items:center;justify-content:flex-start;gap:10px;width:100%;padding:0 3px}
+  #site-sidebar .brand-name{margin-right:auto}
+  #site-sidebar .label,#site-sidebar .gapline,#site-sidebar .sidefoot,#site-sidebar .nav{display:none}
+  .mobile-nav-toggle{display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;gap:8px;min-width:82px;min-height:38px;padding:7px 12px;border:1px solid rgba(206,184,239,.16);border-radius:12px;color:#e8ddf5;background:linear-gradient(145deg,rgba(169,132,219,.18),rgba(255,255,255,.035));font-size:11px;cursor:pointer;touch-action:manipulation}
+  .mobile-nav-toggle span:first-child{font-size:17px;line-height:1}
+  body.mobile-sidebar-open{overflow:hidden}
+  body.mobile-sidebar-open .mobile-nav-scrim{display:block}
+  body.mobile-sidebar-open #site-sidebar{
+    position:fixed!important;inset:0 auto 0 0!important;z-index:301;display:flex;flex-direction:column;align-items:stretch;gap:0;
+    width:min(320px,86vw)!important;height:100vh!important;height:100dvh!important;min-height:0!important;
+    padding:calc(20px + env(safe-area-inset-top)) 18px calc(18px + env(safe-area-inset-bottom));
+    overflow-x:hidden;overflow-y:auto;border:0;border-right:1px solid rgba(206,184,239,.16);
+    background:radial-gradient(ellipse at 12% 8%,rgba(121,88,159,.2),transparent 42%),linear-gradient(165deg,#1c1926,#15131d 72%);
+    box-shadow:22px 0 70px rgba(0,0,0,.42);overscroll-behavior:contain;animation:mobile-sidebar-in .24s cubic-bezier(.2,.8,.2,1) both;
+  }
+  body.mobile-sidebar-open #site-sidebar .brand{justify-content:flex-start;padding:0 2px 24px;margin-bottom:22px;border-bottom:1px solid rgba(206,184,239,.12)}
+  body.mobile-sidebar-open #site-sidebar .brand-name{margin-right:auto}
+  body.mobile-sidebar-open #site-sidebar .mobile-nav-toggle{min-width:38px;width:38px;height:38px;padding:0;border-radius:12px}
+  body.mobile-sidebar-open #site-sidebar .mobile-nav-toggle span:last-child{display:none}
+  body.mobile-sidebar-open #site-sidebar .mobile-nav-toggle span:first-child{font-size:23px}
+  body.mobile-sidebar-open #site-sidebar .label{display:block;padding:8px 10px 7px;color:#81768f;font-size:9px;font-weight:750;letter-spacing:.2em}
+  body.mobile-sidebar-open #site-sidebar .gapline{display:block;flex:0 0 1px;height:1px;margin:14px 7px;background:rgba(206,184,239,.1)}
+  body.mobile-sidebar-open #site-sidebar .nav,body.mobile-sidebar-open #site-sidebar .nav.secondary{display:grid;grid-template-columns:minmax(0,1fr);gap:4px;width:100%;overflow:visible}
+  body.mobile-sidebar-open #site-sidebar .nav button{display:flex;align-items:center;width:100%;min-height:44px;padding:11px 13px;border:1px solid transparent;border-radius:11px;color:#bdb4c9;background:transparent;font-size:12px;line-height:1.3;text-align:left;white-space:normal}
+  body.mobile-sidebar-open #site-sidebar .nav button.active{border-color:rgba(193,161,233,.13);color:#f0e5ff;background:linear-gradient(90deg,rgba(169,132,219,.2),rgba(169,132,219,.07));box-shadow:inset 2px 0 #b99ae8}
+  body.mobile-sidebar-open #site-sidebar .sidefoot{display:block;margin-top:auto;padding:17px 10px 4px;border-top:1px solid rgba(206,184,239,.12);color:#92899f;font-size:10px}
+}
+@keyframes mobile-sidebar-in{from{opacity:.6;transform:translateX(-18px)}to{opacity:1;transform:translateX(0)}}
+@media(prefers-reduced-motion:reduce){body.mobile-sidebar-open #site-sidebar{animation:none}}

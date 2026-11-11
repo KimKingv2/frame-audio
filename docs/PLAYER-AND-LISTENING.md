@@ -82,3 +82,12 @@ If the replacement index fails, the old catalogue row, listening history and ret
 - 點擊封面或曲目資訊進入 Now Playing 詳情頁。詳情頁採用大封面、曲目信息、置中的播放控制與獨立進度觸控區，隨機播放、播放模式、歌詞、倍速與停止等工具集中在詳情頁。
 - 詳情頁開啟時，前端將既有、已綁定事件的播放控制 DOM 暫時移入詳情頁；收起時原節點回到固定底欄，不複製播放器、不新增重複 ID，也不影響 HTML5 Audio 播放狀態。
 - Now Playing 保留同步歌詞自動跟隨、手動捲動暫停跟隨，以及原曲庫背景 DOM／捲動位置。
+
+
+## 行動版導覽抽屜與鎖定畫面控制（2026-11-12）
+
+- 手機版側欄收合為品牌列右側的「選單」按鈕；點擊後由左側滑出完整導覽抽屜，包含 Music、Podcast、曲目、專輯、歌手、資料夾歌單、收聽報告與索引錯誤。點選分類、點擊遮罩或按 Escape 都會收起；桌面版側欄保持原樣。
+- 播放器接入 Media Session API：切歌時同步歌曲標題、歌手、專輯與 R2 封面 URL；播放／暫停同步 playbackState；進度以 setPositionState 更新 duration、position 和 playbackRate。
+- 系統媒體控制註冊播放、暫停、上一首、下一首、前後跳轉、指定位置 seekto 與停止動作。瀏覽器不支援的單項動作會獨立略過，不影響頁面內 HTML5 Audio。
+- 頁面 document.title 同步顯示目前歌曲與歌手，作為不支援 Media Session 的瀏覽器標題退路。
+- 鎖屏 metadata、封面、進度與按鍵的最終顯示由 iOS／Safari 版本和系統媒體 UI 決定；網頁不能自行設定原生 AVAudioSession 或保證所有 iOS 背景播放情境。Cloudflare Access 保護下的封面 URL 仍需由目前登入的瀏覽器工作階段可存取。

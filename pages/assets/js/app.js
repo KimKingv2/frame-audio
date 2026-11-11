@@ -48,7 +48,32 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     errors: ["MAINTENANCE", "INDEX REPAIR", "讓收藏，<span>保持完整。</span>", "檢視失敗項目，修正路徑後單獨更新索引。", "INDEX REPAIR", "索引錯誤", "⚠", "目前沒有待修復錯誤", "單首修復不會重新掃描整個目錄，也不會修改原始音訊。"]
   };
 
+  function setMobileSidebar(open, restoreFocus = false) {
+    const sidebar = $("#site-sidebar");
+    const trigger = $("#mobile-nav-toggle");
+    const scrim = $("#mobile-nav-scrim");
+    const isMobile = window.matchMedia ? window.matchMedia("(max-width: 760px)").matches : true;
+    const shouldOpen = Boolean(open) && isMobile;
+    const wasOpen = document.body.classList.contains("mobile-sidebar-open");
+    document.body.classList.toggle("mobile-sidebar-open", shouldOpen);
+    if (trigger) {
+      trigger.setAttribute("aria-expanded", String(shouldOpen));
+      trigger.setAttribute("aria-label", shouldOpen ? "收起導覽選單" : "展開導覽選單");
+      trigger.innerHTML = shouldOpen
+        ? '<span aria-hidden="true">×</span><span>收起</span>'
+        : '<span aria-hidden="true">☰</span><span>選單</span>';
+    }
+    if (scrim) scrim.setAttribute("aria-hidden", String(!shouldOpen));
+    if (sidebar) sidebar.setAttribute("aria-label", shouldOpen ? "已展開的主要導覽" : "主要導覽");
+    if (shouldOpen) {
+      requestAnimationFrame(() => sidebar?.querySelector(".nav button")?.focus({ preventScroll: true }));
+    } else if (wasOpen && restoreFocus) {
+      trigger?.focus({ preventScroll: true });
+    }
+  }
+
   function showView(name) {
+    if (document.body.classList.contains("mobile-sidebar-open")) setMobileSidebar(false, true);
     const view = views[name] || views.music;
     const ids = ["section", "eyebrow", "title", "description", "kicker", "heading", "icon", "emptytitle", "emptytext"];
     ids.forEach((id, index) => {
@@ -1536,6 +1561,15 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     }
   }
 
+  $("#mobile-nav-toggle")?.addEventListener("click", () => {
+    setMobileSidebar(!document.body.classList.contains("mobile-sidebar-open"));
+  });
+  $("#mobile-nav-scrim")?.addEventListener("click", () => setMobileSidebar(false, true));
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && document.body.classList.contains("mobile-sidebar-open")) {
+      setMobileSidebar(false, true);
+    }
+  });
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => showView(button.dataset.view));
   });
