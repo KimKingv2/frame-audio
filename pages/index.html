@@ -28,7 +28,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 </style>
 <link rel="stylesheet" href="/assets/css/metadata.css">
 <link rel="stylesheet" href="/assets/css/library.css?v=20261111-mobile-overflow-width3">
-<link rel="stylesheet" href="/assets/css/interaction.css?v=20261111-mobile-stop-button-specificity1">
+<link rel="stylesheet" href="/assets/css/interaction.css?v=20261111-minimal-iphone-player-dock1">
 </head>
 <body>
 <div class="shell">
@@ -52,23 +52,26 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 </main>
 </div>
 <div class="dock" role="region" aria-label="音訊播放器">
-  <button class="now now-open" id="player-now-playing" type="button" disabled aria-label="開啟正在播放頁面">
+  <button class="now now-open" id="player-now-playing" type="button" disabled aria-label="開啟正在播放詳情">
     <div class="cover" id="player-cover">FA</div>
     <div class="now-copy">
       <b id="player-title">尚未選擇音訊</b>
-      <small id="player-subtitle">連接私人音訊庫後即可播放</small>
+      <span class="now-copy-separator" aria-hidden="true">·</span>
+      <small id="player-subtitle">選擇歌曲後即可播放</small>
       <span id="player-type">READY</span>
     </div>
   </button>
-  <div class="controls">
+  <div class="dock-transport-host" aria-label="播放控制">
+    <div class="player-transport" id="player-transport">
+      <button id="player-prev" type="button" aria-label="上一首" title="上一首">⏮</button>
+      <button id="player-toggle" class="player-play" type="button" aria-label="播放／暫停" title="播放／暫停">▶</button>
+      <button id="player-next" type="button" aria-label="下一首" title="下一首">⏭</button>
+    </div>
+  </div>
+  <div class="controls" id="player-detail-controls" aria-label="播放詳情控制">
     <div class="player-control-row">
-      <div class="player-control-group" role="group" aria-label="播放與音訊工具">
+      <div class="player-control-group" role="group" aria-label="播放模式與音訊工具">
         <button class="player-utility" id="player-shuffle" type="button" aria-label="隨機播放：關閉" aria-pressed="false" title="隨機播放：關閉">⤨</button>
-        <div class="player-transport" aria-label="播放控制">
-          <button id="player-prev" type="button" aria-label="上一首" title="上一首">⏮</button>
-          <button id="player-toggle" class="player-play" type="button" aria-label="播放／暫停" title="播放／暫停">▶</button>
-          <button id="player-next" type="button" aria-label="下一首" title="下一首">⏭</button>
-        </div>
         <button class="player-utility" id="player-mode" type="button" aria-label="順序播放" title="順序播放">→</button>
         <span class="player-control-separator" aria-hidden="true"></span>
         <button class="player-utility" id="player-lyrics" type="button" disabled aria-label="歌詞" title="歌詞">♫</button>
@@ -85,6 +88,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
     </div>
   </div>
 </div>
+
 <audio id="audio-player" preload="none"></audio>
 
 
