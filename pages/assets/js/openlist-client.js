@@ -159,7 +159,7 @@ export function formatBytes(bytes) {
   return n.toFixed(n >= 100 ? 0 : 1) + " " + units[i];
 }
 
-export async function getOpenListFileInfo({ baseUrl, token, path }) {
+export async function getOpenListFileInfo({ baseUrl, token, path, timeoutMs = DEFAULT_TIMEOUT_MS }) {
   const normalizedBase = normalizeOpenListUrl(baseUrl);
   const safePath = String(path || "").trim();
   if (!safePath.startsWith("/") || safePath.includes("\0")) {
@@ -171,7 +171,10 @@ export async function getOpenListFileInfo({ baseUrl, token, path }) {
   if (trimmedToken) headers.Authorization = trimmedToken;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  const safeTimeoutMs = Number.isFinite(Number(timeoutMs))
+    ? Math.max(1000, Math.min(60000, Number(timeoutMs)))
+    : DEFAULT_TIMEOUT_MS;
+  const timeout = setTimeout(() => controller.abort(), safeTimeoutMs);
   let response;
   try {
     response = await fetch(normalizedBase + "/api/fs/get", {
