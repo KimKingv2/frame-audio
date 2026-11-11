@@ -265,14 +265,25 @@ export function initLibraryUI(options = {}) {
   }
   async function playItem(type,raw,queue=[raw],index=0) {
     const config=getConfig();
-    if(!config.connected||!config.openListToken||!config.baseUrl){message("播放前請先連接 OpenList。","error");$("#open-settings")?.click();return;}
+    if(!config.connected||!config.openListToken||!config.baseUrl){message("播放前請先連接 Cloudflare OpenList 曲庫。","error");$("#open-settings")?.click();return;}
+    if(!String(config.playbackBaseUrl||"").trim()||!String(config.playbackToken||"").trim()){
+      message("正式播放只使用 VPS Alist。請先在「連接 OpenList」設定 VPS Alist 網址及唯讀 API Token。","error");
+      $("#open-settings")?.click();return;
+    }
     const item=playable(raw,type);if(!item.path||!item.id){message("這筆索引缺少檔案路徑或識別碼。","error");return;}
     try {
       const [info,saved]=await Promise.all([
-        getOpenListFileInfo({baseUrl:config.baseUrl,token:config.openListToken,path:item.path}),
+        getOpenListFileInfo({
+          baseUrl:config.playbackBaseUrl,
+          token:config.playbackToken,
+          path:item.path,
+          timeoutMs:18000
+        }),
         api("/api/listening?view=progress&itemType="+type+"&itemId="+encodeURIComponent(item.id)).catch(()=>({item:null}))
       ]);
-      if(!info.raw_url)throw new Error("OpenList 沒有提供可播放的音訊網址。");
+      if(info.is_dir)throw new Error("VPS Alist 回傳的項目是資料夾，不是音訊檔案。");
+      if(!info.raw_url)throw new Error("VPS Alist /api/fs/get 沒有提供 raw_url。");
+      if(!Number.isFinite(Number(info.size))||Number(info.size)<=0)throw new Error("VPS Alist 沒有提供有效檔案大小。");
       accountTime();persistSession(false);saveProgress(true);
       if(!audio.paused) {
         const pauseDone = new Promise(resolve => audio.addEventListener("pause", resolve, { once: true }));
@@ -284,10 +295,12 @@ export function initLibraryUI(options = {}) {
       state.speed = type === "episode" && Number.isFinite(Number(saved.item?.playback_rate))
         ? Math.min(2,Math.max(.5,Number(saved.item.playback_rate))) : 1;
       $("#player-speed").value=String(state.speed);
-      setDock(item);audio.src=info.raw_url;audio.load();audio.playbackRate=state.speed;
+      setDock(item);
+      $("#player-type").textContent=(type==="episode"?"PODCAST":"MUSIC")+" · VPS ALIST";
+      audio.src=info.raw_url;audio.load();audio.playbackRate=state.speed;
       try{await audio.play();$("#player-toggle").textContent="Ⅱ";}
-      catch(e){$("#player-toggle").textContent="▶";message("音訊已載入。請按底部播放鍵繼續。"+(e.message?" "+e.message:""));}
-    }catch(e){message("無法播放這個項目："+(e.message||e),"error");}
+      catch(e){$("#player-toggle").textContent="▶";message("VPS Alist 音訊網址已載入，但瀏覽器未能開始播放。"+(e.message?" "+e.message:""),"error");}
+    }catch(e){message("VPS Alist 播放失敗（未切換其他來源）："+(e.message||e),"error");}
   }
   function next(delta) {
     if(!state.queue.length||state.queueIndex<0)return;
@@ -348,6 +361,13 @@ export function initLibraryUI(options = {}) {
   root.addEventListener("click",handleClick);
   root.addEventListener("input",event=>{
     if(event.target.id==="library-search"){state.search=event.target.value;const pos=event.target.selectionStart;render();const input=$("#library-search");if(input){input.focus();input.setSelectionRange(pos,pos);}}
+  });
+  audio.addEventListener("error",()=>{
+    const code=audio.error?audio.error.code:"未知";
+    $("#player-toggle").textContent="▶";
+    $("#player-type").textContent="VPS ALIST ERROR";
+    $("#player-subtitle").textContent="VPS Alist 音訊載入失敗，MediaError code："+code+"。未自動切換其他來源。";
+    console.error("[FRAME Audio] VPS Alist HTML5 Audio MediaError code:",code);
   });
   audio.addEventListener("play",()=>{startSession();$("#player-toggle").textContent="Ⅱ";});
   audio.addEventListener("pause",()=>{accountTime();persistSession(false);saveProgress(true);$("#player-toggle").textContent="▶";});
