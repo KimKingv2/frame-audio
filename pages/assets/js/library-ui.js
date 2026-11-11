@@ -10,6 +10,7 @@ export function initLibraryUI(options = {}) {
     view:"music",tracks:[],folders:[],shows:[],episodes:[],loaded:false,loadedAt:0,busy:false,
     selectedShowId:"",search:"",items:[],itemType:"track",reportPeriod:"week",reportType:"episode",
     errors:[],currentItem:null,queue:[],queueIndex:-1,session:null,tickAt:0,speed:1,
+    playRequestId:0,currentPlaybackSource:"",
     lastProgressSave:0,restorePositionMs:0,artworkUrls:new Set()
   };
   const esc = value => String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -263,31 +264,81 @@ export function initLibraryUI(options = {}) {
     }
     state.tickAt=performance.now();persistSession(false);
   }
+  function validatePlaybackInfo(info, sourceName) {
+    if(!info||info.is_dir)throw new Error(sourceName+" 回傳的項目不是音訊檔案。");
+    if(!String(info.raw_url||"").trim())throw new Error(sourceName+" 沒有提供 raw_url。");
+    const size=Number(info.size||0);
+    if(!Number.isFinite(size)||size<=0)throw new Error(sourceName+" 沒有提供有效檔案大小。");
+    return info;
+  }
+  async function resolvePlaybackInfo(config,path) {
+    const useVps=Boolean(config.playbackEnabled&&String(config.playbackBaseUrl||"").trim()&&String(config.playbackToken||"").trim());
+    if(useVps) {
+      try {
+        const info=validatePlaybackInfo(await getOpenListFileInfo({
+          baseUrl:config.playbackBaseUrl,
+          token:config.playbackToken,
+          path,
+          timeoutMs:18000
+        }),"VPS Alist");
+        console.info("[FRAME Audio] VPS Alist 已取得播放網址。");
+        return {info,source:"vps"};
+      } catch(vpsError) {
+        console.warn("[FRAME Audio] VPS Alist 播放資訊取得失敗，回退 Cloudflare OpenList：",vpsError);
+        try {
+          const fallback=validatePlaybackInfo(await getOpenListFileInfo({
+            baseUrl:config.baseUrl,
+            token:config.openListToken,
+            path
+          }),"Cloudflare OpenList");
+          return {info:fallback,source:"cloudflare-fallback"};
+        } catch(fallbackError) {
+          throw new Error("VPS Alist 失敗（"+(vpsError.message||vpsError)+"）；Cloudflare OpenList 備援也失敗（"+(fallbackError.message||fallbackError)+"）。");
+        }
+      }
+    }
+    const info=validatePlaybackInfo(await getOpenListFileInfo({
+      baseUrl:config.baseUrl,
+      token:config.openListToken,
+      path
+    }),"Cloudflare OpenList");
+    return {info,source:"cloudflare"};
+  }
   async function playItem(type,raw,queue=[raw],index=0) {
     const config=getConfig();
     if(!config.connected||!config.openListToken||!config.baseUrl){message("播放前請先連接 OpenList。","error");$("#open-settings")?.click();return;}
     const item=playable(raw,type);if(!item.path||!item.id){message("這筆索引缺少檔案路徑或識別碼。","error");return;}
+    const requestId=++state.playRequestId;
     try {
-      const [info,saved]=await Promise.all([
-        getOpenListFileInfo({baseUrl:config.baseUrl,token:config.openListToken,path:item.path}),
+      const [resolved,saved]=await Promise.all([
+        resolvePlaybackInfo(config,item.path),
         api("/api/listening?view=progress&itemType="+type+"&itemId="+encodeURIComponent(item.id)).catch(()=>({item:null}))
       ]);
-      if(!info.raw_url)throw new Error("OpenList 沒有提供可播放的音訊網址。");
+      if(requestId!==state.playRequestId)return;
+      const info=resolved.info;
       accountTime();persistSession(false);saveProgress(true);
       if(!audio.paused) {
         const pauseDone = new Promise(resolve => audio.addEventListener("pause", resolve, { once: true }));
         audio.pause();
         await pauseDone;
       }
+      if(requestId!==state.playRequestId)return;
       state.currentItem=item;state.queue=queue.map(x=>({...x}));state.queueIndex=index;state.session=null;
+      state.currentPlaybackSource=resolved.source;
       state.restorePositionMs=Number(saved.item?.position_ms||0);state.lastProgressSave=0;
       state.speed = type === "episode" && Number.isFinite(Number(saved.item?.playback_rate))
         ? Math.min(2,Math.max(.5,Number(saved.item.playback_rate))) : 1;
       $("#player-speed").value=String(state.speed);
-      setDock(item);audio.src=info.raw_url;audio.load();audio.playbackRate=state.speed;
+      setDock(item);
+      const sourceLabel=resolved.source==="vps"?"VPS ALIST":resolved.source==="cloudflare-fallback"?"CF FALLBACK":"CLOUDFLARE";
+      $("#player-type").textContent=(type==="episode"?"PODCAST":"MUSIC")+" · "+sourceLabel;
+      audio.src=info.raw_url;audio.load();audio.playbackRate=state.speed;
       try{await audio.play();$("#player-toggle").textContent="Ⅱ";}
       catch(e){$("#player-toggle").textContent="▶";message("音訊已載入。請按底部播放鍵繼續。"+(e.message?" "+e.message:""));}
-    }catch(e){message("無法播放這個項目："+(e.message||e),"error");}
+    }catch(e){
+      if(requestId!==state.playRequestId)return;
+      message("無法播放這個項目："+(e.message||e),"error");
+    }
   }
   function next(delta) {
     if(!state.queue.length||state.queueIndex<0)return;
