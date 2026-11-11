@@ -98,8 +98,9 @@ export function initLibraryUI(options = {}) {
     return '<div class="media-list">'+rows.map((raw,i)=>{
       const item=playable(raw,type);
       return '<article class="media-row">'+cover(item.artworkHash,item.title)+
-        '<div class="media-copy"><strong title="'+esc(item.title)+'">'+esc(item.title)+'</strong><span>'+esc(item.subtitle||item.path)+'</span></div>'+
-        '<span class="media-duration">'+duration(item.durationMs)+'</span><button class="play-button" data-action="play" data-index="'+i+'" aria-label="播放">▶</button></article>';
+        '<div class="media-copy"><strong title="'+esc(item.title)+'">'+esc(item.title)+'</strong><span>'+esc(item.subtitle||item.path)+'</span>'+
+        (type==="track"&&item.album?'<button class="album-link" type="button" data-action="open-track-album" data-index="'+i+'" title="開啟專輯">'+esc(item.album)+'　↗</button>':"")+
+        '</div><span class="media-duration">'+duration(item.durationMs)+'</span><button class="play-button" data-action="play" data-index="'+i+'" aria-label="播放">▶</button></article>';
     }).join("")+'</div>';
   }
   function renderHome() {
@@ -280,6 +281,18 @@ export function initLibraryUI(options = {}) {
       trackRows(tracks,"track");
     loadCovers();
   }
+
+  function openAlbumFromTrack(track){
+    const key=normalizeAlbumName(track?.album);if(!key)return;
+    const tracks=state.tracks.filter(item=>normalizeAlbumName(item.album)===key);
+    if(!tracks.length)return;
+    state.selectedAlbum={
+      title:String(track.album),tracks,artist:albumArtistDisplay(tracks),
+      albumNameVariants:[...new Set(tracks.map(item=>String(item.album||"").trim()).filter(Boolean))],
+      possibleDuplicates:[]
+    };
+    state.view="album-detail";renderAlbumDetail();animateLibraryContent();
+  }
   function renderArtists() {
     const map=new Map();
     for(const t of state.tracks){for(const artist of (t.artists?.length?t.artists:[t.albumArtist||"未知藝人"])){if(!map.has(artist))map.set(artist,[]);map.get(artist).push(t);}}
@@ -364,12 +377,17 @@ export function initLibraryUI(options = {}) {
       case "errors":void renderErrors().catch(e=>message(e.message,"error"));break;
       default:renderHome();
     }
+    document.body.classList.toggle("is-podcast-view",["shows","show-detail","continue"].includes(state.view));
+    animateLibraryContent();
   }
 
   function setDock(item) {
     $("#player-title").textContent=item?.title||"尚未選擇音訊";
     $("#player-subtitle").textContent=item?.subtitle||item?.path||"連接私人音訊庫後即可播放";
     $("#player-type").textContent=item?.itemType==="episode"?"PODCAST":item?"MUSIC":"READY";
+    if($("#lyrics-dialog")?.open)renderLyricsPanel();
+    const lyricsButton=$("#player-lyrics");
+    if(lyricsButton)lyricsButton.disabled=!item;
     const coverNode=$("#player-cover");coverNode.textContent=(item?.title||"FA").slice(0,1).toUpperCase();coverNode.style.backgroundImage="";
     if(item?.artworkHash) {
       const token=getConfig().adminToken;
@@ -455,6 +473,23 @@ export function initLibraryUI(options = {}) {
       $("#player-speed").value=String(state.speed);
       setDock(item);
       $("#player-type").textContent=(type==="episode"?"PODCAST":"MUSIC")+" · VPS ALIST";
+      if(eqSource){
+        if(!await probeAudioCors(info.raw_url))
+          throw new Error("均衡器已建立 Web Audio 播放鏈，但新音訊網址未通過 CORS／Range 檢查。請重新整理頁面以回到原生播放路徑，或改用允許 CORS 的來源。");
+      }else if(state.eqEnabled){
+        if(await probeAudioCors(info.raw_url)){
+          audio.crossOrigin="anonymous";
+          try{await createEqualizerGraph();}
+          catch(eqError){
+            state.eqEnabled=false;savePlayerPreferences();updateEqControls();
+            updateEqStatus(eqError.message||"Web Audio 初始化失敗，已改用原生播放。","error");
+          }
+        }else{
+          state.eqEnabled=false;savePlayerPreferences();updateEqControls();
+          updateEqStatus("本首音訊來源不支援 CORS Web Audio，已保留原生播放。","error");
+        }
+      }
+      state.currentRawUrl=info.raw_url;
       audio.src=info.raw_url;audio.load();audio.playbackRate=state.speed;
       try {
         await audio.play();
@@ -469,10 +504,17 @@ export function initLibraryUI(options = {}) {
       if(!isCurrentRequest())return;
       message("VPS Alist 播放失敗（未切換其他來源）："+(e.message||e),"error");
     }
-  }  function next(delta) {
+  }
+  function next(delta) {
     if(!state.queue.length||state.queueIndex<0)return;
-    const i=state.queueIndex+delta;if(i<0||i>=state.queue.length)return;
-    void playItem(state.currentItem.itemType,state.queue[i],state.queue,i);
+    if(delta<0&&Number(audio.currentTime||0)>3){audio.currentTime=0;return;}
+    let target=state.queueIndex+delta;
+    if(delta>0&&target>=state.queue.length){
+      if(state.playMode!=="repeat-all")return;
+      target=0;
+    }
+    if(target<0||target>=state.queue.length)return;
+    void playItem(state.currentItem.itemType,state.queue[target],state.queue,target);
   }
   async function reindexError(i) {
     const entry=state.errors[i];if(!entry)return;
@@ -499,10 +541,11 @@ export function initLibraryUI(options = {}) {
     const action=b.dataset.action,i=Number(b.dataset.index);
     try{
       if(action==="navigate"){showView(b.dataset.view);return;}
-      if(action==="open-show"){state.selectedShowId=b.dataset.id;state.view="show-detail";renderShowDetail();return;}
-      if(action==="open-album"){state.selectedAlbum=state.items[i]||null;state.view="album-detail";renderAlbumDetail();return;}
-      if(action==="back-albums"){state.view="albums";renderAlbums();return;}
-      if(action==="back-shows"){state.view="shows";state.selectedShowId="";renderShows();return;}
+      if(action==="open-show"){state.selectedShowId=b.dataset.id;state.view="show-detail";renderShowDetail();animateLibraryContent();return;}
+      if(action==="open-album"){state.selectedAlbum=state.items[i]||null;state.view="album-detail";renderAlbumDetail();animateLibraryContent();return;}
+      if(action==="open-track-album"){openAlbumFromTrack(state.items[i]);return;}
+      if(action==="back-albums"){state.view="albums";renderAlbums();animateLibraryContent();return;}
+      if(action==="back-shows"){state.view="shows";state.selectedShowId="";renderShows();animateLibraryContent();return;}
       if(action==="play"){
         const item=state.items[i];
         if(state.itemType==="continue"){
@@ -568,14 +611,18 @@ export function initLibraryUI(options = {}) {
     $("#player-subtitle").textContent="VPS Alist 音訊載入失敗，MediaError code："+code+"。未自動切換其他來源。";
     console.error("[FRAME Audio] VPS Alist HTML5 Audio MediaError code:",code);
   });
-  audio.addEventListener("play",()=>{startSession();$("#player-toggle").textContent="Ⅱ";});
-  audio.addEventListener("pause",()=>{accountTime();persistSession(false);saveProgress(true);$("#player-toggle").textContent="▶";});
+  audio.addEventListener("play",()=>{startSession();$("#player-toggle").textContent="Ⅱ";document.body.classList.add("is-audio-playing");});
+  audio.addEventListener("pause",()=>{accountTime();persistSession(false);saveProgress(true);$("#player-toggle").textContent="▶";document.body.classList.remove("is-audio-playing");});
   audio.addEventListener("loadedmetadata",()=>{
     if(state.restorePositionMs>3000&&Number.isFinite(audio.duration)&&state.restorePositionMs<audio.duration*1000-5000)audio.currentTime=state.restorePositionMs/1000;
     state.restorePositionMs=0;timeline();
   });
-  audio.addEventListener("timeupdate",timeline);
-  audio.addEventListener("ended",()=>{accountTime();persistSession(true);saveProgress(true);state.session=null;next(1);});
+  audio.addEventListener("timeupdate",()=>{timeline();syncLyricsHighlight();});
+  audio.addEventListener("ended",()=>{
+    accountTime();persistSession(true);saveProgress(true);state.session=null;
+    if(state.playMode==="repeat-all")next(1);
+    else{$("#player-toggle").textContent="▶";document.body.classList.remove("is-audio-playing");}
+  });
   $("#player-toggle")?.addEventListener("click",()=>{
     if(!audio.src){message("請先從曲庫選擇歌曲或 Podcast 單集。");return;}
     if(audio.paused){
@@ -601,10 +648,75 @@ export function initLibraryUI(options = {}) {
   });
   $("#player-seek")?.addEventListener("change",e=>{if(Number.isFinite(audio.duration)&&audio.duration>0)audio.currentTime=audio.duration*Number(e.target.value)/1000;});
   $("#player-speed")?.addEventListener("change",e=>{state.speed=Math.min(2,Math.max(.5,Number(e.target.value)||1));audio.playbackRate=state.speed;if(state.currentItem?.itemType==="episode")saveProgress(true);});
+
+  $("#player-mode")?.addEventListener("click",()=>{
+    const index=PLAY_MODES.indexOf(state.playMode);
+    state.playMode=PLAY_MODES[(index+1)%PLAY_MODES.length];
+    updatePlayerModeButton();savePlayerPreferences();
+  });
+  $("#player-eq")?.addEventListener("click",()=>{
+    renderEqSliders();updateEqControls();openModal($("#equalizer-dialog"));
+  });
+  $("#eq-close")?.addEventListener("click",()=>$("#equalizer-dialog")?.close());
+  $("#eq-enabled")?.addEventListener("change",event=>{
+    void setEqualizerEnabled(event.target.checked).catch(error=>{
+      state.eqEnabled=Boolean(eqSource);updateEqControls();
+      updateEqStatus(error.message||"無法啟用均衡器。","error");
+    });
+  });
+  $("#eq-sliders")?.addEventListener("input",event=>{
+    const input=event.target.closest("[data-eq-index]");if(!input)return;
+    const index=Number(input.dataset.eqIndex);
+    state.eqGains[index]=Math.max(-20,Math.min(20,Number(input.value)||0));
+    const output=$("#eq-value-"+index);if(output)output.textContent=state.eqGains[index].toFixed(1);
+    applyEqualizerGains();savePlayerPreferences();
+  });
+  $("#eq-preset-select")?.addEventListener("change",event=>{
+    const key=event.target.value;if(!EQ_PRESETS[key])return;
+    state.eqGains=[...EQ_PRESETS[key]];state.eqEnabled=true;
+    savePlayerPreferences();updateEqControls();
+    if(!eqSource&&state.currentRawUrl){
+      void setEqualizerEnabled(true).catch(error=>updateEqStatus(error.message||"無法套用預設。","error"));
+    }else updateEqStatus("已套用預設："+event.target.selectedOptions[0].textContent);
+    event.target.value="";
+  });
+  $("#eq-import")?.addEventListener("click",()=>$("#eq-file")?.click());
+  $("#eq-file")?.addEventListener("change",async event=>{
+    const file=event.target.files?.[0];if(!file)return;
+    try{
+      const gains=parseFoobarFeq(await file.text());
+      state.eqGains=gains;state.eqEnabled=true;savePlayerPreferences();updateEqControls();
+      if(!eqSource&&state.currentRawUrl)await setEqualizerEnabled(true);
+      updateEqStatus("已匯入 "+file.name+"（foobar2000 18 段 .feq）。","ok");
+    }catch(error){updateEqStatus(error.message||"無法讀取 .feq 檔案。","error");}
+    finally{event.target.value="";}
+  });
+  $("#eq-export")?.addEventListener("click",()=>{
+    const contents=state.eqGains.map(value=>String(Math.round(value))).join("\n")+"\n";
+    const url=URL.createObjectURL(new Blob([contents],{type:"text/plain;charset=utf-8"}));
+    const anchor=document.createElement("a");anchor.href=url;anchor.download="FRAME-Audio-Equalizer.feq";
+    document.body.append(anchor);anchor.click();anchor.remove();URL.revokeObjectURL(url);
+    updateEqStatus("已匯出 foobar2000 相容的 18 行 .feq 預設。","ok");
+  });
+  $("#eq-reset")?.addEventListener("click",()=>{
+    state.eqGains=Array(18).fill(0);updateEqControls();savePlayerPreferences();updateEqStatus("所有頻段已歸零。");
+  });
+  $("#lyrics-close")?.addEventListener("click",()=>$("#lyrics-dialog")?.close());
+  $("#player-lyrics")?.addEventListener("click",()=>{
+    if(!state.currentItem){message("請先播放一首歌曲。");return;}
+    renderLyricsPanel();openModal($("#lyrics-dialog"));syncLyricsHighlight();
+  });
+  $("#lyrics-list")?.addEventListener("click",event=>{
+    const line=event.target.closest("[data-lyric-index]");if(!line)return;
+    const cue=state.lyricsCues[Number(line.dataset.lyricIndex)];
+    if(cue&&Number.isFinite(cue.time)){audio.currentTime=cue.time;syncLyricsHighlight();}
+  });
+
   window.setInterval(()=>{if(!state.currentItem||audio.paused)return;accountTime();persistSession(false);saveProgress(false);timeline();},15000);
   window.addEventListener("pagehide",()=>{accountTime();persistSession(false);saveProgress(true);});
-  async function showView(name){state.view=name==="podcasts"?"shows":name;state.search="";if(!state.loaded)await load(true);else render();}
+  async function showView(name){state.view=name==="podcasts"?"shows":name;state.search="";if(!state.loaded)await load(true);else render();animateLibraryContent();}
   async function refresh(){state.loaded=false;await load(true);}
+  loadPlayerPreferences();updatePlayerModeButton();renderEqSliders();updateEqControls();
   setDock(null);void showView("music");
   return {showView,refresh,load};
 }

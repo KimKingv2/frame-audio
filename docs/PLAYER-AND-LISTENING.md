@@ -40,3 +40,12 @@ The Index Repair view merges the independent Music and Podcast retry queues into
 4. the original retry item is resolved.
 
 If the replacement index fails, the old catalogue row, listening history and retry record remain intact.
+
+## Player experience upgrades
+
+- Playback modes: Sequential (default), Repeat One and Repeat All. Repeat One uses the browser media element loop; Repeat All wraps the current queue.
+- Foobar2000 equalizer presets: the player imports and exports the standard 18-band `.feq` plain-text format (one gain value per line) and uses matching center frequencies. Browser Web Audio peaking filters approximate the SuperEQ curve; they are not a bit-identical port of foobar2000's DSP.
+- Equalizer safety: enabling EQ first probes the current raw URL with a one-byte CORS Range request. The Web Audio graph is created only after a successful `206` response. If the first probe fails, the player keeps native HTML5 playback. Once the graph exists, subsequent source URLs are also checked for CORS because a cross-origin media element routed through Web Audio can otherwise be silent.
+- Synchronized lyrics: embedded LRC timestamps are parsed and highlighted during playback; tapping a lyric seeks to its timestamp. Plain-text embedded lyrics remain readable but cannot be time-synchronized.
+- Track rows include a direct album-detail shortcut. Album, Podcast and player transitions use lightweight motion and respect `prefers-reduced-motion`.
+- Player mode, EQ enable state and EQ gains are stored as small local player preferences. Alist tokens and Cloudflare credentials are never included in those preferences.
