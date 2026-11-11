@@ -158,9 +158,22 @@ export function initLibraryUI(options = {}) {
     const albums=[...map.values()].map(album=>({...album,artist:albumArtistDisplay(album.tracks),albumNameVariants:[...album.albumNameVariants]}))
       .filter(a=>!state.search||[a.title,a.artist].join(" ").toLocaleLowerCase().includes(state.search.toLocaleLowerCase()))
       .sort((a,b)=>a.title.localeCompare(b.title,"zh-Hant"));
-    state.items=albums;state.itemType="album";
-    root.innerHTML=searchBar("搜尋專輯或專輯藝人")+sectionHead("ALBUMS","專輯",'<span class="library-muted">'+albums.length+' 張</span>')+
-      '<div class="media-card-grid">'+albums.slice(0,300).map((a,i)=>'<button class="media-card" data-action="open-album" data-index="'+i+'">'+
+    const duplicateCandidates=new Map();
+    for(const album of albums){
+      if(!album.albumNameVariants.length)continue;
+      const diagnosticKey=normalizeAlbumName(album.title).replace(/[\p{P}\p{S}\s]/gu,"");
+      if(!diagnosticKey)continue;
+      if(!duplicateCandidates.has(diagnosticKey))duplicateCandidates.set(diagnosticKey,[]);
+      duplicateCandidates.get(diagnosticKey).push(album);
+    }
+    const albumsWithDiagnostics=albums.map(album=>{
+      const diagnosticKey=normalizeAlbumName(album.title).replace(/[\p{P}\p{S}\s]/gu,"");
+      const candidates=duplicateCandidates.get(diagnosticKey)||[];
+      return {...album,possibleDuplicates:candidates.filter(candidate=>candidate!==album)};
+    });
+    state.items=albumsWithDiagnostics;state.itemType="album";
+    root.innerHTML=searchBar("搜尋專輯或專輯藝人")+sectionHead("ALBUMS","專輯",'<span class="library-muted">'+albumsWithDiagnostics.length+' 張</span>')+
+      '<div class="media-card-grid">'+albumsWithDiagnostics.slice(0,300).map((a,i)=>'<button class="media-card" data-action="open-album" data-index="'+i+'">'+
       cover(artworkOf(a.tracks[0]),a.title,"media-card-cover")+'<strong>'+esc(a.title)+'</strong><span>'+esc(a.artist)+'</span><small>'+a.tracks.length+' 首</small></button>').join("")+'</div>';
     loadCovers();
   }
@@ -187,10 +200,14 @@ export function initLibraryUI(options = {}) {
     const tagDiagnostic=tagVariants.length>1
       ?'<details class="album-tag-diagnostic"><summary>已合併 '+tagVariants.length+' 種專輯標籤寫法</summary><ul>'+tagVariants.map(value=>'<li><code>'+esc(displayAlbumTagVariant(value))+'</code></li>').join("")+'</ul></details>'
       :"";
+    const possibleDuplicates=album.possibleDuplicates||[];
+    const duplicateDiagnostic=possibleDuplicates.length
+      ?'<details class="album-tag-diagnostic"><summary>另有 '+possibleDuplicates.length+' 組可能重複的專輯（尚未自動合併）</summary><ul>'+possibleDuplicates.map(candidate=>'<li>'+esc(candidate.title)+' · '+esc(candidate.artist)+' · '+candidate.tracks.length+' 首'+(candidate.albumNameVariants.length?' · '+candidate.albumNameVariants.map(value=>esc(displayAlbumTagVariant(value))).join(" / "):"")+'</li>').join("")+'</ul></details>'
+      :"";
     root.innerHTML='<button class="back-link" data-action="back-albums">← 所有專輯</button>'+
       '<div class="show-detail album-detail">'+cover(artworkOf(tracks[0]),album.title,"show-detail-cover")+
       '<div><span class="kicker">ALBUM</span><h3>'+esc(album.title)+'</h3><p>'+esc(album.artist||"未知歌手")+'</p>'+
-      '<span class="library-muted">'+esc(details)+'</span>'+tagDiagnostic+
+      '<span class="library-muted">'+esc(details)+'</span>'+tagDiagnostic+duplicateDiagnostic+
       '<div class="album-detail-actions"><button class="primary" data-action="play-album">▶ 播放整張專輯</button></div></div></div>'+
       sectionHead("TRACK LIST","曲目清單",'<span class="library-muted">'+tracks.length+' 首</span>')+
       trackRows(tracks,"track");
