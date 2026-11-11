@@ -124,18 +124,38 @@ export function initLibraryUI(options = {}) {
     if(!artists.length)return "未知藝人";
     return artists.length>3?artists.slice(0,2).join(" / ")+" 等 "+artists.length+" 位藝人":artists.join(" / ");
   }
+  function normalizeAlbumName(value) {
+    return String(value||"")
+      .normalize("NFKC")
+      .replace(/[\p{Cf}\u034F\uFE00-\uFE0F\u{E0100}-\u{E01EF}]/gu,"")
+      .replace(/[\s\u00A0]+/gu," ")
+      .trim()
+      .normalize("NFC")
+      .toLocaleLowerCase();
+  }
+  function displayAlbumTagVariant(value) {
+    return Array.from(String(value||"")).map(char=>{
+      const codePoint=char.codePointAt(0);
+      if(/[\p{Cf}\u034F\uFE00-\uFE0F\u{E0100}-\u{E01EF}]/u.test(char)||(/\s/u.test(char)&&char!==" ")){
+        return "[U+"+codePoint.toString(16).toUpperCase().padStart(4,"0")+"]";
+      }
+      return char;
+    }).join("");
+  }
   function renderAlbums() {
     const map=new Map();
     for(const track of state.tracks){
       const rawName=String(track.album||"").trim();
+      const normalizedName=normalizeAlbumName(rawName);
       const name=rawName||"未分類專輯";
       const trackArtist=String(track.albumArtist||"").trim()||(track.artists||[]).join(" / ")||"未知藝人";
-      const normalizedName=rawName.normalize("NFKC").replace(/\s+/g," ").toLocaleLowerCase();
-      const key=rawName?"album:"+normalizedName:"unknown:"+trackArtist;
-      if(!map.has(key))map.set(key,{title:name,tracks:[]});
-      map.get(key).tracks.push(track);
+      const key=normalizedName?"album:"+normalizedName:"unknown:"+normalizeAlbumName(trackArtist);
+      if(!map.has(key))map.set(key,{title:name,tracks:[],albumNameVariants:new Set()});
+      const album=map.get(key);
+      album.tracks.push(track);
+      if(rawName)album.albumNameVariants.add(rawName);
     }
-    const albums=[...map.values()].map(album=>({...album,artist:albumArtistDisplay(album.tracks)}))
+    const albums=[...map.values()].map(album=>({...album,artist:albumArtistDisplay(album.tracks),albumNameVariants:[...album.albumNameVariants]}))
       .filter(a=>!state.search||[a.title,a.artist].join(" ").toLocaleLowerCase().includes(state.search.toLocaleLowerCase()))
       .sort((a,b)=>a.title.localeCompare(b.title,"zh-Hant"));
     state.items=albums;state.itemType="album";
@@ -163,10 +183,14 @@ export function initLibraryUI(options = {}) {
     const yearLabel=years.length===1?String(years[0]):"";
     const totalDuration=tracks.reduce((sum,t)=>sum+Math.max(0,Number(t.durationMs)||0),0);
     const details=[yearLabel,tracks.length+" 首歌曲",duration(totalDuration)].filter(Boolean).join(" · ");
+    const tagVariants=album.albumNameVariants||[];
+    const tagDiagnostic=tagVariants.length>1
+      ?'<details class="album-tag-diagnostic"><summary>已合併 '+tagVariants.length+' 種專輯標籤寫法</summary><ul>'+tagVariants.map(value=>'<li><code>'+esc(displayAlbumTagVariant(value))+'</code></li>').join("")+'</ul></details>'
+      :"";
     root.innerHTML='<button class="back-link" data-action="back-albums">← 所有專輯</button>'+
       '<div class="show-detail album-detail">'+cover(artworkOf(tracks[0]),album.title,"show-detail-cover")+
       '<div><span class="kicker">ALBUM</span><h3>'+esc(album.title)+'</h3><p>'+esc(album.artist||"未知歌手")+'</p>'+
-      '<span class="library-muted">'+esc(details)+'</span>'+
+      '<span class="library-muted">'+esc(details)+'</span>'+tagDiagnostic+
       '<div class="album-detail-actions"><button class="primary" data-action="play-album">▶ 播放整張專輯</button></div></div></div>'+
       sectionHead("TRACK LIST","曲目清單",'<span class="library-muted">'+tracks.length+' 首</span>')+
       trackRows(tracks,"track");
