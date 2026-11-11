@@ -48,32 +48,53 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     errors: ["MAINTENANCE", "INDEX REPAIR", "讓收藏，<span>保持完整。</span>", "檢視失敗項目，修正路徑後單獨更新索引。", "INDEX REPAIR", "索引錯誤", "⚠", "目前沒有待修復錯誤", "單首修復不會重新掃描整個目錄，也不會修改原始音訊。"]
   };
 
-  function setMobileSidebar(open, restoreFocus = false) {
+  function isMobileSidebarViewport() {
+    return window.matchMedia ? window.matchMedia("(max-width: 760px)").matches : false;
+  }
+
+  function setSideNavigationExpanded(expanded, restoreFocus = false) {
     const sidebar = $("#site-sidebar");
-    const trigger = $("#mobile-nav-toggle");
+    const trigger = $("#side-nav-toggle");
     const scrim = $("#mobile-nav-scrim");
-    const isMobile = window.matchMedia ? window.matchMedia("(max-width: 760px)").matches : true;
-    const shouldOpen = Boolean(open) && isMobile;
-    const wasOpen = document.body.classList.contains("mobile-sidebar-open");
-    document.body.classList.toggle("mobile-sidebar-open", shouldOpen);
-    if (trigger) {
-      trigger.setAttribute("aria-expanded", String(shouldOpen));
-      trigger.setAttribute("aria-label", shouldOpen ? "收起導覽選單" : "展開導覽選單");
-      trigger.innerHTML = shouldOpen
-        ? '<span aria-hidden="true">×</span><span>收起</span>'
-        : '<span aria-hidden="true">☰</span><span>選單</span>';
+    const isMobile = isMobileSidebarViewport();
+    const wasMobileExpanded = document.body.classList.contains("mobile-sidebar-expanded");
+    const wasDesktopCollapsed = document.body.classList.contains("desktop-sidebar-collapsed");
+    const isExpanded = Boolean(expanded);
+
+    if (isMobile) {
+      document.body.classList.remove("desktop-sidebar-collapsed");
+      document.body.classList.toggle("mobile-sidebar-expanded", isExpanded);
+    } else {
+      document.body.classList.remove("mobile-sidebar-expanded");
+      document.body.classList.toggle("desktop-sidebar-collapsed", !isExpanded);
     }
-    if (scrim) scrim.setAttribute("aria-hidden", String(!shouldOpen));
-    if (sidebar) sidebar.setAttribute("aria-label", shouldOpen ? "已展開的主要導覽" : "主要導覽");
-    if (shouldOpen) {
+
+    if (trigger) {
+      trigger.setAttribute("aria-expanded", String(isExpanded));
+      trigger.setAttribute("aria-label", isExpanded ? "收合導覽欄" : "展開導覽欄");
+      const icon = trigger.querySelector(".side-nav-toggle-icon");
+      const label = trigger.querySelector(".side-nav-toggle-label");
+      if (icon) icon.textContent = isExpanded ? (isMobile ? "×" : "‹") : (isMobile ? "☰" : "›");
+      if (label) label.textContent = isExpanded ? "收合導覽" : "展開導覽";
+    }
+    if (scrim) scrim.setAttribute("aria-hidden", String(!(isMobile && isExpanded)));
+    if (sidebar) sidebar.setAttribute("aria-label", isExpanded ? "已展開的主要導覽" : "主要導覽");
+
+    if (isMobile && isExpanded) {
       requestAnimationFrame(() => sidebar?.querySelector(".nav button")?.focus({ preventScroll: true }));
-    } else if (wasOpen && restoreFocus) {
+    } else if (restoreFocus && ((isMobile && wasMobileExpanded) || (!isMobile && wasDesktopCollapsed))) {
       trigger?.focus({ preventScroll: true });
     }
   }
 
+  function syncSideNavigationViewport() {
+    setSideNavigationExpanded(!isMobileSidebarViewport());
+  }
+
   function showView(name) {
-    if (document.body.classList.contains("mobile-sidebar-open")) setMobileSidebar(false, true);
+    if (isMobileSidebarViewport() && document.body.classList.contains("mobile-sidebar-expanded")) {
+      setSideNavigationExpanded(false, true);
+    }
     const view = views[name] || views.music;
     const ids = ["section", "eyebrow", "title", "description", "kicker", "heading", "icon", "emptytitle", "emptytext"];
     ids.forEach((id, index) => {
@@ -1561,15 +1582,41 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     }
   }
 
-  $("#mobile-nav-toggle")?.addEventListener("click", () => {
-    setMobileSidebar(!document.body.classList.contains("mobile-sidebar-open"));
+  $("#side-nav-toggle")?.addEventListener("click", () => {
+    const expanded = isMobileSidebarViewport()
+      ? document.body.classList.contains("mobile-sidebar-expanded")
+      : !document.body.classList.contains("desktop-sidebar-collapsed");
+    setSideNavigationExpanded(!expanded, true);
   });
-  $("#mobile-nav-scrim")?.addEventListener("click", () => setMobileSidebar(false, true));
+  $("#mobile-nav-scrim")?.addEventListener("click", () => setSideNavigationExpanded(false, true));
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape" && document.body.classList.contains("mobile-sidebar-open")) {
-      setMobileSidebar(false, true);
+    if (event.key === "Escape" && document.body.classList.contains("mobile-sidebar-expanded")) {
+      setSideNavigationExpanded(false, true);
     }
   });
+  window.addEventListener("resize", () => {
+    const isMobile = isMobileSidebarViewport();
+    if (isMobile && !document.body.classList.contains("mobile-sidebar-expanded")) {
+      document.body.classList.remove("desktop-sidebar-collapsed");
+      const trigger = $("#side-nav-toggle");
+      trigger?.setAttribute("aria-expanded", "false");
+      const icon = trigger?.querySelector(".side-nav-toggle-icon");
+      const label = trigger?.querySelector(".side-nav-toggle-label");
+      if (icon) icon.textContent = "☰";
+      if (label) label.textContent = "展開導覽";
+    } else if (!isMobile) {
+      document.body.classList.remove("mobile-sidebar-expanded");
+      document.body.classList.remove("desktop-sidebar-collapsed");
+      const trigger = $("#side-nav-toggle");
+      trigger?.setAttribute("aria-expanded", "true");
+      const icon = trigger?.querySelector(".side-nav-toggle-icon");
+      const label = trigger?.querySelector(".side-nav-toggle-label");
+      if (icon) icon.textContent = "‹";
+      if (label) label.textContent = "收合導覽";
+    }
+    $("#mobile-nav-scrim")?.setAttribute("aria-hidden", String(!document.body.classList.contains("mobile-sidebar-expanded")));
+  });
+  syncSideNavigationViewport();
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => showView(button.dataset.view));
   });

@@ -27,22 +27,46 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 @media(max-width:520px){.scan-log-toolbar{align-items:flex-start;flex-direction:column}.scan-log-toolbar>div{width:100%}.scan-log-button{flex:1}}
 </style>
 <link rel="stylesheet" href="/assets/css/metadata.css">
-<link rel="stylesheet" href="/assets/css/library.css?v=20261112-mobile-sidebar-drawer1">
+<link rel="stylesheet" href="/assets/css/library.css?v=20261112-right-sidebar-collapsible1">
 <link rel="stylesheet" href="/assets/css/interaction.css?v=20261112-mobile-transport-polish2">
 </head>
 <body>
 <button class="mobile-nav-scrim" id="mobile-nav-scrim" type="button" aria-label="關閉導覽選單" aria-hidden="true" tabindex="-1"></button>
 <div class="shell">
 <aside id="site-sidebar" aria-label="主要導覽">
-  <div class="brand"><span class="mark">F</span><span class="brand-name">FRAME <b>Audio</b></span><button class="mobile-nav-toggle" id="mobile-nav-toggle" type="button" aria-controls="site-sidebar" aria-expanded="false" aria-label="展開導覽選單"><span aria-hidden="true">☰</span><span>選單</span></button></div></div>
+  <div class="brand">
+    <span class="mark">F</span>
+    <span class="brand-name">FRAME <b>Audio</b></span>
+    <button class="side-nav-toggle" id="side-nav-toggle" type="button" aria-controls="site-sidebar" aria-expanded="true" aria-label="收合導覽欄">
+      <span class="side-nav-toggle-icon" aria-hidden="true">‹</span>
+      <span class="side-nav-toggle-label">收合導覽</span>
+    </button>
+  </div>
   <div class="label">LIBRARY</div>
-  <nav class="nav"><button class="active" data-view="music">◉　Music</button><button data-view="podcasts">▤　Podcasts</button></nav>
-  <div class="gapline"></div><div class="label">MUSIC</div>
-  <nav class="nav secondary"><button data-view="tracks">♫　所有歌曲</button><button data-view="albums">▣　專輯</button><button data-view="artists">♙　歌手</button><button data-view="folders">▰　資料夾歌單</button></nav>
-  <div class="gapline"></div><div class="label">PODCASTS</div>
-  <nav class="nav secondary"><button data-view="shows">▥　所有節目</button><button data-view="continue">◷　繼續收聽</button></nav>
-  <div class="gapline"></div><div class="label">ACTIVITY</div>
-  <nav class="nav secondary"><button data-view="reports">▣　收聽報告</button><button data-view="errors">⚠　索引錯誤</button></nav>
+  <nav class="nav" aria-label="媒體庫">
+    <button class="active" data-view="music" type="button" title="Music" aria-label="Music"><span class="nav-icon" aria-hidden="true">♫</span><span class="nav-label">Music</span></button>
+    <button data-view="podcasts" type="button" title="Podcasts" aria-label="Podcasts"><span class="nav-icon" aria-hidden="true">◖</span><span class="nav-label">Podcasts</span></button>
+  </nav>
+  <div class="gapline"></div>
+  <div class="label">MUSIC</div>
+  <nav class="nav secondary" aria-label="音樂分類">
+    <button data-view="tracks" type="button" title="所有歌曲" aria-label="所有歌曲"><span class="nav-icon" aria-hidden="true">≡</span><span class="nav-label">所有歌曲</span></button>
+    <button data-view="albums" type="button" title="專輯" aria-label="專輯"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">專輯</span></button>
+    <button data-view="artists" type="button" title="歌手" aria-label="歌手"><span class="nav-icon" aria-hidden="true">♙</span><span class="nav-label">歌手</span></button>
+    <button data-view="folders" type="button" title="資料夾歌單" aria-label="資料夾歌單"><span class="nav-icon" aria-hidden="true">▱</span><span class="nav-label">資料夾歌單</span></button>
+  </nav>
+  <div class="gapline"></div>
+  <div class="label">PODCASTS</div>
+  <nav class="nav secondary" aria-label="Podcast 分類">
+    <button data-view="shows" type="button" title="所有節目" aria-label="所有節目"><span class="nav-icon" aria-hidden="true">▣</span><span class="nav-label">所有節目</span></button>
+    <button data-view="continue" type="button" title="繼續收聽" aria-label="繼續收聽"><span class="nav-icon" aria-hidden="true">◷</span><span class="nav-label">繼續收聽</span></button>
+  </nav>
+  <div class="gapline"></div>
+  <div class="label">ACTIVITY</div>
+  <nav class="nav secondary" aria-label="活動與維護">
+    <button data-view="reports" type="button" title="收聽報告" aria-label="收聽報告"><span class="nav-icon" aria-hidden="true">▥</span><span class="nav-label">收聽報告</span></button>
+    <button data-view="errors" type="button" title="索引錯誤" aria-label="索引錯誤"><span class="nav-icon" aria-hidden="true">⚠</span><span class="nav-label">索引錯誤</span></button>
+  </nav>
   <div class="sidefoot"><span class="dot" id="connection-dot"></span><span id="connection-label">資料來源尚未連接</span></div>
 </aside>
 <main>
@@ -158,5 +182,5 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   });
 })();
 </script>
-<script type="module" src="/assets/js/app.js?v=20261112-mobile-sidebar1"></script>
+<script type="module" src="/assets/js/app.js?v=20261112-right-sidebar-collapsible1"></script>
 </body></html>

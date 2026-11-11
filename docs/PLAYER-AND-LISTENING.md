@@ -86,7 +86,7 @@ If the replacement index fails, the old catalogue row, listening history and ret
 
 ## 行動版導覽抽屜與鎖定畫面控制（2026-11-12）
 
-- 手機版側欄收合為品牌列右側的「選單」按鈕；點擊後由左側滑出完整導覽抽屜，包含 Music、Podcast、曲目、專輯、歌手、資料夾歌單、收聽報告與索引錯誤。點選分類、點擊遮罩或按 Escape 都會收起；桌面版側欄保持原樣。
+- 桌面版導覽欄固定在右側並預設完整展開；可用頂部箭頭收合成圖標窄欄，再次點擊即可展開。手機版不再佔用頁面頂部高度，只在右側顯示單一浮動選單圖標，點擊後由右側滑出完整導覽；點選分類、點擊遮罩或按 Escape 都會收起。導航項目使用一致的圖標底座、標籤與明確的選取狀態。
 - 播放器接入 Media Session API：切歌時同步歌曲標題、歌手、專輯與 R2 封面 URL；播放／暫停同步 playbackState；進度以 setPositionState 更新 duration、position 和 playbackRate。
 - 系統媒體控制註冊播放、暫停、上一首、下一首、前後跳轉、指定位置 seekto 與停止動作。瀏覽器不支援的單項動作會獨立略過，不影響頁面內 HTML5 Audio。
 - 頁面 document.title 同步顯示目前歌曲與歌手，作為不支援 Media Session 的瀏覽器標題退路。
