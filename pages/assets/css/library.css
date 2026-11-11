@@ -230,3 +230,81 @@ body.is-now-playing .hero,body.is-now-playing .foot{display:none}
 @media(prefers-reduced-motion:reduce){
   .now-playing-page.now-playing-enter,.now-playing-page.now-playing-exit{animation-duration:.01ms!important}
 }
+
+/* Refined Now Playing overlay: one fixed surface, smooth compositor-friendly motion. */
+body.is-now-playing{overflow:hidden}
+.now-playing-page{
+  position:fixed;
+  inset:0;
+  z-index:80;
+  width:100vw;
+  height:100vh;
+  height:100dvh;
+  min-height:100vh;
+  min-height:100dvh;
+  overflow-x:hidden;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  padding:clamp(24px,4vh,46px) clamp(22px,5vw,70px) 126px;
+  background:
+    radial-gradient(ellipse at 16% 12%,rgba(121,88,159,.22),transparent 42%),
+    radial-gradient(ellipse at 88% 78%,rgba(75,62,112,.17),transparent 40%),
+    linear-gradient(145deg,#1b1825 0%,#15131d 52%,#191522 100%);
+  box-shadow:inset 0 1px 0 rgba(226,207,255,.08);
+  isolation:isolate;
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;
+}
+.now-playing-page.now-playing-enter{
+  animation:now-playing-panel-in .82s cubic-bezier(.16,1,.3,1) both;
+  will-change:transform,opacity;
+}
+.now-playing-page.now-playing-exit{
+  animation:now-playing-panel-out .68s cubic-bezier(.55,.06,.68,.19) both;
+  will-change:transform,opacity;
+  pointer-events:none;
+}
+@keyframes now-playing-panel-in{
+  from{opacity:.92;transform:translate3d(0,100%,0)}
+  to{opacity:1;transform:translate3d(0,0,0)}
+}
+@keyframes now-playing-panel-out{
+  from{opacity:1;transform:translate3d(0,0,0)}
+  to{opacity:.94;transform:translate3d(0,100%,0)}
+}
+.now-playing-topbar{min-height:38px;margin-bottom:clamp(12px,2vh,22px)}
+.now-playing-topbar .secondary{
+  transition:background-color .24s ease,border-color .24s ease,color .24s ease,transform .24s ease;
+}
+.now-playing-topbar .secondary:hover{transform:translateY(-1px)}
+.now-playing-main{min-height:0}
+.now-playing-track,.now-playing-lyrics-panel{backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.now-playing-art{transition:box-shadow .4s ease,transform .5s cubic-bezier(.2,.8,.2,1)}
+.now-playing-art:hover{transform:translateY(-2px);box-shadow:0 28px 64px rgba(0,0,0,.42)}
+.now-playing-track-copy h1{transition:color .3s ease}
+.now-playing-lyrics-panel{
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+  overflow:visible;
+}
+.now-playing-lyrics-heading{border-bottom:0;padding-left:0;padding-right:0}
+.now-playing-lyrics-list{padding-left:0;padding-right:0;scrollbar-width:thin}
+.now-playing-lyric-line{
+  transition:color .38s ease,transform .38s cubic-bezier(.2,.8,.2,1),text-shadow .38s ease,opacity .38s ease;
+}
+.now-playing-lyric-line.active{background:transparent}
+.dock{z-index:100;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+@media(max-width:680px){
+  .now-playing-page{
+    padding:calc(14px + env(safe-area-inset-top)) 16px calc(135px + env(safe-area-inset-bottom));
+  }
+  .now-playing-topbar{margin-bottom:8px}
+  .now-playing-lyrics-heading{padding-left:0;padding-right:0}
+  .now-playing-lyrics-list{padding-left:0;padding-right:0}
+}
+@media(prefers-reduced-motion:reduce){
+  .now-playing-page.now-playing-enter,.now-playing-page.now-playing-exit{animation-duration:.01ms!important}
+  .now-playing-topbar .secondary,.now-playing-art,.now-playing-lyric-line{transition:none!important}
+}

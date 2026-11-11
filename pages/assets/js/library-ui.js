@@ -159,7 +159,8 @@ export function initLibraryUI(options = {}) {
     const item=state.currentItem;
     if(!item){root.innerHTML='<div class="now-playing-empty"><button class="secondary" data-action="back-now-playing">← 返回曲庫</button><h2>尚未播放音訊</h2><p>從 Music 或 Podcast 選擇內容後，這裡會顯示目前歌曲與同步歌詞。</p></div>';return;}
     const parsed=currentLyrics(),kind=item.itemType==="episode"?"PODCAST":"MUSIC",artist=item.subtitle||item.albumArtist||item.album||"";
-    root.innerHTML='<section class="now-playing-page now-playing-enter">'+
+    const shouldAnimateIn=!root.querySelector(".now-playing-page");
+    root.innerHTML='<section class="now-playing-page'+(shouldAnimateIn?' now-playing-enter':'')+'">'+
       '<div class="now-playing-topbar"><button class="secondary" data-action="back-now-playing">← 返回曲庫</button><span class="kicker">NOW PLAYING</span><span class="now-playing-kind">'+kind+'</span></div>'+
       '<div class="now-playing-main">'+
        '<div class="now-playing-track"><div class="now-playing-art" id="now-playing-art"><span>'+esc(String(item.title||"FA").slice(0,1).toUpperCase())+'</span></div>'+
@@ -171,7 +172,7 @@ export function initLibraryUI(options = {}) {
       '</div></section>';
     const page=root.querySelector(".now-playing-page");
     page?.addEventListener("animationend",event=>{
-      if(event.target===page&&event.animationName==="now-playing-slide-up")page.classList.remove("now-playing-enter");
+      if(event.target===page&&event.animationName==="now-playing-panel-in")page.classList.remove("now-playing-enter");
     });
     syncNowPlayingArtwork(item);syncLyricsHighlight();
   }
@@ -185,7 +186,7 @@ export function initLibraryUI(options = {}) {
     let finished=false;
     let fallbackTimer=0;
     const finish=event=>{
-      if(event&&(event.target!==page||event.animationName!=="now-playing-slide-down"))return;
+      if(event&&(event.target!==page||event.animationName!=="now-playing-panel-out"))return;
       if(finished)return;
       finished=true;
       if(fallbackTimer)clearTimeout(fallbackTimer);
@@ -214,7 +215,12 @@ export function initLibraryUI(options = {}) {
       current?.scrollIntoView?.({block:"center",behavior:"smooth"});
     }
   }
-  function animateLibraryContent(){root.classList.remove("view-enter");void root.offsetWidth;root.classList.add("view-enter");}
+  function animateLibraryContent(){
+    root.classList.remove("view-enter");
+    if(state.view==="now-playing")return;
+    void root.offsetWidth;
+    root.classList.add("view-enter");
+  }
   function openModal(dialog){if(!dialog||dialog.open)return;try{dialog.showModal();}catch{dialog.setAttribute("open","");}}
   async function api(url,init={}) {
     const headers=new Headers(init.headers||{});
