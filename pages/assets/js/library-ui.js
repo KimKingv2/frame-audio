@@ -209,6 +209,11 @@ export function initLibraryUI(options = {}) {
     const button=root.querySelector('[data-action="refresh-album-metadata"]');
     if(!targets.length){if(status){status.hidden=false;status.textContent="找不到可重新讀取的曲目。";}return;}
     if(typeof options.reindexMusic!=="function"){if(status){status.hidden=false;status.textContent="目前無法啟動單曲索引。";}return;}
+    const credentials=getConfig();
+    if(!credentials.connected||!credentials.openListToken||!credentials.adminToken){
+      if(status){status.hidden=false;status.textContent="請先連接 VPS Alist，並測試 Cloudflare D1 / R2。";}
+      return;
+    }
     const approved=window.confirm(
       "準備重新讀取 "+targets.length+" 首同名／疑似同名歌曲的音訊標籤，並更新 Cloudflare D1 索引。"+
       "\n原始音訊不會修改；封面會沿用 R2 去重保存。"+
