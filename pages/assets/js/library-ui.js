@@ -1,4 +1,5 @@
 import { getOpenListFileInfo } from "./openlist-client.js?v=20261111-vps-all-source1";
+import { EQ_BANDS, parseFoobarFeq, parseSynchronizedLyrics } from "./player-effects.js?v=20261111-player-experience1";
 
 const PERIODS = [["week","近 7 日"],["month","近 30 日"],["year","近 365 日"],["all","全部時間"]];
 
@@ -10,8 +11,18 @@ export function initLibraryUI(options = {}) {
     view:"music",tracks:[],folders:[],shows:[],episodes:[],loaded:false,loadedAt:0,busy:false,
     selectedShowId:"",selectedAlbum:null,search:"",searchComposing:false,items:[],itemType:"track",reportPeriod:"week",reportType:"episode",
     errors:[],currentItem:null,queue:[],queueIndex:-1,session:null,tickAt:0,speed:1,
-    lastProgressSave:0,restorePositionMs:0,playRequestId:0,artworkUrls:new Set()
+    lastProgressSave:0,restorePositionMs:0,playRequestId:0,artworkUrls:new Set(),
+    playMode:"sequential",eqEnabled:false,eqGains:Array(18).fill(0),currentRawUrl:"",
+    lyricsCues:[],lyricsPlainLines:[],lyricsActiveIndex:-1
   };
+  const PLAY_MODES=["sequential","repeat-one","repeat-all"];
+  const EQ_PRESETS={
+    flat:Array(18).fill(0),
+    bass:[5,5,4,3,2,1,0,0,0,0,0,0,0,0,0,0,0,0],
+    vocal:[-2,-1,0,2,3,2,1,1,2,2,1,0,-1,-1,0,1,1,0],
+    clarity:[-1,-1,0,0,1,1,0,1,2,2,2,1,0,1,2,2,1,0]
+  };
+  let eqContext=null,eqSource=null,eqFilters=[],eqOutput=null;
   const esc = value => String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const duration = value => {
     const n=Math.max(0,Math.floor(Number(value||0)/1000)),h=Math.floor(n/3600),m=Math.floor(n%3600/60),s=n%60;
@@ -23,6 +34,21 @@ export function initLibraryUI(options = {}) {
   };
   function getConfig(){return options.getCredentials?.()||{};}
   function authToken(){const c=getConfig();if(!c.adminToken)throw new Error("請先設定並測試 Cloudflare 儲存管理金鑰。");return c.adminToken;}
+  function loadPlayerPreferences(){try{const saved=JSON.parse(localStorage.getItem("frame-audio-player-preferences")||"{}");if(PLAY_MODES.includes(saved.playMode))state.playMode=saved.playMode;if(Array.isArray(saved.eqGains)&&saved.eqGains.length===EQ_BANDS.length)state.eqGains=saved.eqGains.map(value=>Math.max(-20,Math.min(20,Number(value)||0)));state.eqEnabled=saved.eqEnabled===true;}catch{}}
+  function savePlayerPreferences(){try{localStorage.setItem("frame-audio-player-preferences",JSON.stringify({playMode:state.playMode,eqEnabled:state.eqEnabled,eqGains:state.eqGains}));}catch{}}
+  function updatePlayerModeButton(){const button=$("#player-mode");if(!button)return;const config={sequential:{icon:"→",label:"順序播放"},"repeat-one":{icon:"↻¹",label:"單曲循環"},"repeat-all":{icon:"↻",label:"列表循環"}}[state.playMode]||{icon:"→",label:"順序播放"};button.textContent=config.icon;button.title=config.label;button.setAttribute("aria-label",config.label);button.classList.toggle("active",state.playMode!=="sequential");audio.loop=false;}
+  function updateEqStatus(text,type=""){const node=$("#eq-status");if(!node)return;node.textContent=text;node.className="eq-status"+(type?" "+type:"");}
+  function renderEqSliders(){const host=$("#eq-sliders");if(!host)return;host.innerHTML=EQ_BANDS.map((band,index)=>'<label class="eq-band"><span class="eq-band-value" id="eq-value-'+index+'">'+Number(state.eqGains[index]||0).toFixed(1)+'</span><input type="range" min="-20" max="20" step="0.5" value="'+Number(state.eqGains[index]||0)+'" data-eq-index="'+index+'" aria-label="'+band.label+' Hz"><span class="eq-band-label">'+band.shortLabel+'</span></label>').join("");}
+  function applyEqualizerGains(){if(!eqContext||!eqFilters.length)return;const now=eqContext.currentTime;let maxBoost=0;eqFilters.forEach((filter,index)=>{const gain=state.eqEnabled?Number(state.eqGains[index]||0):0;filter.gain.setTargetAtTime(gain,now,0.025);maxBoost=Math.max(maxBoost,gain);});if(eqOutput)eqOutput.gain.setTargetAtTime(Math.pow(10,-maxBoost/20),now,0.04);const headroom=$("#eq-headroom");if(headroom)headroom.textContent=maxBoost>0?"自動預留頭部空間："+(-maxBoost).toFixed(1)+" dB":"頭部空間：0 dB";}
+  function updateEqControls(){const toggle=$("#eq-enabled");if(toggle)toggle.checked=state.eqEnabled;root.querySelectorAll("[data-eq-index]").forEach(input=>{const index=Number(input.dataset.eqIndex);input.value=String(state.eqGains[index]||0);const output=$("#eq-value-"+index);if(output)output.textContent=Number(state.eqGains[index]||0).toFixed(1);});applyEqualizerGains();}
+  async function probeAudioCors(url){if(!url)return false;const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),10000);try{const response=await fetch(url,{method:"GET",mode:"cors",credentials:"omit",redirect:"follow",headers:{Range:"bytes=0-0"},signal:controller.signal});const supported=response.status===206&&response.type!=="opaque";try{await response.body?.cancel();}catch{}return supported;}catch{return false;}finally{clearTimeout(timeout);}}
+  async function createEqualizerGraph(){if(eqSource)return;const AudioContextClass=window.AudioContext||window.webkitAudioContext;if(!AudioContextClass)throw new Error("目前瀏覽器不支援 Web Audio 均衡器。");eqContext=new AudioContextClass();eqSource=eqContext.createMediaElementSource(audio);let previous=eqSource;eqFilters=EQ_BANDS.map(band=>{const filter=eqContext.createBiquadFilter();filter.type="peaking";filter.frequency.value=band.frequency;filter.Q.value=4;previous.connect(filter);previous=filter;return filter;});eqOutput=eqContext.createGain();previous.connect(eqOutput);eqOutput.connect(eqContext.destination);applyEqualizerGains();if(eqContext.state==="suspended")await eqContext.resume();}
+  function waitForAudioMetadata(timeoutMs=15000,force=false){if(!force&&audio.readyState>=1&&Number.isFinite(audio.duration))return Promise.resolve();return new Promise((resolve,reject)=>{let timer;const cleanup=()=>{clearTimeout(timer);audio.removeEventListener("loadedmetadata",onReady);audio.removeEventListener("error",onError);};const onReady=()=>{cleanup();resolve();};const onError=()=>{cleanup();reject(new Error("重新載入音訊以啟用均衡器失敗。"));};timer=setTimeout(()=>{cleanup();reject(new Error("等待音訊重新載入逾時。"));},timeoutMs);audio.addEventListener("loadedmetadata",onReady,{once:true});audio.addEventListener("error",onError,{once:true});});}
+  async function setEqualizerEnabled(enabled){if(!enabled){state.eqEnabled=false;savePlayerPreferences();updateEqControls();updateEqStatus(eqSource?"均衡器已停用；音訊仍經過已建立的 Web Audio 播放鏈。":"均衡器已停用，原生 HTML5 播放路徑保持不變。");return;}if(!state.currentRawUrl||!audio.src){state.eqEnabled=true;savePlayerPreferences();updateEqControls();updateEqStatus("已啟用。下一首音訊載入時會先檢查 CORS，再建立效果器。");return;}const url=state.currentRawUrl;if(!await probeAudioCors(url)){state.eqEnabled=false;updateEqControls();updateEqStatus("目前音訊來源未通過 CORS／Range 檢查，已保持原生播放。","error");throw new Error("音訊來源不允許跨網域 Web Audio；為避免播放變成無聲，均衡器沒有啟用。");}const position=Number(audio.currentTime||0),wasPlaying=!audio.paused;accountTime();saveProgress(true);audio.pause();audio.crossOrigin="anonymous";await createEqualizerGraph();state.eqEnabled=true;savePlayerPreferences();updateEqControls();const ready=waitForAudioMetadata(15000,true);audio.src=url;audio.load();await ready;if(Number.isFinite(audio.duration)&&position<audio.duration)audio.currentTime=position;if(wasPlaying)await audio.play();updateEqStatus("均衡器已啟用，已確認目前來源可用 CORS Range。","ok");}
+  function renderLyricsPanel(){const item=state.currentItem,list=$("#lyrics-list"),title=$("#lyrics-title"),subtitle=$("#lyrics-subtitle"),status=$("#lyrics-status");if(!list)return;state.lyricsActiveIndex=-1;const raw=Array.isArray(item?.lyrics)?item.lyrics:(item?.lyrics?[item.lyrics]:[]);const parsed=parseSynchronizedLyrics(raw);state.lyricsCues=parsed.cues;state.lyricsPlainLines=parsed.plainLines;if(title)title.textContent=item?.title||"尚未選擇音訊";if(subtitle)subtitle.textContent=item?.subtitle||item?.album||"";if(parsed.cues.length){list.innerHTML=parsed.cues.map((cue,index)=>'<button class="lyrics-line" data-lyric-index="'+index+'" type="button">'+esc(cue.text)+'</button>').join("");if(status)status.textContent="同步歌詞 · "+parsed.cues.length+" 行。點擊歌詞可跳轉到對應時間。";}else if(parsed.plainLines.length){list.innerHTML=parsed.plainLines.map(line=>'<p class="lyrics-plain-line">'+esc(line)+'</p>').join("");if(status)status.textContent="目前只有純文字歌詞，沒有時間標記，因此無法逐句同步高亮。支援內嵌 LRC 時間標記。";}else{list.innerHTML='<div class="lyrics-empty">這首音訊沒有讀到內嵌歌詞。</div>';if(status)status.textContent="支援含時間戳記的 LRC 歌詞；不會修改原始音訊。";}}
+  function syncLyricsHighlight(){if(!$("#lyrics-dialog")?.open||!state.lyricsCues.length)return;const time=Number(audio.currentTime||0);let low=0,high=state.lyricsCues.length-1,active=-1;while(low<=high){const mid=(low+high)>>1;if(state.lyricsCues[mid].time<=time){active=mid;low=mid+1;}else high=mid-1;}if(active===state.lyricsActiveIndex)return;state.lyricsActiveIndex=active;const list=$("#lyrics-list");list?.querySelectorAll(".lyrics-line").forEach((node,index)=>node.classList.toggle("active",index===active));const current=active>=0?list?.querySelector('[data-lyric-index="'+active+'"]'):null;current?.scrollIntoView?.({block:"center",behavior:"smooth"});}
+  function animateLibraryContent(){root.classList.remove("view-enter");void root.offsetWidth;root.classList.add("view-enter");}
+  function openModal(dialog){if(!dialog||dialog.open)return;try{dialog.showModal();}catch{dialog.setAttribute("open","");}}
   async function api(url,init={}) {
     const headers=new Headers(init.headers||{});headers.set("Authorization","Bearer "+authToken());
     if(init.body&&!headers.has("Content-Type"))headers.set("Content-Type","application/json");
@@ -620,7 +646,8 @@ export function initLibraryUI(options = {}) {
   audio.addEventListener("timeupdate",()=>{timeline();syncLyricsHighlight();});
   audio.addEventListener("ended",()=>{
     accountTime();persistSession(true);saveProgress(true);state.session=null;
-    if(state.playMode==="repeat-all")next(1);
+    if(state.playMode==="repeat-one"){audio.currentTime=0;audio.play().catch(error=>message(error.message||"單曲循環播放失敗。","error"));}
+    else if(state.playMode==="repeat-all")next(1);
     else{$("#player-toggle").textContent="▶";document.body.classList.remove("is-audio-playing");}
   });
   $("#player-toggle")?.addEventListener("click",()=>{
