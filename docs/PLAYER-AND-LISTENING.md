@@ -2,7 +2,7 @@
 
 ## Shared player
 
-Music tracks and Podcast episodes use one bottom-docked audio player. A queue is created from the current track list, album, artist, folder or show. Previous / next controls move inside that queue. The audio element obtains its temporary playback URL from OpenList at play time.
+Music tracks and Podcast episodes use one bottom-docked HTML5 audio player. A queue is created from the current track list, album, artist, folder or show. Previous / next controls move inside that queue. The player can use a separately configured VPS Alist as its preferred playback-URL resolver while Cloudflare OpenList remains the catalogue, indexing and metadata source. If the VPS Alist API lookup fails or its media source raises an HTML5 media error, playback falls back to Cloudflare OpenList. Both API credentials are kept in page memory only; playback URLs are temporary and are not written to D1 or R2. The returned media URL is handed to the browser directly; this feature does not proxy or transcode the audio through Pages or VPS.
 
 ## Resume
 
