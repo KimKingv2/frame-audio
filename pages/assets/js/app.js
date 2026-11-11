@@ -22,6 +22,11 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   const currentPathLabel = $("#current-path");
   const metadataPreview = $("#metadata-result");
   const browseButton = $("#browse-root");
+  const rememberCredentialsInput = $("#remember-credentials");
+  const sharedVpsTokenInput = $("#share-vps-token");
+  const forgetCredentialsButton = $("#forget-credentials");
+  const credentialStorageKey = "frame-audio-credentials-v1";
+  let restoredCredentials = false;
   let activeBaseUrl = "";
   let activeToken = "";
   let activeStorageToken = "";
@@ -133,9 +138,88 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     appendScanLog((prefix ? prefix + "｜" : "") + (event.message || String(event)), event.level || "info");
   }
 
+  function currentStorageToken() {
+    return sharedVpsTokenInput?.checked
+      ? tokenInput.value.trim()
+      : storageTokenInput.value.trim();
+  }
+
+  function syncStorageTokenMode(copyFromVps = false) {
+    const shared = sharedVpsTokenInput?.checked === true;
+    if (storageTokenInput) {
+      storageTokenInput.readOnly = shared;
+      if (shared && copyFromVps) storageTokenInput.value = tokenInput.value;
+    }
+    activeStorageToken = currentStorageToken();
+    cloudflareStorageReady = false;
+  }
+
+  function saveCredentials() {
+    if (!rememberCredentialsInput?.checked) {
+      try { localStorage.removeItem(credentialStorageKey); } catch {}
+      return;
+    }
+    const shared = sharedVpsTokenInput?.checked === true;
+    const payload = {
+      version: 1,
+      openListUrl: urlInput.value.trim(),
+      openListToken: tokenInput.value,
+      shareVpsToken: shared,
+      adminToken: shared ? "" : storageTokenInput.value.trim(),
+      musicRoot: musicRootInput.value,
+      podcastRoot: podcastRootInput.value
+    };
+    try {
+      localStorage.setItem(credentialStorageKey, JSON.stringify(payload));
+    } catch {
+      setStorageResult("瀏覽器拒絕保存本機憑證。請檢查隱私／網站儲存設定。", "error");
+    }
+  }
+
+  function restoreCredentials() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(credentialStorageKey) || "null");
+      if (!saved || saved.version !== 1) return;
+      if (typeof saved.openListUrl === "string" && saved.openListUrl) urlInput.value = saved.openListUrl;
+      if (typeof saved.openListToken === "string") tokenInput.value = saved.openListToken;
+      const share = saved.shareVpsToken !== false;
+      if (sharedVpsTokenInput) sharedVpsTokenInput.checked = share;
+      if (share) {
+        storageTokenInput.value = tokenInput.value;
+      } else if (typeof saved.adminToken === "string") {
+        storageTokenInput.value = saved.adminToken;
+      }
+      storageTokenInput.readOnly = share;
+      if (typeof saved.musicRoot === "string" && saved.musicRoot) musicRootInput.value = saved.musicRoot;
+      if (typeof saved.podcastRoot === "string" && saved.podcastRoot) podcastRootInput.value = saved.podcastRoot;
+      activeBaseUrl = urlInput.value.trim();
+      activeToken = tokenInput.value;
+      activeStorageToken = currentStorageToken();
+      restoredCredentials = Boolean(activeToken.trim() && activeBaseUrl);
+    } catch {
+      restoredCredentials = false;
+    }
+  }
+
+  function forgetCredentials() {
+    try { localStorage.removeItem(credentialStorageKey); } catch {}
+    tokenInput.value = "";
+    storageTokenInput.value = "";
+    activeToken = "";
+    activeStorageToken = "";
+    connected = false;
+    cloudflareStorageReady = false;
+    if (sharedVpsTokenInput) sharedVpsTokenInput.checked = true;
+    if (storageTokenInput) storageTokenInput.readOnly = true;
+    setResult("已清除本機保存的 VPS Alist Token。");
+    setStorageResult("已清除本機保存的 Cloudflare 管理金鑰。", "ok");
+  }
+
+  restoreCredentials();
+
   async function testCloudflareStorage() {
     const button = $("#test-storage");
-    activeStorageToken = storageTokenInput.value.trim();
+    activeStorageToken = currentStorageToken();
     if (!activeStorageToken) {
       setStorageResult("請輸入 Cloudflare 儲存管理金鑰。這不是 OpenList API Token。", "error");
       return;
@@ -150,8 +234,14 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       });
       let data = {};
       try { data = await response.json(); } catch {}
-      if (!response.ok || !data.ok) throw new Error(data.error || ("Cloudflare API HTTP " + response.status));
+      if (!response.ok || !data.ok) {
+        if (response.status === 401 && sharedVpsTokenInput?.checked) {
+          throw new Error("Cloudflare 拒絕目前的 VPS Token。請確認 Cloudflare Pages Secret「FRAME_AUDIO_ADMIN_TOKEN」已設為同一個 Token；若要使用不同金鑰，可取消「共用 VPS Token」。");
+        }
+        throw new Error(data.error || ("Cloudflare API HTTP " + response.status));
+      }
       cloudflareStorageReady = true;
+      saveCredentials();
       void libraryUI?.refresh();
       setStorageResult(
         "PASS：Cloudflare 儲存已連線。\nD1：歌曲 " + data.tracks + " 首；資料夾 " + data.folders + " 個。\nR2：已連接。" +
@@ -1466,6 +1556,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     const button = $("#test-connection");
     activeBaseUrl = urlInput.value.trim();
     activeToken = tokenInput.value;
+    syncStorageTokenMode(true);
     const path = pathInput.value.trim() || "/";
     if (!activeToken.trim()) {
       setResult("請先輸入 VPS Alist 唯讀 API Token。", "error");
@@ -1493,6 +1584,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         perPage: 100
       });
       renderDirectory(result);
+      saveCredentials();
     } catch (error) {
       $("#connection-label").textContent = "VPS Alist 尚未連線";
       $("#connection-dot").style.background = "#b78b75";
@@ -1548,13 +1640,38 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) dialog.close();
   });
+  rememberCredentialsInput?.addEventListener("change", () => {
+    if (rememberCredentialsInput.checked) {
+      saveCredentials();
+      setStorageResult("已啟用本機憑證保存。憑證只存在此瀏覽器，不會寫入 GitHub。", "ok");
+    } else {
+      try { localStorage.removeItem(credentialStorageKey); } catch {}
+      setStorageResult("已停用本機保存；目前頁面仍可繼續使用已輸入的憑證。", "ok");
+    }
+  });
+  sharedVpsTokenInput?.addEventListener("change", () => {
+    syncStorageTokenMode(true);
+    saveCredentials();
+    setStorageResult(
+      sharedVpsTokenInput.checked
+        ? "Cloudflare D1 / R2 現在會使用 VPS Alist Token。請確認 Pages Secret FRAME_AUDIO_ADMIN_TOKEN 的值相同。"
+        : "已切換為獨立 Cloudflare D1 / R2 管理金鑰。",
+      "ok"
+    );
+  });
+  forgetCredentialsButton?.addEventListener("click", forgetCredentials);
   storageTokenInput.addEventListener("input", () => {
-    activeStorageToken = storageTokenInput.value.trim();
+    activeStorageToken = currentStorageToken();
     cloudflareStorageReady = false;
+    saveCredentials();
   });
   tokenInput.addEventListener("input", () => {
-    // Keep credentials only in this page's JavaScript/DOM memory. Never persist them.
     activeToken = tokenInput.value;
+    if (sharedVpsTokenInput?.checked) syncStorageTokenMode(true);
+    saveCredentials();
+  });
+  [urlInput, musicRootInput, podcastRootInput].forEach(input => {
+    input?.addEventListener("input", saveCredentials);
   });
 
   libraryUI = initLibraryUI({
@@ -1615,4 +1732,9 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   });
 
   showView("music");
+  if (restoredCredentials) {
+    setResult("已載入此瀏覽器保存的 VPS Token，正在自動連線……");
+    setStorageResult("已載入此瀏覽器保存的管理金鑰，正在自動測試 D1 / R2……");
+    Promise.allSettled([testConnection(), testCloudflareStorage()]);
+  }
 })();
