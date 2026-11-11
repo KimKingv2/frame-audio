@@ -20,7 +20,7 @@ FRAME Audio 是以 VPS Alist 為音訊來源的私人音訊平台，包含 **Mus
 - D1 以新增／更新方式寫入；部分掃描、失敗掃描與路徑修復不會清空整個曲庫。
 - R2 封面以 SHA-256 去重保存。
 - 修復路徑時，先成功建立新索引，再將舊路徑的收聽事件及續播資料移轉到新索引。
-- VPS Alist Token 與 Cloudflare D1/R2 管理憑證只保存在 Cloudflare Pages Secrets；瀏覽器不會取得、傳送或保存 Token。所有私有 API 均由 Cloudflare Access 保護。
+- VPS Alist API Token 與 FRAME Audio 內部 API 管理 Secret 只保存在 Cloudflare Pages Secrets；瀏覽器不會取得、傳送或保存 Token。所有私有 API 均由 Cloudflare Access 保護。
 
 ## Cloudflare 資料表
 
@@ -62,6 +62,6 @@ FRAME Audio 是以 VPS Alist 為音訊來源的私人音訊平台，包含 **Mus
 - Build command：留空
 - Build output directory：`pages`
 
-正式環境與 Preview 環境應各自設定 `DB`、`ARTWORKS` bindings、`FRAME_AUDIO_ADMIN_TOKEN`、`OPENLIST_API_TOKEN` Secrets，以及 `OPENLIST_BASE_URL=https://drive.kimkingv2.top` Variable。Access 必須保護 `frame-audio.pages.dev` 與 `*.frame-audio.pages.dev`。詳細步驟見 [docs/CLOUDFLARE-STORAGE.md](docs/CLOUDFLARE-STORAGE.md)。
+正式環境與 Preview 環境應各自設定 `DB`、`ARTWORKS` bindings、`FRAME_AUDIO_API_ADMIN_TOKEN`、`ALIST_VPS_API_TOKEN` Secrets，以及 `ALIST_VPS_API_BASE_URL=https://drive.kimkingv2.top` Variable。Access 必須保護 `frame-audio.pages.dev` 與 `*.frame-audio.pages.dev`。詳細步驟見 [docs/CLOUDFLARE-STORAGE.md](docs/CLOUDFLARE-STORAGE.md)。
 
 新增或修改環境變數及 Secret 後，必須觸發一次新的 Pages 部署，新的設定才會注入該部署。請確認 Secret 設定在正確的環境（Production 或 Preview），再重新部署對應分支。

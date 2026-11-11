@@ -12,9 +12,9 @@ export async function onRequest(context) {
     return error("Cloudflare Access 驗證未完成，請重新登入後再試。", 403);
   }
 
-  const adminToken = String(env.FRAME_AUDIO_ADMIN_TOKEN || "").trim();
+  const adminToken = String(env.FRAME_AUDIO_API_ADMIN_TOKEN || env.FRAME_AUDIO_ADMIN_TOKEN || "").trim();
   if (!adminToken) {
-    return error("Cloudflare 尚未設定 FRAME_AUDIO_ADMIN_TOKEN Secret。", 503);
+    return error("Cloudflare 尚未設定 FRAME_AUDIO_API_ADMIN_TOKEN Secret。", 503);
   }
 
   const headers = new Headers(request.headers);

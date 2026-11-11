@@ -1,13 +1,13 @@
 import { error, isObject, json } from "./api.js";
 
 function configuredBase(env) {
-  const raw = String(env.OPENLIST_BASE_URL || "").trim();
-  if (!raw) return { response: error("Cloudflare 尚未設定 OPENLIST_BASE_URL Variable。", 503) };
+  const raw = String(env.ALIST_VPS_API_BASE_URL || env.OPENLIST_BASE_URL || "").trim();
+  if (!raw) return { response: error("Cloudflare 尚未設定 ALIST_VPS_API_BASE_URL Variable。", 503) };
   let url;
   try { url = new URL(raw); }
-  catch { return { response: error("OPENLIST_BASE_URL 不是有效網址。", 503) }; }
+  catch { return { response: error("ALIST_VPS_API_BASE_URL 不是有效網址。", 503) }; }
   if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) {
-    return { response: error("OPENLIST_BASE_URL 必須是沒有帳密、查詢參數或片段的 HTTPS 網址。", 503) };
+    return { response: error("ALIST_VPS_API_BASE_URL 必須是沒有帳密、查詢參數或片段的 HTTPS 網址。", 503) };
   }
   return { baseUrl: url.origin + url.pathname.replace(/\/+$/, "") };
 }
@@ -18,8 +18,8 @@ export function validOpenListPath(value) {
 }
 
 export async function postOpenList(env, endpoint, body, timeoutMs = 20000) {
-  const token = String(env.OPENLIST_API_TOKEN || "").trim();
-  if (!token) return { response: error("Cloudflare 尚未設定 OPENLIST_API_TOKEN Secret。", 503) };
+  const token = String(env.ALIST_VPS_API_TOKEN || env.OPENLIST_API_TOKEN || "").trim();
+  if (!token) return { response: error("Cloudflare 尚未設定 ALIST_VPS_API_TOKEN Secret。", 503) };
   const configured = configuredBase(env);
   if (configured.response) return configured;
 

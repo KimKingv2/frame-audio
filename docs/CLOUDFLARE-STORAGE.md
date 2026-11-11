@@ -8,11 +8,23 @@ FRAME Audio uses Cloudflare Pages Functions as its same-origin API, D1 for catal
 - R2 bucket: `frame-audio-artwork`
 - Pages D1 binding: `DB`
 - Pages R2 binding: `ARTWORKS`
-- Secret: `FRAME_AUDIO_ADMIN_TOKEN`
-- Secret: `OPENLIST_API_TOKEN`
-- Variable: `OPENLIST_BASE_URL`
+- Secret: `FRAME_AUDIO_API_ADMIN_TOKEN` (FRAME Audio internal API admin gate)
+- Secret: `ALIST_VPS_API_TOKEN` (VPS Alist API credential)
+- Variable: `ALIST_VPS_API_BASE_URL` (VPS Alist API base URL)
+
+The D1 and R2 resources are accessed through the existing `DB` and `ARTWORKS` Pages bindings. `FRAME_AUDIO_API_ADMIN_TOKEN` is an application-level gate for private FRAME Audio routes; it is **not** a Cloudflare Account API Token and does not directly grant access to the Cloudflare account.
 
 Keep using the existing D1 database and R2 bucket containing the Music and Podcast catalogue. Do not create replacement resources or run destructive SQL.
+
+## Naming convention
+
+Use uppercase `SERVICE_SOURCE_PURPOSE` names for external integrations:
+
+- `ALIST_VPS_API_BASE_URL` and `ALIST_VPS_API_TOKEN`: the VPS Alist source.
+- Future Alist sources can use the same pattern, for example `ALIST_WORKER_API_BASE_URL` and `ALIST_WORKER_API_TOKEN`.
+- `FRAME_AUDIO_*`: secrets and settings owned by the FRAME Audio application, such as `FRAME_AUDIO_API_ADMIN_TOKEN`.
+
+Keep credentials in Pages Secrets, not regular Variables, and never expose them to browser code.
 
 ## D1 initialization
 
@@ -32,11 +44,11 @@ Configure the following separately for **Production** and **Preview**:
 
 | Name | Type | Value |
 |---|---|---|
-| `OPENLIST_BASE_URL` | Variable | `https://drive.kimkingv2.top` |
-| `OPENLIST_API_TOKEN` | Secret | The read-only VPS Alist API Token |
-| `FRAME_AUDIO_ADMIN_TOKEN` | Secret | Keep the existing D1/R2 admin credential |
+| `ALIST_VPS_API_BASE_URL` | Variable | `https://drive.kimkingv2.top` |
+| `ALIST_VPS_API_TOKEN` | Secret | The read-only VPS Alist API Token |
+| `FRAME_AUDIO_API_ADMIN_TOKEN` | Secret | Keep the existing FRAME Audio API admin secret value |
 
-Do not paste any Secret into the website, JavaScript, GitHub, a URL, or a chat. Do not change the existing `FRAME_AUDIO_ADMIN_TOKEN` value while migrating. The new `OPENLIST_API_TOKEN` is a separate Pages Secret and should contain the read-only token currently used for VPS Alist.
+Do not paste any Secret into the website, JavaScript, GitHub, a URL, or a chat. Do not change the existing `FRAME_AUDIO_API_ADMIN_TOKEN` value while renaming it. The `ALIST_VPS_API_TOKEN` is a separate Pages Secret and should contain the read-only token currently used for VPS Alist. No Cloudflare Account API Token is required for D1/R2 access.
 
 Also verify the existing bindings in both environments:
 
@@ -47,7 +59,7 @@ After saving environment values, trigger a new deployment of the relevant branch
 
 ## Cloudflare Access
 
-Protect both production hostname `frame-audio.pages.dev` and the Preview hostname pattern `*.frame-audio.pages.dev` with Cloudflare Access. Restrict the Allow policy to the owner's exact email address. Pages middleware rejects API requests without the Access assertion header and injects the D1/R2 admin Secret into the request only on the server.
+Protect both production hostname `frame-audio.pages.dev` and the Preview hostname pattern `*.frame-audio.pages.dev` with Cloudflare Access. Restrict the Allow policy to the owner's exact email address. Pages middleware rejects API requests without the Access assertion header and injects the FRAME Audio API admin Secret into the request only on the server.
 
 ## Connection checks
 
@@ -56,7 +68,7 @@ Open the site and complete the Access email OTP login. The connection dialog sho
 1. VPS Alist through the same-origin Pages Function routes `/api/openlist/list` and `/api/openlist/get`.
 2. Cloudflare D1 and R2 through the existing catalogue status endpoint.
 
-A successful status check reports Music track/folder counts, Podcast schema status and listening schema status. A missing `OPENLIST_API_TOKEN` or `OPENLIST_BASE_URL` returns an explicit server-side configuration error.
+A successful status check reports Music track/folder counts, Podcast schema status and listening schema status. A missing `ALIST_VPS_API_TOKEN` or `ALIST_VPS_API_BASE_URL` returns an explicit server-side configuration error.
 
 ## API overview
 
@@ -67,7 +79,7 @@ A successful status check reports Music track/folder counts, Podcast schema stat
 - `POST /api/listening`: playback progress and listening sessions.
 - `PUT /api/artwork/<sha256>` / `GET /api/artwork/<sha256>`: private R2 artwork.
 
-All API routes are protected by Cloudflare Access. The Pages middleware overwrites any browser Authorization header with the server-held `FRAME_AUDIO_ADMIN_TOKEN` before existing private D1/R2 handlers run.
+All API routes are protected by Cloudflare Access. The Pages middleware overwrites any browser Authorization header with the server-held `FRAME_AUDIO_API_ADMIN_TOKEN` before existing private D1/R2 handlers run.
 
 ## Media delivery and privacy
 

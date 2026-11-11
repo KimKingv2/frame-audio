@@ -2,7 +2,7 @@
 
 FRAME Audio now separates private API access from media delivery:
 
-1. Folder listing and file-info lookups use same-origin Pages Functions routes. Cloudflare Pages reads the VPS Alist API token from the `OPENLIST_API_TOKEN` Secret and calls Alist server-to-server. The browser no longer sends an Alist API token to the VPS API and no longer needs Alist API CORS permissions for `/api/fs/list` or `/api/fs/get`.
+1. Folder listing and file-info lookups use same-origin Pages Functions routes. Cloudflare Pages reads the VPS Alist API token from the `ALIST_VPS_API_TOKEN` Secret and calls Alist server-to-server. The browser no longer sends an Alist API token to the VPS API and no longer needs Alist API CORS permissions for `/api/fs/list` or `/api/fs/get`.
 2. Playback and bounded media Range reads still use the temporary `raw_url` returned by Alist. The browser connects directly to that URL. This is intentional: Pages does not proxy or transcode the audio stream.
 
 ## When CORS is still required
