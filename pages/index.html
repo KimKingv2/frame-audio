@@ -108,11 +108,16 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   <div class="dialog-body">
     <div class="formgrid">
       <div class="field"><label for="openlist-url">VPS Alist 網址</label><input id="openlist-url" type="url" value="https://drive.kimkingv2.top" autocomplete="url" spellcheck="false"></div>
-      <div class="field"><label for="openlist-token">VPS Alist 唯讀 API Token</label><input id="openlist-token" type="password" placeholder="貼上 VPS Alist Token（不會保存）" autocomplete="off" spellcheck="false"><div class="hint">Token 僅在本次頁面開啟期間保留於記憶體，重新整理頁面後需要重新輸入。建議使用只有讀取權限的 Alist 帳號。</div></div>
+      <div class="field"><label for="openlist-token">VPS Alist 唯讀 API Token</label><input id="openlist-token" type="password" placeholder="貼上 VPS Alist 唯讀 Token" autocomplete="off" spellcheck="false"><div class="hint">啟用本機記住憑證後，Token 會保存在目前瀏覽器的 localStorage，重新開啟網站會自動載入。建議使用只有讀取權限的 Alist 帳號。</div></div>
       <div class="field"><label for="music-root-path">Music 索引根目錄</label><input id="music-root-path" type="text" value="/中國移動雲盤/Kim King/03 Music" spellcheck="false"><div class="hint">Music 掃描只讀取此目錄及其子資料夾；可手動修改，或在下方瀏覽資料夾後選為 Music 根目錄。</div></div>
       <div class="field"><label for="podcast-root-path">Podcast 節目根目錄</label><input id="podcast-root-path" type="text" value="/中國移動雲盤/Kim King/13 喜马拉雅" spellcheck="false"><div class="hint">Podcast 第一層資料夾各自作為節目；可手動修改，或在下方瀏覽資料夾後選為 Podcast 根目錄。</div></div>
       <div class="field"><label for="openlist-path">目前目錄瀏覽／連線測試路徑</label><input id="openlist-path" type="text" value="/" placeholder="/" spellcheck="false"><div class="hint">這個欄位只控制下方 VPS Alist 目錄瀏覽器，不會決定 Music 或 Podcast 的掃描根目錄。</div></div>
-      <div class="field"><label for="cloudflare-admin-token">Cloudflare D1 / R2 管理金鑰</label><input id="cloudflare-admin-token" type="password" placeholder="輸入 Cloudflare 管理金鑰（不會保存）" autocomplete="off" spellcheck="false"><div class="hint">這是 Cloudflare D1 / R2 儲存 API 專用金鑰，與 VPS Alist Token 不同。只保留在本次頁面記憶體。</div></div>
+      <div class="field"><label for="cloudflare-admin-token">Cloudflare D1 / R2 管理金鑰</label><input id="cloudflare-admin-token" type="password" placeholder="預設與 VPS Token 共用" autocomplete="off" spellcheck="false" readonly><div class="hint">預設暫時與 VPS Alist Token 共用。Cloudflare Pages Secret「FRAME_AUDIO_ADMIN_TOKEN」也必須設定成同一個值，否則 D1 / R2 測試會回報 401。</div></div>
+      <div class="field credential-options">
+        <label class="hint" style="display:flex;align-items:center;gap:8px"><input id="share-vps-token" type="checkbox" checked style="width:auto"> 暫時共用 VPS Token 作為 Cloudflare D1 / R2 管理金鑰</label>
+        <label class="hint" style="display:flex;align-items:center;gap:8px"><input id="remember-credentials" type="checkbox" checked style="width:auto"> 在此瀏覽器記住憑證，之後自動載入並連線</label>
+        <div class="actions"><button type="button" class="secondary" id="forget-credentials">清除本機憑證</button></div>
+      </div>
     </div>
     <div class="actions"><button type="button" class="primary" id="test-connection">測試 VPS Alist 並讀取目錄</button><button type="button" class="secondary" id="browse-root" disabled>重新讀取目前路徑</button></div><div class="actions"><button type="button" class="secondary" id="test-storage">測試 Cloudflare D1 / R2</button></div>
     <div class="statusbox" id="connection-result" role="status">尚未連線。測試只會呼叫 VPS Alist 的唯讀目錄列表 API，不會修改檔案。</div>
@@ -141,7 +146,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
       </details>
     </div>
     <div class="metadata-result" id="metadata-result" hidden></div>
-    <div class="privacy">安全提醒：資料夾瀏覽、Music／Podcast 掃描、檔案標籤讀取與播放網址均使用 VPS Alist；Cloudflare 只負責 D1 索引、播放進度與 R2 封面。VPS Alist Token 與 Cloudflare 管理金鑰只保留在本次頁面記憶體。VPS Alist 必須允許 https://frame-audio.pages.dev 的 CORS，並允許 POST、OPTIONS、Authorization、Content-Type；音訊仍由 HTML5 Audio 直接連接其 raw_url。</div>
+    <div class="privacy">安全提醒：資料夾瀏覽、Music／Podcast 掃描、檔案標籤讀取與播放網址均使用 VPS Alist；Cloudflare 只負責 D1 索引、播放進度與 R2 封面。勾選本機記住憑證時，Token 會保存在目前瀏覽器的 localStorage，不會寫入 GitHub 或公開網頁程式碼；請勿在共用裝置啟用。VPS Alist 必須允許 https://frame-audio.pages.dev 的 CORS，並允許 POST、OPTIONS、Authorization、Content-Type；音訊仍由 HTML5 Audio 直接連接其 raw_url。</div>
   </div>
 </dialog>
 <script>
@@ -166,5 +171,5 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   });
 })();
 </script>
-<script type="module" src="/assets/js/app.js?v=20261111-player-experience1"></script>
+<script type="module" src="/assets/js/app.js?v=20261111-remember-credentials1"></script>
 </body></html>
