@@ -30,7 +30,7 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000) {
     const target = new URL("api/fs/" + endpoint, configured.baseUrl + "/");
     upstream = await fetch(target.href, {
       method: "POST",
-      redirect: "error",
+      redirect: "manual",
       headers: {
         "Authorization": token,
         "Content-Type": "application/json"
@@ -59,6 +59,24 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000) {
     ) };
   } finally {
     clearTimeout(timeout);
+  }
+
+  // Cloudflare Workers supports only "follow" and "manual" redirect modes.
+  // Never forward the Alist credential to a redirect target automatically.
+  if (upstream.status >= 300 && upstream.status < 400) {
+    const location = upstream.headers.get("location") || "";
+    let destination = "未知";
+    try {
+      destination = new URL(location, configured.baseUrl).hostname || "未知";
+    } catch {}
+    return {
+      response: error(
+        "VPS Alist API 回傳 HTTP " + upstream.status +
+        " 重新導向（目的主機：" + destination +
+        "）。請將 ALIST_VPS_API_BASE_URL 設為最終 HTTPS API 網址；為保護 Token，系統不會自動跟隨跨站重新導向。",
+        502
+      )
+    };
   }
 
   let payload;
