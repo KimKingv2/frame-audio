@@ -214,21 +214,29 @@
     border-radius:7px;
     font-size:7px;
   }
-  .player-stop{
-    display:inline-flex!important;
+  .controls .player-stop{
+    display:inline-flex;
     width:22px;
     min-width:22px;
+    max-width:22px;
     height:27px;
     min-height:27px;
+    max-height:27px;
     flex:0 0 22px;
     box-sizing:border-box;
-    padding:0!important;
+    margin:0;
+    padding:0;
+    border:0;
+    border-radius:8px;
+    background:transparent;
+    color:#aaa0b8;
     align-self:center;
     line-height:1;
     align-items:center;
     justify-content:center;
     font-size:10px;
     vertical-align:middle;
+    aspect-ratio:auto;
   }
   .timeline{
     grid-column:auto;
@@ -324,12 +332,15 @@
     flex-basis:32px;
     font-size:7px;
   }
-  .player-stop{
+  .controls .player-stop{
     width:20px;
     min-width:20px;
+    max-width:20px;
     height:25px;
     min-height:25px;
-    flex-basis:20px;
+    max-height:25px;
+    flex:0 0 20px;
+    border-radius:7px;
   }
   .player-control-separator{margin-inline:0}
 }
