@@ -156,6 +156,7 @@ export function initLibraryUI(options = {}) {
     syncLyricsHighlight();
   }
   function renderNowPlaying() {
+    if(root.querySelector(".now-playing-page")?.dataset.closing==="true")return;
     const item=state.currentItem;
     if(!item){root.innerHTML='<div class="now-playing-empty"><button class="secondary" data-action="back-now-playing">← 返回曲庫</button><h2>尚未播放音訊</h2><p>從 Music 或 Podcast 選擇內容後，這裡會顯示目前歌曲與同步歌詞。</p></div>';return;}
     const parsed=currentLyrics(),kind=item.itemType==="episode"?"PODCAST":"MUSIC",artist=item.subtitle||item.albumArtist||item.album||"";
@@ -180,21 +181,39 @@ export function initLibraryUI(options = {}) {
     if(state.view!=="now-playing")return;
     const page=root.querySelector(".now-playing-page");
     if(!page){void showView(state.lastLibraryView||"music");return;}
-    if(page.classList.contains("now-playing-exit"))return;
-    page.classList.remove("now-playing-enter");
-    page.classList.add("now-playing-exit");
+    if(page.dataset.closing==="true")return;
+
+    page.dataset.closing="true";
+    const currentStyle=getComputedStyle(page);
+    const startTransform=currentStyle.transform==="none"?"translate3d(0,0,0)":currentStyle.transform;
+    const startOpacity=currentStyle.opacity||"1";
     let finished=false;
     let fallbackTimer=0;
-    const finish=event=>{
-      if(event&&(event.target!==page||event.animationName!=="now-playing-panel-out"))return;
+    const finish=()=>{
       if(finished)return;
       finished=true;
       if(fallbackTimer)clearTimeout(fallbackTimer);
-      page.removeEventListener("animationend",finish);
       if(state.view==="now-playing")void showView(state.lastLibraryView||"music");
     };
-    page.addEventListener("animationend",finish);
-    fallbackTimer=setTimeout(()=>finish(),600);
+
+    if(typeof page.animate==="function"){
+      page.classList.remove("now-playing-enter");
+      const exit=page.animate(
+        [{transform:startTransform,opacity:startOpacity},{transform:"translate3d(0,100%,0)",opacity:"0.96"}],
+        {duration:660,easing:"cubic-bezier(.55,.06,.68,.19)",fill:"forwards"}
+      );
+      exit.addEventListener("finish",finish,{once:true});
+      fallbackTimer=setTimeout(finish,900);
+      return;
+    }
+
+    page.classList.remove("now-playing-enter");
+    void page.offsetWidth;
+    page.classList.add("now-playing-exit");
+    page.addEventListener("animationend",event=>{
+      if(event.target===page&&event.animationName==="now-playing-panel-out")finish();
+    },{once:true});
+    fallbackTimer=setTimeout(finish,900);
   }
   function syncNowPlayingArtwork(item) {
     const host=$("#now-playing-art");if(!host||!item?.artworkHash)return;
@@ -980,7 +999,6 @@ export function initLibraryUI(options = {}) {
     if(target!=="now-playing")state.lastLibraryView=target;
     state.view=target;state.search="";
     if(!state.loaded)await load(true);else render();
-    animateLibraryContent();
   }
   async function refresh(){state.loaded=false;await load(true);}
   loadPlayerPreferences();updatePlayerModeButton();updateShuffleButton();
