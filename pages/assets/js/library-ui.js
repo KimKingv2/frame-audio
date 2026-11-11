@@ -484,7 +484,7 @@ export function initLibraryUI(options = {}) {
         getOpenListFileInfo({
           baseUrl:config.baseUrl,
           path:item.path,
-          timeoutMs:18000
+          timeoutMs:60000
         }),
         api("/api/listening?view=progress&itemType="+type+"&itemId="+encodeURIComponent(item.id)).catch(()=>({item:null}))
       ]);

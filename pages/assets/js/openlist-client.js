@@ -146,7 +146,7 @@ export async function getOpenListFileInfo({ baseUrl, token, path, timeoutMs = DE
       signal: controller.signal
     });
   } catch (error) {
-    if (error?.name === "AbortError") throw new Error("讀取 OpenList 檔案資訊逾時。");
+    if (error?.name === "AbortError") throw new Error("讀取 OpenList 檔案資訊逾時（已等待 60 秒）。");
     throw new Error("無法讀取伺服器端 OpenList 檔案資訊。請確認 Cloudflare Access 與 Pages Functions 設定。");
   } finally {
     clearTimeout(timeout);

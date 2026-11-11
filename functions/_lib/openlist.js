@@ -18,6 +18,7 @@ export function validOpenListPath(value) {
 }
 
 export async function postOpenList(env, endpoint, body, timeoutMs = 20000) {
+  const startedAt = Date.now();
   const token = String(env.ALIST_VPS_API_TOKEN || env.OPENLIST_API_TOKEN || "").trim();
   if (!token) return { response: error("Cloudflare 尚未設定 ALIST_VPS_API_TOKEN Secret。", 503) };
   const configured = configuredBase(env);
@@ -39,7 +40,11 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000) {
       signal: controller.signal
     });
   } catch (cause) {
-    if (cause?.name === "AbortError") return { response: error("VPS Alist API 請求逾時。", 504) };
+    if (cause?.name === "AbortError") {
+      const elapsedMs = Date.now() - startedAt;
+      console.warn("[FRAME Audio] VPS Alist API timeout", { endpoint, timeoutMs, elapsedMs });
+      return { response: error("VPS Alist API 請求逾時（" + Math.round(elapsedMs / 1000) + " 秒）。", 504) };
+    }
     const diagnosticCode = String(cause?.cause?.code || cause?.code || "");
     const diagnosticMessage = String(cause?.cause?.message || cause?.message || cause?.name || "Unknown error")
       .replace(/https?:\/\/[^\s"'<>]+/gi, "[URL]")
@@ -78,6 +83,12 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000) {
       )
     };
   }
+
+  console.info("[FRAME Audio] VPS Alist API response", {
+    endpoint,
+    status: upstream.status,
+    elapsedMs: Date.now() - startedAt
+  });
 
   let payload;
   try { payload = await upstream.json(); }

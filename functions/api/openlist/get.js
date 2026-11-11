@@ -11,7 +11,7 @@ export async function onRequestPost({ request, env }) {
   const result = await postOpenList(env, "get", {
     path: body.path,
     password: ""
-  }, 20000);
+  }, 55000);
   if (result.response) return result.response;
 
   const payload = result.payload;
