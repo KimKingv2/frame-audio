@@ -161,6 +161,9 @@ export function initLibraryUI(options = {}) {
     let page=document.querySelector(".now-playing-page");
     if(page?.dataset.closing==="true")return;
     const item=state.currentItem;
+    // Keep the original, event-bound controls alive while rebuilding the detail view.
+    const transport=$("#player-transport");
+    const detailControls=$("#player-detail-controls");
     if(!page){
       page=document.createElement("section");
       page.className="now-playing-page now-playing-enter";
@@ -175,19 +178,32 @@ export function initLibraryUI(options = {}) {
     const pendingNotice=root.querySelector(":scope > .now-playing-notice");
     if(pendingNotice)page.prepend(pendingNotice);
     if(!item){
-      page.innerHTML='<div class="now-playing-empty"><button class="secondary" data-action="back-now-playing">← 返回曲庫</button><h2>尚未播放音訊</h2><p>從 Music 或 Podcast 選擇內容後，這裡會顯示目前歌曲與同步歌詞。</p></div>';
+      page.innerHTML='<div class="now-playing-empty"><button class="secondary" data-action="back-now-playing">⌄ 收起播放器</button><h2>尚未播放音訊</h2><p>從 Music 或 Podcast 選擇內容後，這裡會顯示目前歌曲與同步歌詞。</p></div>';
+      const dockTransport=document.querySelector(".dock-transport-host"),dock=document.querySelector(".dock");
+      if(transport&&dockTransport)dockTransport.append(transport);
+      if(detailControls&&dock)dock.append(detailControls);
       return;
     }
-    const parsed=currentLyrics(),kind=item.itemType==="episode"?"PODCAST":"MUSIC",artist=item.subtitle||item.albumArtist||item.album||"";
-    page.innerHTML='<div class="now-playing-topbar"><button class="secondary" data-action="back-now-playing">← 返回曲庫</button><span class="kicker">NOW PLAYING</span><span class="now-playing-kind">'+kind+'</span></div>'+
+    const parsed=currentLyrics(),kind=item.itemType==="episode"?"PODCAST":"MUSIC";
+    const artist=item.subtitle||item.albumArtist||item.album||"";
+    page.innerHTML='<div class="now-playing-topbar">'+
+      '<button class="now-playing-back" data-action="back-now-playing" type="button" aria-label="收起正在播放詳情"><span aria-hidden="true">⌄</span><small>收起</small></button>'+
+      '<div class="now-playing-topbar-copy"><span class="kicker">NOW PLAYING</span><strong>正在播放</strong></div>'+
+      '<span class="now-playing-kind">'+kind+'</span></div>'+
       '<div class="now-playing-main">'+
-       '<div class="now-playing-track"><div class="now-playing-art" id="now-playing-art"><span>'+esc(String(item.title||"FA").slice(0,1).toUpperCase())+'</span></div>'+
+       '<div class="now-playing-track">'+
+        '<div class="now-playing-art" id="now-playing-art"><span>'+esc(String(item.title||"FA").slice(0,1).toUpperCase())+'</span></div>'+
         '<div class="now-playing-track-copy"><span class="kicker">CURRENT TRACK</span><h1>'+esc(item.title||"未命名音訊")+'</h1><p>'+esc(artist)+'</p><div class="now-playing-track-meta"><span>'+kind+'</span><span>'+duration(item.durationMs)+'</span></div></div>'+
+        '<div class="now-playing-playback-panel"><div class="now-playing-transport-host"></div><div class="now-playing-tools-host"></div></div>'+
         (item.itemType==="track"&&pathOf(item)&&typeof options.reindexMusic==="function"?'<button class="secondary now-playing-reindex" data-action="reindex-current-lyrics">重新讀取這首歌的標籤</button>':"")+
         '<p class="now-playing-reindex-status" id="now-playing-reindex-status" role="status"></p></div>'+
        '<section class="now-playing-lyrics-panel" aria-label="同步歌詞"><div class="now-playing-lyrics-heading"><span class="kicker">LYRICS</span><span>'+(parsed.cues.length?parsed.cues.length+" 個時間點":parsed.plainLines.length?"純文字歌詞":"尚無歌詞")+'</span></div>'+
         '<div class="now-playing-lyrics-list" id="now-playing-lyrics-list" aria-live="polite">'+lyricsMarkup(parsed,"now-playing-lyric-line")+'</div></section>'+
       '</div>';
+    const transportHost=page.querySelector(".now-playing-transport-host");
+    const controlsHost=page.querySelector(".now-playing-tools-host");
+    if(transport&&transportHost)transportHost.append(transport);
+    if(detailControls&&controlsHost)controlsHost.append(detailControls);
     bindLyricsManualScroll($("#now-playing-lyrics-list"));
     syncNowPlayingArtwork(item);syncLyricsHighlight({forceScroll:true});
   }
@@ -728,6 +744,12 @@ export function initLibraryUI(options = {}) {
   function render() {
     const returningFromNowPlaying=state.view!=="now-playing"&&document.querySelector(".now-playing-page");
     if(returningFromNowPlaying){
+      const transport=returningFromNowPlaying.querySelector("#player-transport");
+      const detailControls=returningFromNowPlaying.querySelector("#player-detail-controls");
+      const dockTransport=document.querySelector(".dock-transport-host");
+      const dock=document.querySelector(".dock");
+      if(transport&&dockTransport)dockTransport.append(transport);
+      if(detailControls&&dock)dock.append(detailControls);
       returningFromNowPlaying.remove();
       document.body.classList.toggle("is-podcast-view",["shows","show-detail","continue"].includes(state.view));
       document.body.classList.remove("is-now-playing");
@@ -759,7 +781,10 @@ export function initLibraryUI(options = {}) {
 
   function setDock(item) {
     $("#player-title").textContent=item?.title||"尚未選擇音訊";
-    $("#player-subtitle").textContent=item?.subtitle||item?.path||"連接私人音訊庫後即可播放";
+    const artist=item?(item.subtitle||item.albumArtist||item.album||(item.itemType==="episode"?"Podcast":"")):"";
+    $("#player-subtitle").textContent=artist||"選擇歌曲後即可播放";
+    const artistSeparator=$(".now-copy-separator");
+    if(artistSeparator)artistSeparator.hidden=!artist;
     $("#player-type").textContent=item?.itemType==="episode"?"PODCAST":item?"MUSIC":"READY";
     const nowTile=$("#player-now-playing");if(nowTile)nowTile.disabled=!item;
     if($("#lyrics-dialog")?.open)renderLyricsPanel();
