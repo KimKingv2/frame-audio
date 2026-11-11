@@ -151,6 +151,54 @@
 }
 #player-detail-controls{display:none}
 
+/* Now Playing header and album-focused composition. */
+.now-playing-page{
+  padding-bottom:clamp(28px,4vh,54px);
+}
+.now-playing-topbar-copy{
+  display:grid;
+  justify-items:center;
+  gap:3px;
+  text-align:center;
+}
+.now-playing-topbar-copy .kicker{font-size:8px;letter-spacing:.22em}
+.now-playing-topbar-copy strong{
+  color:#eee7f7;
+  font-size:13px;
+  font-weight:650;
+  letter-spacing:.04em;
+}
+.now-playing-back{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  min-height:36px;
+  padding:5px 11px;
+  border:1px solid rgba(207,187,233,.15);
+  border-radius:22px;
+  color:#d4c7e2;
+  background:rgba(255,255,255,.045);
+  cursor:pointer;
+  touch-action:manipulation;
+  transition:background .2s ease,border-color .2s ease,color .2s ease;
+}
+.now-playing-back:hover{
+  color:#fff;
+  border-color:rgba(207,187,233,.28);
+  background:rgba(255,255,255,.085);
+}
+.now-playing-back span{font-size:22px;line-height:.8}
+.now-playing-back small{font-size:10px}
+.now-playing-track{
+  align-self:center;
+  align-items:center;
+  text-align:center;
+}
+.now-playing-track-copy{width:100%;text-align:center}
+.now-playing-track-meta{justify-content:center}
+.now-playing-reindex-status{text-align:center}
+
 /* The full control surface is moved into this panel only while Now Playing is open. */
 .now-playing-playback-panel{
   display:grid;
