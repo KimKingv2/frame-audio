@@ -10,7 +10,7 @@ export function initLibraryUI(options = {}) {
     view:"music",tracks:[],folders:[],shows:[],episodes:[],loaded:false,loadedAt:0,busy:false,
     selectedShowId:"",search:"",items:[],itemType:"track",reportPeriod:"week",reportType:"episode",
     errors:[],currentItem:null,queue:[],queueIndex:-1,session:null,tickAt:0,speed:1,
-    playRequestId:0,currentPlaybackSource:"",
+    playRequestId:0,currentPlaybackSource:"",playbackFallbackAttempted:false,playbackFallbackInProgress:false,
     lastProgressSave:0,restorePositionMs:0,artworkUrls:new Set()
   };
   const esc = value => String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -309,6 +309,9 @@ export function initLibraryUI(options = {}) {
     if(!config.connected||!config.openListToken||!config.baseUrl){message("播放前請先連接 OpenList。","error");$("#open-settings")?.click();return;}
     const item=playable(raw,type);if(!item.path||!item.id){message("這筆索引缺少檔案路徑或識別碼。","error");return;}
     const requestId=++state.playRequestId;
+    state.currentPlaybackSource="";
+    state.playbackFallbackAttempted=false;
+    state.playbackFallbackInProgress=false;
     try {
       const [resolved,saved]=await Promise.all([
         resolvePlaybackInfo(config,item.path),
@@ -399,6 +402,50 @@ export function initLibraryUI(options = {}) {
   root.addEventListener("click",handleClick);
   root.addEventListener("input",event=>{
     if(event.target.id==="library-search"){state.search=event.target.value;const pos=event.target.selectionStart;render();const input=$("#library-search");if(input){input.focus();input.setSelectionRange(pos,pos);}}
+  });
+  audio.addEventListener("error",()=>{
+    if(state.currentPlaybackSource!=="vps"||state.playbackFallbackAttempted||
+       state.playbackFallbackInProgress||!state.currentItem)return;
+    const config=getConfig();
+    if(!config.baseUrl||!config.openListToken)return;
+    const requestId=state.playRequestId;
+    const failedItem=state.currentItem;
+    const resumeMs=Math.max(0,Math.round(Number(audio.currentTime||0)*1000));
+    state.playbackFallbackAttempted=true;
+    state.playbackFallbackInProgress=true;
+    console.warn("[FRAME Audio] VPS 音訊來源發生 HTML5 MediaError，嘗試改用 Cloudflare OpenList。");
+    void (async()=>{
+      try {
+        const fallback=validatePlaybackInfo(await getOpenListFileInfo({
+          baseUrl:config.baseUrl,
+          token:config.openListToken,
+          path:failedItem.path
+        }),"Cloudflare OpenList");
+        if(requestId!==state.playRequestId)return;
+        state.currentPlaybackSource="cloudflare-fallback";
+        state.restorePositionMs=resumeMs;
+        $("#player-type").textContent=(failedItem.itemType==="episode"?"PODCAST":"MUSIC")+" · CF FALLBACK";
+        audio.src=fallback.raw_url;
+        audio.load();
+        audio.playbackRate=state.speed;
+        try {
+          await audio.play();
+          $("#player-toggle").textContent="Ⅱ";
+        } catch(playError) {
+          $("#player-toggle").textContent="▶";
+          console.warn("[FRAME Audio] Cloudflare 備援來源已載入，但瀏覽器未能開始播放：",playError);
+        }
+      } catch(fallbackError) {
+        if(requestId===state.playRequestId) {
+          $("#player-toggle").textContent="▶";
+          $("#player-type").textContent="PLAYBACK ERROR";
+          $("#player-subtitle").textContent="VPS Alist 與 Cloudflare OpenList 播放來源均失敗："+(fallbackError.message||fallbackError);
+        }
+        console.error("[FRAME Audio] VPS 播放來源及 Cloudflare 備援均失敗：",fallbackError);
+      } finally {
+        if(requestId===state.playRequestId)state.playbackFallbackInProgress=false;
+      }
+    })();
   });
   audio.addEventListener("play",()=>{startSession();$("#player-toggle").textContent="Ⅱ";});
   audio.addEventListener("pause",()=>{accountTime();persistSession(false);saveProgress(true);$("#player-toggle").textContent="▶";});
