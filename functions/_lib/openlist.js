@@ -1,13 +1,13 @@
 import { error, isObject, json } from "./api.js";
+import { readConnectionProfiles } from "./connection-settings.js";
 
-function configuredBase(env) {
-  const raw = String(env.ALIST_VPS_API_BASE_URL || env.OPENLIST_BASE_URL || "").trim();
-  if (!raw) return { response: error("Cloudflare 尚未設定 ALIST_VPS_API_BASE_URL Text。", 503) };
+function normalizeBase(raw, label) {
+  if (!raw) return { response: error("尚未設定 " + label + " API 網址。", 503) };
   let url;
   try { url = new URL(raw); }
-  catch { return { response: error("ALIST_VPS_API_BASE_URL 不是有效網址。", 503) }; }
+  catch { return { response: error(label + " API 網址格式不正確。", 503) }; }
   if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) {
-    return { response: error("ALIST_VPS_API_BASE_URL 必須是沒有帳密、查詢參數或片段的 HTTPS 網址。", 503) };
+    return { response: error(label + " API 網址必須是沒有帳密、查詢參數或片段的 HTTPS 網址。", 503) };
   }
   return { baseUrl: url.origin + url.pathname.replace(/\/+$/, "") };
 }
@@ -17,11 +17,17 @@ export function validOpenListPath(value) {
     value.startsWith("/") && !value.split("").some(char => char.charCodeAt(0) === 0);
 }
 
-export async function postOpenList(env, endpoint, body, timeoutMs = 20000) {
+export async function postOpenList(env, endpoint, body, timeoutMs = 20000, provider = "vps") {
+  const source = provider === "worker" ? "worker" : "vps";
+  const label = source === "worker" ? "OpenList Worker" : "VPS Alist";
   const startedAt = Date.now();
-  const token = String(env.ALIST_VPS_API_TOKEN || env.OPENLIST_API_TOKEN || "").trim();
-  if (!token) return { response: error("Cloudflare 尚未設定 ALIST_VPS_API_TOKEN Secret。", 503) };
-  const configured = configuredBase(env);
+  let profiles;
+  try { profiles = (await readConnectionProfiles(env)).profiles; }
+  catch (cause) { return { response: error(cause.message || "讀取 OpenList 來源設定失敗。", 503) }; }
+  const profile = profiles[source] || {};
+  const token = String(profile.token || "").trim();
+  if (!token) return { response: error("尚未設定 " + label + " API Token。請在 FRAME Audio 設定中保存此來源的 Token。", 503) };
+  const configured = normalizeBase(String(profile.baseUrl || "").trim(), label);
   if (configured.response) return configured;
 
   const controller = new AbortController();
@@ -42,8 +48,8 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000) {
   } catch (cause) {
     if (cause?.name === "AbortError") {
       const elapsedMs = Date.now() - startedAt;
-      console.warn("[FRAME Audio] VPS Alist API timeout", { endpoint, timeoutMs, elapsedMs });
-      return { response: error("VPS Alist API 請求逾時（" + Math.round(elapsedMs / 1000) + " 秒）。", 504) };
+      console.warn("[FRAME Audio] OpenList provider API timeout", { provider: source, endpoint, timeoutMs, elapsedMs });
+      return { response: error(label + " API 請求逾時（" + Math.round(elapsedMs / 1000) + " 秒）。", 504) };
     }
     const diagnosticCode = String(cause?.cause?.code || cause?.code || "");
     const diagnosticMessage = String(cause?.cause?.message || cause?.message || cause?.name || "Unknown error")
@@ -51,7 +57,8 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000) {
       .replace(/(authorization|token)\s*[:=]\s*[^\s,;]+/gi, "$1=[REDACTED]")
       .replace(/\s+/g, " ")
       .slice(0, 140);
-    console.error("[FRAME Audio] VPS Alist fetch failed", {
+    console.error("[FRAME Audio] OpenList provider fetch failed", {
+      provider: source,
       endpoint,
       name: String(cause?.name || "Error"),
       code: diagnosticCode,
@@ -59,32 +66,29 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000) {
     });
     const detail = [diagnosticCode, diagnosticMessage].filter(Boolean).join(": ");
     return { response: error(
-      "Cloudflare Pages 無法連接 VPS Alist API。" + (detail ? " 診斷：" + detail : ""),
+      "Cloudflare Pages 無法連接 " + label + " API。" + (detail ? " 診斷：" + detail : ""),
       502
     ) };
   } finally {
     clearTimeout(timeout);
   }
 
-  // Cloudflare Workers supports only "follow" and "manual" redirect modes.
-  // Never forward the Alist credential to a redirect target automatically.
   if (upstream.status >= 300 && upstream.status < 400) {
     const location = upstream.headers.get("location") || "";
     let destination = "未知";
-    try {
-      destination = new URL(location, configured.baseUrl).hostname || "未知";
-    } catch {}
+    try { destination = new URL(location, configured.baseUrl).hostname || "未知"; } catch {}
     return {
       response: error(
-        "VPS Alist API 回傳 HTTP " + upstream.status +
+        label + " API 回傳 HTTP " + upstream.status +
         " 重新導向（目的主機：" + destination +
-        "）。請將 ALIST_VPS_API_BASE_URL 設為最終 HTTPS API 網址；為保護 Token，系統不會自動跟隨跨站重新導向。",
+        "）。請將 API 網址設為最終 HTTPS API 網址；為保護 Token，系統不會自動跟隨重新導向。",
         502
       )
     };
   }
 
-  console.info("[FRAME Audio] VPS Alist API response", {
+  console.info("[FRAME Audio] OpenList provider API response", {
+    provider: source,
     endpoint,
     status: upstream.status,
     elapsedMs: Date.now() - startedAt
@@ -92,13 +96,13 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000) {
 
   let payload;
   try { payload = await upstream.json(); }
-  catch { return { response: error("VPS Alist API 回應不是有效 JSON。", 502) }; }
+  catch { return { response: error(label + " API 回應不是有效 JSON。", 502) }; }
   if (!upstream.ok) {
     const message = isObject(payload) ? String(payload.message || payload.error || "") : "";
-    return { response: error("VPS Alist API HTTP " + upstream.status + (message ? "：" + message : "。"), 502) };
+    return { response: error(label + " API HTTP " + upstream.status + (message ? "：" + message : "。"), 502) };
   }
-  if (!isObject(payload)) return { response: error("VPS Alist API 回應格式不正確。", 502) };
-  return { payload, baseUrl: configured.baseUrl };
+  if (!isObject(payload)) return { response: error(label + " API 回應格式不正確。", 502) };
+  return { payload, baseUrl: configured.baseUrl, provider: source };
 }
 
 export function normalizedRawUrl(value, baseUrl) {

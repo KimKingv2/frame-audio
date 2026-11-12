@@ -16,13 +16,14 @@ export async function onRequestPost({ request, env }) {
     return error("OpenList per_page 必須介於 1 到 500。", 400);
   }
 
+  const provider = body.provider === "worker" ? "worker" : "vps";
   const result = await postOpenList(env, "list", {
     path: body.path,
     password: "",
     page,
     per_page: perPage,
     refresh: false
-  }, 45000);
+  }, 45000, provider);
   if (result.response) return result.response;
   return json(result.payload);
 }

@@ -20,13 +20,14 @@ export async function onRequestPost({ request, env }) {
 
   if (!validOpenListPath(body?.path)) return error("OpenList 檔案路徑無效。", 400);
 
+  const provider = body.provider === "worker" ? "worker" : "vps";
   let result;
   let transientFailure = false;
   for (let attempt = 1; attempt <= LINK_RETRY_DELAYS_MS.length + 1; attempt += 1) {
     result = await postOpenList(env, "get", {
       path: body.path,
       password: ""
-    }, 55000);
+    }, 55000, provider);
     if (result.response) return result.response;
     if (!isTransientProviderLinkError(result.payload)) break;
 
