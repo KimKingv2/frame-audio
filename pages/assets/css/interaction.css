@@ -994,3 +994,32 @@ body.desktop-sidebar-collapsed .player-queue-panel{right:90px;width:min(420px,ca
 @media(prefers-reduced-motion:reduce){
   .player-queue-panel.queue-opening,.player-queue-panel.queue-closing{animation-duration:.01ms!important}
 }
+
+
+/* Connection profiles: three independent OpenList endpoints, one shared catalogue. */
+.connection-profiles{display:grid;gap:13px;margin-bottom:20px}
+.connection-profiles>.field select{
+  width:100%;min-height:40px;padding:9px 11px;border:1px solid #c7b3df30;border-radius:8px;
+  color:#f3eff9;background:#171520;font-size:12px;
+}
+.provider-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.provider-card{
+  display:grid;align-content:start;gap:10px;min-width:0;padding:14px;
+  border:1px solid #c7b3df22;border-radius:12px;background:linear-gradient(155deg,#ffffff08,#ffffff03);
+}
+.provider-card-local{grid-column:1/-1}
+.provider-card-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px}
+.provider-card-heading strong{color:#e8def3;font-size:12px}
+.provider-card-heading span{color:#8e82a3;font-size:8px;letter-spacing:.14em}
+.provider-card .field{gap:6px}
+.provider-card .field input{min-height:38px;padding:9px 10px}
+.provider-card .hint{font-size:9px}
+.connection-profiles>.actions{margin-top:0}
+#provider-settings-status{margin-top:0}
+@media(max-width:620px){
+  .provider-grid{grid-template-columns:1fr}
+  .provider-card-local{grid-column:auto}
+  .provider-card{padding:12px}
+  .connection-profiles>.actions{align-items:stretch;flex-direction:column}
+  .connection-profiles>.actions button{width:100%}
+}

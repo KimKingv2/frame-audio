@@ -3,7 +3,7 @@
 <head>
 <!-- Production deployment trigger: 2026-11-11; includes metadata-origin-probe1. -->
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#15131d"><meta name="description" content="FRAME Audio：以 VPS Alist 為來源的私人音訊收藏。">
+<meta name="theme-color" content="#15131d"><meta name="description" content="FRAME Audio：共用曲庫，支援 VPS Alist、OpenList Worker 與手機本機來源。">
 <title>FRAME Audio</title>
 <style>
 :root{color-scheme:dark;--bg:#15131d;--line:rgba(208,190,238,.1);--text:#f0edf6;--muted:#a39bad;--accent:#c5a8ef;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--bg);color:var(--text)}button,input{font:inherit}button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.shell{min-height:calc(100vh - 92px);display:grid;grid-template-columns:230px minmax(0,1fr)}aside{position:sticky;top:0;height:calc(100vh - 92px);min-height:550px;padding:27px 17px;background:#191622;border-right:1px solid var(--line);display:flex;flex-direction:column}.brand{display:flex;align-items:center;gap:11px;padding:0 9px 34px;font-size:15px;letter-spacing:.14em}.brand b{color:var(--accent);letter-spacing:0}.mark{width:25px;height:25px;border-radius:8px;background:linear-gradient(145deg,#d5b9f6,#7959a8);display:grid;place-items:center;color:#211a2d;font-weight:800}.label{padding:0 10px 9px;color:#746d80;font-size:9px;letter-spacing:.18em;font-weight:700}.nav{display:grid;gap:4px}.nav button{border:0;background:none;color:#aaa3b5;text-align:left;padding:10px 11px;border-radius:8px;font-size:12px;cursor:pointer}.nav button:hover{background:#ffffff0a;color:white}.nav button.active{color:#eadfff;background:#a984db24;box-shadow:inset 2px 0 #b99ae8}.gapline{height:1px;background:var(--line);margin:20px 7px}.sidefoot{margin-top:auto;border-top:1px solid var(--line);padding:15px 10px 3px;color:#827b8c;font-size:10px}.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#b78b75;margin-right:8px}main{padding:0 clamp(22px,5vw,70px) 120px;min-width:0}.top{height:75px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;color:#898293;font-size:11px}.top strong{color:#e4deed;font-weight:500}.topright{display:flex;align-items:center;gap:12px}.pill{border:1px solid #b78b7540;border-radius:20px;padding:7px 10px;color:#b49b8d;font-size:8px;letter-spacing:.13em}.primary{border:1px solid #b99ae866;border-radius:8px;padding:9px 13px;color:#eee5ff;background:#8c68b52c;font-size:11px;cursor:pointer}.primary:hover{background:#8c68b54a}.hero{position:relative;overflow:hidden;min-height:240px;margin:34px 0 40px;padding:38px 40px;border:1px solid #cbb2ee22;border-radius:16px;background:radial-gradient(ellipse at 78% 50%,#805ba833,transparent 38%),linear-gradient(115deg,#252033,#292239);display:flex;align-items:center}.hero-copy{position:relative;z-index:1;max-width:520px}.eyebrow,.kicker{color:#b99ae8;font-size:9px;font-weight:700;letter-spacing:.2em}.hero h1{font-size:clamp(30px,4vw,43px);line-height:1.2;letter-spacing:-.04em;margin:17px 0 10px}.hero h1 span{color:var(--accent)}.hero p{color:#a8a0b4;font-size:12px;line-height:1.9;margin:0}.disc{position:absolute;right:12%;width:165px;height:165px;border-radius:50%;background:repeating-radial-gradient(circle,#211a2a 0 3px,#382c48 4px 5px,#201a28 6px 8px);box-shadow:0 18px 45px #0006,0 0 55px #b18fe022;transform:rotate(-18deg);display:grid;place-items:center}.disc:after{content:"FA";width:44px;height:44px;border-radius:50%;background:linear-gradient(145deg,#d4b7f5,#8766b1);display:grid;place-items:center;color:#292033;font-size:11px;font-weight:800}.sectionhead{display:flex;justify-content:space-between;align-items:end;margin-bottom:18px}.sectionhead h2{font-size:19px;margin:8px 0 0}.count{font-size:10px;color:#8f879b}.empty{min-height:230px;border:1px dashed #c0aadd2e;border-radius:13px;background:#ffffff03;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:30px 22px}.emptyicon{width:46px;height:46px;border:1px solid #c1a2e733;border-radius:14px;background:#9b75c91a;display:grid;place-items:center;color:#c3a4eb;font-size:23px}.empty h3{font-size:14px;margin:16px 0 7px}.empty p{max-width:440px;color:#928a9f;font-size:11px;line-height:1.9;margin:0}.meta{margin-top:20px;font-size:8px;letter-spacing:.13em;color:#726b7c}.foot{display:flex;justify-content:space-between;margin-top:38px;color:#625c6d;font-size:8px;letter-spacing:.14em}.dock{position:fixed;bottom:0;left:0;right:0;height:92px;background:#191621f5;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1.2fr 1fr;align-items:center;padding:12px 26px;gap:22px}.now{display:flex;align-items:center;gap:11px;font-size:11px}.cover{width:46px;height:46px;border-radius:7px;background:linear-gradient(145deg,#443456,#241e30);display:grid;place-items:center;color:#d8c1f7;font-size:10px;font-weight:700}.now small{display:block;color:#827b8c;margin-top:5px;font-size:9px}.controls{text-align:center;color:#777080;font-size:10px}.controls button{border:0;border-radius:50%;background:#4a3b5e;color:#bba1df;width:29px;height:29px;margin:0 8px}.timeline{display:flex;align-items:center;gap:9px;margin-top:8px;color:#736c7d;font-size:8px}.bar{height:3px;background:#393342;border-radius:4px;flex:1}.mode{text-align:right;color:#655e70;font-size:8px;letter-spacing:.1em}
@@ -28,7 +28,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 </style>
 <link rel="stylesheet" href="/assets/css/metadata.css">
 <link rel="stylesheet" href="/assets/css/library.css?v=20261112-refresh-rate-polish1">
-<link rel="stylesheet" href="/assets/css/interaction.css?v=20261112-refresh-rate-polish1">
+<link rel="stylesheet" href="/assets/css/interaction.css?v=20261112-multi-openlist1">
 </head>
 <body>
 <button class="mobile-nav-scrim" id="mobile-nav-scrim" type="button" aria-label="關閉導覽選單" aria-hidden="true" tabindex="-1"></button>
@@ -66,7 +66,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   <div class="sidefoot"><span class="dot" id="connection-dot"></span><span id="connection-label">資料來源尚未連接</span></div>
 </aside>
 <main>
-  <header class="top"><span>FRAME Audio　/　<strong id="section">Music</strong></span><div class="topright"><span class="pill">V1.0 PRIVATE RELEASE</span><a class="primary" href="/playback-diagnostic.html" style="text-decoration:none">播放診斷</a><button class="primary" id="open-settings">連接 VPS Alist</button></div></header>
+  <header class="top"><span>FRAME Audio　/　<strong id="section">Music</strong></span><div class="topright"><span class="pill">V1.0 PRIVATE RELEASE</span><a class="primary" href="/playback-diagnostic.html" style="text-decoration:none">播放診斷</a><button class="primary" id="open-settings">連線設定</button></div></header>
   <section class="hero"><div class="hero-copy"><div class="eyebrow" id="eyebrow">YOUR MUSIC LIBRARY</div><h1 id="title">音樂，<span>隨時入場。</span></h1><p id="description">整理你的收藏，讓每一次播放都回到自己的音樂世界。</p></div><div class="disc" aria-hidden="true"></div></section>
   <section id="library-content" class="library-content"><div class="empty"><div class="emptyicon">♫</div><h3>正在準備曲庫</h3><p>連接 Cloudflare D1 後，這裡會顯示你的 Music 與 Podcast 收藏。</p></div></section>
   <footer class="foot"><span>FRAME AUDIO</span><span>PRIVATE LISTENING SPACE · V1.0 PRIVATE RELEASE</span></footer>
@@ -146,18 +146,51 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 </dialog>
 
 <dialog id="connection-dialog">
-  <div class="dialog-head"><h2>伺服器端連線設定</h2><button class="close" id="close-settings" aria-label="關閉">×</button></div>
+  <div class="dialog-head"><h2>OpenList 來源管理</h2><button class="close" id="close-settings" aria-label="關閉">×</button></div>
   <div class="dialog-body">
+    <section class="connection-profiles" aria-label="OpenList 來源設定">
+      <div class="field">
+        <label for="active-openlist-provider">目前使用的音訊來源</label>
+        <select id="active-openlist-provider">
+          <option value="vps">VPS Alist（伺服器端）</option>
+          <option value="worker">OpenList Worker（伺服器端）</option>
+          <option value="local">手機本機 OpenList（裝置直連）</option>
+        </select>
+        <div class="hint">選擇後按「保存設定並切換來源」。目錄瀏覽、檔案資訊、標籤 Range 讀取及新播放都會切換到同一來源。</div>
+      </div>
+      <div class="provider-grid">
+        <section class="provider-card">
+          <div class="provider-card-heading"><strong>VPS Alist</strong><span>SERVER PROXY</span></div>
+          <div class="field"><label for="vps-openlist-base-url">API 基礎網址</label><input id="vps-openlist-base-url" type="url" placeholder="沿用 Cloudflare Pages Secret" spellcheck="false" autocomplete="off"></div>
+          <div class="field"><label for="vps-openlist-token">API Token</label><input id="vps-openlist-token" type="password" placeholder="已保存則留空沿用" autocomplete="new-password" spellcheck="false"></div>
+          <div class="hint">憑證由 Pages Functions 代理請求；Token 加密保存在 D1，或沿用既有 Cloudflare Secret。</div>
+        </section>
+        <section class="provider-card">
+          <div class="provider-card-heading"><strong>OpenList Worker</strong><span>SERVER PROXY</span></div>
+          <div class="field"><label for="worker-openlist-base-url">API 基礎網址</label><input id="worker-openlist-base-url" type="url" placeholder="https://你的-worker-網域" spellcheck="false" autocomplete="off"></div>
+          <div class="field"><label for="worker-openlist-token">API Token</label><input id="worker-openlist-token" type="password" placeholder="已保存則留空沿用" autocomplete="new-password" spellcheck="false"></div>
+          <div class="hint">Worker Token 不會傳回瀏覽器，由 Pages Functions 在伺服器端呼叫 Worker。</div>
+        </section>
+        <section class="provider-card provider-card-local">
+          <div class="provider-card-heading"><strong>手機本機 OpenList</strong><span>DEVICE DIRECT</span></div>
+          <div class="field"><label for="local-openlist-base-url">本機 API 網址</label><input id="local-openlist-base-url" type="url" placeholder="http://127.0.0.1:5244" spellcheck="false" autocomplete="off"></div>
+          <div class="field"><label for="local-openlist-token">本機 API Token</label><input id="local-openlist-token" type="password" placeholder="輸入這台手機本機 OpenList Token" autocomplete="new-password" spellcheck="false"></div>
+          <div class="hint">本機 Token 只保存在目前手機瀏覽器的本機儲存區，因為瀏覽器必須直接向 127.0.0.1 請求。請只使用必要權限的 Token。</div>
+        </section>
+      </div>
+      <div class="actions"><button type="button" class="primary" id="save-switch-openlist">保存設定並切換來源</button><button type="button" class="secondary" id="test-connection">測試目前來源並讀取目錄</button></div>
+      <div class="statusbox" id="provider-settings-status" role="status">正在讀取已保存的來源設定……</div>
+    </section>
     <div class="field">
-      <label>私有連線與憑證</label>
-      <div class="hint">本網站已由 Cloudflare Access 保護。VPS Alist API Token 與 D1 / R2 管理金鑰均由 Cloudflare Pages Functions 從伺服器端 Secrets 讀取；瀏覽器不會取得、保存或傳送這些 Token。若連線測試失敗，請檢查 Pages 的 OPENLIST_API_TOKEN、OPENLIST_BASE_URL 與 FRAME_AUDIO_ADMIN_TOKEN 設定。</div>
+      <label>Cloudflare 私有儲存</label>
+      <div class="hint">Cloudflare Access 保護管理 API。FRAME Audio 內部管理 Token、D1 / R2 管理權限與 VPS / Worker 憑證均留在伺服器端；VPS / Worker 憑證會以 AES-GCM 加密保存於 D1。D1 連線設定表需先執行 migrations/0004_connection_settings.sql。</div>
     </div>
     <div class="formgrid">
       <div class="field"><label for="music-root-path">Music 索引根目錄</label><input id="music-root-path" type="text" value="/中國移動雲盤/Kim King/03 Music" spellcheck="false"><div class="hint">Music 掃描只讀取此目錄及其子資料夾；可手動修改，或在下方瀏覽資料夾後選為 Music 根目錄。</div></div>
       <div class="field"><label for="podcast-root-path">Podcast 節目根目錄</label><input id="podcast-root-path" type="text" value="/中國移動雲盤/Kim King/13 喜马拉雅" spellcheck="false"><div class="hint">Podcast 第一層資料夾各自作為一個節目；可手動修改，或在下方瀏覽資料夾後選為 Podcast 根目錄。</div></div>
       <div class="field"><label for="openlist-path">目前目錄瀏覽／連線測試路徑</label><input id="openlist-path" type="text" value="/" placeholder="/" spellcheck="false"><div class="hint">這個欄位只控制下方 VPS Alist 目錄瀏覽器，不會決定 Music 或 Podcast 的掃描根目錄。</div></div>
     </div>
-    <div class="actions"><button type="button" class="primary" id="test-connection">測試伺服器端 VPS Alist 並讀取目錄</button><button type="button" class="secondary" id="browse-root" disabled>重新讀取目前路徑</button></div>
+    <div class="actions"><button type="button" class="secondary" id="browse-root" disabled>重新讀取目前路徑</button></div>
     <div class="actions"><button type="button" class="secondary" id="test-storage">測試 Cloudflare D1 / R2</button></div>
     <div class="statusbox" id="connection-result" role="status">尚未連線。測試會由 Cloudflare Pages Functions 以伺服器端 Secret 呼叫 VPS Alist 唯讀 API。</div>
     <div class="statusbox" id="storage-result" role="status">Cloudflare D1 / R2 尚未測試。設定完成後可在此確認連線。</div>
@@ -199,5 +232,5 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   });
 })();
 </script>
-<script type="module" src="/assets/js/app.js?v=20261112-refresh-rate-polish1"></script>
+<script type="module" src="/assets/js/app.js?v=20261112-multi-openlist1"></script>
 </body></html>
