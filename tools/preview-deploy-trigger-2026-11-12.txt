@@ -1,0 +1,4 @@
+Preview deployment trigger
+Date: 2026-11-12
+Purpose: trigger a new Cloudflare Pages Preview deployment after the K40 Alist Preview Variable and Secret were configured by the repository owner.
+This marker contains no credentials and is outside the Pages build output directory.
