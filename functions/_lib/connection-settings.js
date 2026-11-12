@@ -5,8 +5,8 @@ function environmentProfiles(env) {
       token: String(env.ALIST_VPS_API_TOKEN || env.OPENLIST_API_TOKEN || "").trim()
     },
     worker: {
-      baseUrl: String(env.ALIST_WORKER_API_BASE_URL || env.OPENLIST_WORKER_API_BASE_URL || "").trim(),
-      token: String(env.ALIST_WORKER_API_TOKEN || env.OPENLIST_WORKER_API_TOKEN || "").trim()
+      baseUrl: String(env.OPENLIST_WORKER_API_BASE_URL || env.ALIST_WORKER_API_BASE_URL || "").trim(),
+      token: String(env.OPENLIST_WORKER_API_TOKEN || env.ALIST_WORKER_API_TOKEN || "").trim()
     }
   };
 }

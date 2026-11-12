@@ -8,7 +8,7 @@ FRAME Audio uses Pages Functions as its same-origin API, D1 for catalogue / scan
 - R2 bucket: `frame-audio-artwork`, binding `ARTWORKS`
 - Secret: `FRAME_AUDIO_API_ADMIN_TOKEN` (FRAME Audio internal API admin gate)
 - Secret: `ALIST_VPS_API_TOKEN`; Text: `ALIST_VPS_API_BASE_URL`
-- Secret: `ALIST_WORKER_API_TOKEN`; Text: `ALIST_WORKER_API_BASE_URL`
+- Secret: `OPENLIST_WORKER_API_TOKEN`; Text: `OPENLIST_WORKER_API_BASE_URL`
 
 VPS / Worker settings are fixed in Cloudflare Pages **Variables and Secrets** and read only by Pages Functions. Their Tokens are never sent to the browser and are not stored in D1. The existing `FRAME_AUDIO_API_ADMIN_TOKEN` remains a separate application-level gate; do not replace it with an Alist Token or combine the values.
 
@@ -20,11 +20,11 @@ Open **Workers & Pages → frame-audio → Settings → Variables and Secrets**.
 |---|---|---|
 | `ALIST_VPS_API_BASE_URL` | Text | `https://drive.kimkingv2.top` |
 | `ALIST_VPS_API_TOKEN` | Secret | The read-only VPS Alist API Token |
-| `ALIST_WORKER_API_BASE_URL` | Text | Your OpenList Worker API base URL |
-| `ALIST_WORKER_API_TOKEN` | Secret | The OpenList Worker API Token |
+| `OPENLIST_WORKER_API_BASE_URL` | Text | Your OpenList Worker API base URL |
+| `OPENLIST_WORKER_API_TOKEN` | Secret | The OpenList Worker API Token |
 | `FRAME_AUDIO_API_ADMIN_TOKEN` | Secret | Existing FRAME Audio internal API admin Secret |
 
-Legacy VPS aliases `OPENLIST_BASE_URL` / `OPENLIST_API_TOKEN` and Worker URL alias `OPENLIST_WORKER_API_BASE_URL` remain supported. Prefer the `ALIST_*` names for new configuration. Never paste Secrets into the website, GitHub, URLs or chat. The site shows only whether a profile is configured and never reveals its Token.
+Legacy VPS aliases `OPENLIST_BASE_URL` / `OPENLIST_API_TOKEN` and Worker aliases `ALIST_WORKER_API_BASE_URL` / `ALIST_WORKER_API_TOKEN` remain supported. Use `OPENLIST_WORKER_API_BASE_URL` and `OPENLIST_WORKER_API_TOKEN` as the primary Worker settings. Never paste Secrets into the website, GitHub, URLs or chat. The site shows only whether a profile is configured and never reveals its Token.
 
 Keep using the existing D1 and R2 resources. Preview and Production values are independent. After adding or changing environment values, redeploy the matching branch.
 

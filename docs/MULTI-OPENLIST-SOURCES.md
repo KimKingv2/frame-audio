@@ -14,14 +14,14 @@ Set four values in Cloudflare Pages → Settings → Variables and Secrets, sepa
 |---|---|
 | `ALIST_VPS_API_BASE_URL` | Text / Variable |
 | `ALIST_VPS_API_TOKEN` | Secret |
-| `ALIST_WORKER_API_BASE_URL` | Text / Variable |
-| `ALIST_WORKER_API_TOKEN` | Secret |
+| `OPENLIST_WORKER_API_BASE_URL` | Text / Variable |
+| `OPENLIST_WORKER_API_TOKEN` | Secret |
 
 `FRAME_AUDIO_API_ADMIN_TOKEN` remains a separate Secret for FRAME Audio's own private API gate. Do not reuse it as an Alist Token.
 
 Pages Functions read the server credentials for each request. The browser receives only base URLs and boolean status fields such as `hasToken`, never the Tokens. The settings page cannot write server credentials, and no VPS / Worker credential is stored in D1. Migration `0004_connection_settings.sql` is retired/no-op and is not required. Any old unused `connection_settings` table is left untouched and ignored.
 
-Legacy VPS aliases `OPENLIST_BASE_URL` / `OPENLIST_API_TOKEN` and Worker URL alias `OPENLIST_WORKER_API_BASE_URL` remain accepted; use `ALIST_*` for new settings.
+Legacy VPS aliases `OPENLIST_BASE_URL` / `OPENLIST_API_TOKEN` and Worker aliases `ALIST_WORKER_API_BASE_URL` / `ALIST_WORKER_API_TOKEN` remain accepted. Use `OPENLIST_WORKER_API_BASE_URL` and `OPENLIST_WORKER_API_TOKEN` as the primary Worker settings.
 
 ## LAN-direct OpenList
 

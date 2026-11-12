@@ -323,7 +323,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         throw new Error("區域網路 OpenList 需要填寫網址與 API Token。");
       }
       if (targetProvider === "worker" && !serverProfiles.worker?.configured) {
-        throw new Error("OpenList Worker 尚未就緒。請在 Cloudflare Pages 的 Variables and Secrets 設定 ALIST_WORKER_API_BASE_URL 與 ALIST_WORKER_API_TOKEN，然後重新部署。");
+        throw new Error("OpenList Worker 尚未就緒。請在 Cloudflare Pages 的 Variables and Secrets 設定 OPENLIST_WORKER_API_BASE_URL 與 OPENLIST_WORKER_API_TOKEN，然後重新部署。");
       }
       if (targetProvider === "vps" && !serverProfiles.vps?.configured) {
         throw new Error("VPS Alist 尚未就緒。請在 Cloudflare Pages 的 Variables and Secrets 設定 ALIST_VPS_API_BASE_URL 與 ALIST_VPS_API_TOKEN，然後重新部署。");
