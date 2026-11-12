@@ -154,9 +154,10 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
         <select id="active-openlist-provider">
           <option value="vps">VPS Alist（伺服器端）</option>
           <option value="worker">OpenList Worker（伺服器端）</option>
+          <option value="k40">K40 Alist（伺服器端）</option>
           <option value="local">區域網路 OpenList（裝置直連）</option>
         </select>
-        <div class="hint">選擇後按「保存設定並切換來源」。VPS／Worker 由 Pages 伺服器端憑證設定管理；區域網路來源由目前裝置直接連線。</div>
+        <div class="hint">下拉選單只選擇候選來源；按下「保存設定並切換來源」後才會成為活動來源。只有活動來源會連線、測試或取得下載連結，其餘來源不會被探測。</div>
       </div>
       <div class="provider-grid">
         <section class="provider-card">
@@ -171,19 +172,26 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
           <div class="hint">網址 Variable：<code>OPENLIST_WORKER_API_BASE_URL</code><br>Token Secret：<code>OPENLIST_WORKER_API_TOKEN</code></div>
           <div class="hint">Worker 憑證由 Pages Functions 在伺服器端使用，不會傳到瀏覽器。</div>
         </section>
+        <section class="provider-card">
+          <div class="provider-card-heading"><strong>K40 Alist</strong><span>SERVER PROXY</span></div>
+          <div class="hint" id="k40-openlist-env-status">正在讀取 Cloudflare Pages 設定……</div>
+          <div class="hint">網址 Variable：<code>ALIST_K40_API_BASE_URL</code><br>Token Secret：<code>ALIST_K40_API_TOKEN</code></div>
+          <div class="hint">Pages Functions 只在 K40 Alist 成為活動來源時呼叫它。K40 地址必須是 Pages Functions 可連接的 HTTPS 地址。</div>
+        </section>
         <section class="provider-card provider-card-local">
           <div class="provider-card-heading"><strong>區域網路 OpenList</strong><span>DEVICE DIRECT</span></div>
-          <div class="field"><label for="local-openlist-base-url">區域網路 API 網址</label><input id="local-openlist-base-url" type="url" placeholder="http://192.168.31.xx:5244" spellcheck="false" autocomplete="off"></div>
-          <div class="field"><label for="local-openlist-token">區域網路 API Token</label><input id="local-openlist-token" type="password" placeholder="輸入這台區域網路 OpenList Token" autocomplete="new-password" spellcheck="false"></div>
-          <div class="hint">手機瀏覽器直接連接同一 Wi-Fi 的另一台設備。網址與 Token 保存在目前瀏覽器的本機儲存區；Chrome 首次連線可能會詢問「本機網路」權限，請允許。保存後請另外點擊「測試目前來源」，不會在網頁載入時自動連線。</div>
+          <div class="field"><label for="local-openlist-base-url">區域網路 OpenList 地址</label><input id="local-openlist-base-url" type="url" placeholder="http://192.168.31.xx:5244" spellcheck="false" autocomplete="off"></div>
+          <div class="field"><label for="local-openlist-username">OpenList 帳號</label><input id="local-openlist-username" type="text" placeholder="輸入 OpenList 使用者名稱" autocomplete="username" spellcheck="false"></div>
+          <div class="field"><label for="local-openlist-password">OpenList 密碼</label><input id="local-openlist-password" type="password" placeholder="輸入 OpenList 密碼" autocomplete="current-password" spellcheck="false"></div>
+          <div class="hint">瀏覽器直接向區域網路 OpenList 的 /api/auth/login 登入。地址會保存在此裝置；帳號密碼與 JWT 不寫入 localStorage、D1 或 Pages Secret，只保留在目前頁面記憶體。重新整理後需要重新登入。</div>
         </section>
       </div>
-      <div class="actions"><button type="button" class="primary" id="save-switch-openlist">保存區域網路設定／切換來源</button><button type="button" class="secondary" id="test-connection">測試目前來源並讀取目錄</button></div>
+      <div class="actions"><button type="button" class="primary" id="save-switch-openlist">保存設定並切換來源／區域網路登入</button><button type="button" class="secondary" id="test-connection">測試目前活動來源</button></div>
       <div class="statusbox" id="provider-settings-status" role="status">正在讀取已保存的來源設定……</div>
     </section>
     <div class="field">
       <label>Cloudflare 私有儲存</label>
-      <div class="hint">Cloudflare Access 保護管理 API。FRAME Audio 內部管理 Token 與 D1 / R2 管理權限留在伺服器端。VPS Alist／OpenList Worker 的網址與 Token 固定由 Cloudflare Pages Variables and Secrets 提供；區域網路 Token 僅用於目前裝置直連。</div>
+      <div class="hint">Cloudflare Access 保護管理 API。VPS Alist、OpenList Worker、K40 Alist 的網址與 Token 由 Pages Variables and Secrets 提供。區域網路 OpenList 使用帳號密碼直接登入，JWT 僅在目前頁面記憶體中保存。</div>
     </div>
     <div class="formgrid">
       <div class="field"><label for="music-root-path">Music 索引根目錄</label><input id="music-root-path" type="text" value="/中國移動雲盤/Kim King/03 Music" spellcheck="false"><div class="hint">Music 掃描只讀取此目錄及其子資料夾；可手動修改，或在下方瀏覽資料夾後選為 Music 根目錄。</div></div>
@@ -192,7 +200,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
     </div>
     <div class="actions"><button type="button" class="secondary" id="browse-root" disabled>重新讀取目前路徑</button></div>
     <div class="actions"><button type="button" class="secondary" id="test-storage">測試 Cloudflare D1 / R2</button></div>
-    <div class="statusbox" id="connection-result" role="status">尚未連線。測試會由 Cloudflare Pages Functions 以伺服器端 Secret 呼叫 VPS Alist 唯讀 API。</div>
+    <div class="statusbox" id="connection-result" role="status">尚未連線。只有上次保存的活動來源會被測試；其他來源不會自動連線。</div>
     <div class="statusbox" id="storage-result" role="status">Cloudflare D1 / R2 尚未測試。設定完成後可在此確認連線。</div>
     <div class="browser" id="directory-browser" hidden>
       <div class="browser-head"><span class="browser-path" id="current-path">/</span><div class="browser-root-actions"><button type="button" class="secondary" id="use-current-music-root">設為 Music 根目錄</button><button type="button" class="secondary" id="use-current-podcast-root">設為 Podcast 根目錄</button><button type="button" class="secondary" id="choose-current">複製此路徑</button></div></div>
@@ -207,7 +215,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
       </details>
     </div>
     <div class="metadata-result" id="metadata-result" hidden></div>
-    <div class="privacy">瀏覽器只會收到必要的目錄與檔案資訊。所有音樂與 Podcast 播放都只使用 VPS Alist 回傳的 raw_url，由 HTML5 Audio 直接連接並跟隨來源端 HTTP 302 重新導向；Cloudflare Pages 不代理、不轉碼，也不接收音訊資料。伺服器端 API 請求不需要 VPS Alist 的瀏覽器 CORS 預檢；曲庫 metadata 的 Range 讀取仍須由最終檔案主機允許本網站跨來源讀取。</div>
+    <div class="privacy">只有目前活動來源會提供目錄、檔案資訊與播放連結；其他來源不會被探測。音訊仍使用活動來源回傳的 raw_url，由 HTML5 Audio 直接連接最終音訊主機；Cloudflare Pages 不代理、不轉碼，也不接收音訊資料。最終下載主機仍會看到瀏覽器的公網 IP；若需隱藏 IP，必須另行使用活動節點代理音訊串流。</div>
   </div>
 </dialog>
 <script>
@@ -232,5 +240,5 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   });
 })();
 </script>
-<script type="module" src="/assets/js/app.js?v=20261112-playback-timing1"></script>
+<script type="module" src="/assets/js/app.js?v=20261112-four-source-login1"></script>
 </body></html>

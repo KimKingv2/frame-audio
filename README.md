@@ -20,7 +20,7 @@ FRAME Audio 是以 VPS Alist 為音訊來源的私人音訊平台，包含 **Mus
 - D1 以新增／更新方式寫入；部分掃描、失敗掃描與路徑修復不會清空整個曲庫。
 - R2 封面以 SHA-256 去重保存。
 - 修復路徑時，先成功建立新索引，再將舊路徑的收聽事件及續播資料移轉到新索引。
-- VPS Alist 與 OpenList Worker 的 API 網址由 Cloudflare Pages Variables 提供，Token 由 Pages Secrets 提供；Pages Functions 在伺服器端讀取，瀏覽器不會取得或保存這兩組 Token。區域網路 OpenList 則由手機瀏覽器直連，使用該裝置自己的 Token。所有私有 API 均由 Cloudflare Access 保護。
+- 四個互斥來源：VPS Alist、OpenList Worker、K40 Alist（由 Pages Functions 使用 Pages Variables／Secrets）及區域網路 OpenList（瀏覽器直接以帳號密碼登入）。只有上次保存的活動來源會連線或測試；其他來源不會被探測。
 
 ## Cloudflare 資料表
 
@@ -30,7 +30,7 @@ FRAME Audio 是以 VPS Alist 為音訊來源的私人音訊平台，包含 **Mus
 | `0002_podcasts.sql` | Podcast 節目與單集 |
 | `0003_listening.sql` | 播放進度、Podcast 播放速度、收聽事件 |
 
-前三個 migration 建立曲庫、Podcast 與收聽資料。第四個檔案 `0004_connection_settings.sql` 已退役並改為 no-op，不需要執行；VPS／Worker 憑證不再寫入 D1。現有 D1 資料與 R2 封面應保留。
+前三個 migration 建立曲庫、Podcast 與收聽資料。第四個檔案 `0004_connection_settings.sql` 已退役並改為 no-op，不需要執行；VPS／Worker／K40 憑證不再寫入 D1。現有 D1 資料與 R2 封面應保留。
 
 ## 掃描規則
 
@@ -77,3 +77,6 @@ FRAME Audio 是以 VPS Alist 為音訊來源的私人音訊平台，包含 **Mus
 
 - 開啟 `/playback-diagnostic.html` 可依序測試 VPS Alist 與區域網路 OpenList 的目錄列表、檔案資訊／取鏈及音訊來源 Range 首段。
 - 兩端使用同一個音訊路徑；測試限制最多讀取 64 KiB，不播放歌曲、不掃描曲庫，也不寫入 D1／R2。
+
+
+- 四個來源設定、活動來源隔離、LAN 帳號密碼登入及 IP 可見性說明見 [docs/MULTI-OPENLIST-SOURCES.md](docs/MULTI-OPENLIST-SOURCES.md)。
