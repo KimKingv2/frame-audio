@@ -28,7 +28,7 @@
   <section class="hero">
     <div class="eyebrow">FOUR PROVIDERS · SIDE-BY-SIDE</div>
     <h1>四來源連線速度比較</h1>
-    <div class="sub">VPS Alist、OpenList Worker、K40 Alist、區域網路 OpenList。勾選兩個來源，以相同音訊路徑依序測試。</div>
+    <div class="sub">VPS Alist、OpenList Worker、K40 Alist、區域網路 OpenList。可勾選 2～4 個來源，以相同音訊路徑依序測試。</div>
   </section>
 
   <section class="card">
@@ -36,7 +36,7 @@
       <div class="source-head"><strong>目前播放器保存的活動來源</strong><span class="tag" id="active-source">讀取中</span></div>
       <div class="status" id="load-status">正在讀取來源設定狀態。這一步不會連接任何 Alist／OpenList 節點，也不會連接中國移動雲盤。</div>
     </div>
-    <h2 style="font-size:15px;margin:18px 0 10px">選擇要比較的兩個來源</h2>
+    <h2 style="font-size:15px;margin:18px 0 10px">選擇要比較的來源（至少 2 個，可全選）</h2>
     <div class="grid">
       <label class="source" id="card-vps">
         <div class="source-head"><span class="source-title"><input type="checkbox" value="vps" class="provider-choice"><span>VPS Alist</span></span><span class="tag" id="status-vps">讀取設定中</span></div>
@@ -55,9 +55,9 @@
         <div class="status" id="detail-local">瀏覽器直連；帳號密碼只在測試時輸入</div>
       </label>
     </div>
-    <div class="count" id="selection-count">已選 0 / 2 個來源</div>
+    <div class="count" id="selection-count">已選 0 / 4 個來源</div>
     <div class="field">
-      <label for="path">兩個來源都存在的音訊完整路徑</label>
+      <label for="path">所有選取來源都存在的音訊完整路徑</label>
       <input id="path" autocomplete="off" spellcheck="false" placeholder="/資料夾/專輯/歌曲.flac">
     </div>
     <div class="grid" id="local-login-fields" hidden>
@@ -65,26 +65,26 @@
       <div class="field"><label for="password">區域網路 OpenList 密碼</label><input id="password" type="password" autocomplete="current-password" placeholder="密碼"></div>
     </div>
     <div class="actions">
-      <button class="btn" id="run-compare" disabled>開始測試所選兩個來源</button>
+      <button class="btn" id="run-compare" disabled>至少選擇兩個來源後開始測試</button>
       <button class="btn secondary" id="reset-selection" type="button">清除選擇</button>
     </div>
-    <p class="notice safe">安全閘：載入頁面、讀取設定、勾選來源及輸入路徑都不會連接節點或中國移動雲盤。只有按下「開始測試所選兩個來源」後，才會依序對勾選的兩個來源發出 API 請求。</p>
-    <p class="notice">按下測試後，所選兩個來源只在本次診斷中視為臨時活動來源，不會修改播放器上次保存的活動端口。未勾選的另外兩個來源完全不會被測試。測試包含 /api/fs/get 和音訊 Range，雲盤可能看到這兩個已選來源的節點／瀏覽器網路出口 IP。</p>
-    <p class="note">每個來源只測一個目錄列表、一個檔案資訊／下載連結及最多 64 KiB Range；不播放整首、不掃描曲庫、不寫入 D1／R2、不發送定時心跳。測試依序執行，避免兩端同時搶頻寬。</p>
+    <p class="notice safe">安全閘：載入頁面、讀取設定、勾選來源及輸入路徑都不會連接節點或中國移動雲盤。只有按下「開始測試」後，才會依序對勾選的 2～4 個來源發出 API 請求。</p>
+    <p class="notice">按下測試後，所選來源只在本次診斷中視為臨時活動來源，不會修改播放器上次保存的活動來源。未勾選的來源完全不會被測試。測試包含 /api/fs/get 和音訊 Range，雲盤可能看到已選來源涉及的節點／瀏覽器網路出口 IP。</p>
+    <p class="note">每個來源只測一個目錄列表、一個檔案資訊／下載連結及最多 64 KiB Range；不播放整首、不掃描曲庫、不寫入 D1／R2、不發送定時心跳。所有選取來源依序執行，避免多端同時搶頻寬。</p>
   </section>
 
   <section class="card">
     <h2 style="font-size:15px;margin:0 0 12px">比較結果</h2>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>測試階段</th><th id="result-heading-a">來源 A</th><th id="result-heading-b">來源 B</th></tr></thead>
+        <thead><tr><th>測試階段</th><th id="result-heading-a" data-result-column="a">來源 1</th><th id="result-heading-b" data-result-column="b" hidden>來源 2</th><th id="result-heading-c" data-result-column="c" hidden>來源 3</th><th id="result-heading-d" data-result-column="d" hidden>來源 4</th></tr></thead>
         <tbody>
-          <tr><td>目錄列表<br><span class="muted">/api/fs/list</span></td><td id="a-list" class="muted">尚未測試</td><td id="b-list" class="muted">尚未測試</td></tr>
-          <tr><td>檔案資訊／取鏈<br><span class="muted">/api/fs/get</span></td><td id="a-info" class="muted">尚未測試</td><td id="b-info" class="muted">尚未測試</td></tr>
-          <tr><td>服務端上游耗時<br><span class="muted">Pages → 節點</span></td><td id="a-upstream" class="muted">尚未測試</td><td id="b-upstream" class="muted">尚未測試</td></tr>
-          <tr><td>音訊 Range 標頭</td><td id="a-range-head" class="muted">尚未測試</td><td id="b-range-head" class="muted">尚未測試</td></tr>
-          <tr><td>首段資料<br><span class="muted">最多 64 KiB</span></td><td id="a-range-data" class="muted">尚未測試</td><td id="b-range-data" class="muted">尚未測試</td></tr>
-          <tr><td>總耗時</td><td id="a-total" class="muted">尚未測試</td><td id="b-total" class="muted">尚未測試</td></tr>
+          <tr><td>目錄列表<br><span class="muted">/api/fs/list</span></td><td id="a-list" data-result-column="a" class="muted">尚未測試</td><td id="b-list" data-result-column="b" class="muted" hidden>尚未測試</td><td id="c-list" data-result-column="c" class="muted" hidden>尚未測試</td><td id="d-list" data-result-column="d" class="muted" hidden>尚未測試</td></tr>
+          <tr><td>檔案資訊／取鏈<br><span class="muted">/api/fs/get</span></td><td id="a-info" data-result-column="a" class="muted">尚未測試</td><td id="b-info" data-result-column="b" class="muted" hidden>尚未測試</td><td id="c-info" data-result-column="c" class="muted" hidden>尚未測試</td><td id="d-info" data-result-column="d" class="muted" hidden>尚未測試</td></tr>
+          <tr><td>服務端上游耗時<br><span class="muted">Pages → 節點</span></td><td id="a-upstream" data-result-column="a" class="muted">尚未測試</td><td id="b-upstream" data-result-column="b" class="muted" hidden>尚未測試</td><td id="c-upstream" data-result-column="c" class="muted" hidden>尚未測試</td><td id="d-upstream" data-result-column="d" class="muted" hidden>尚未測試</td></tr>
+          <tr><td>音訊 Range 標頭</td><td id="a-range-head" data-result-column="a" class="muted">尚未測試</td><td id="b-range-head" data-result-column="b" class="muted" hidden>尚未測試</td><td id="c-range-head" data-result-column="c" class="muted" hidden>尚未測試</td><td id="d-range-head" data-result-column="d" class="muted" hidden>尚未測試</td></tr>
+          <tr><td>首段資料<br><span class="muted">最多 64 KiB</span></td><td id="a-range-data" data-result-column="a" class="muted">尚未測試</td><td id="b-range-data" data-result-column="b" class="muted" hidden>尚未測試</td><td id="c-range-data" data-result-column="c" class="muted" hidden>尚未測試</td><td id="d-range-data" data-result-column="d" class="muted" hidden>尚未測試</td></tr>
+          <tr><td>總耗時</td><td id="a-total" data-result-column="a" class="muted">尚未測試</td><td id="b-total" data-result-column="b" class="muted" hidden>尚未測試</td><td id="c-total" data-result-column="c" class="muted" hidden>尚未測試</td><td id="d-total" data-result-column="d" class="muted" hidden>尚未測試</td></tr>
         </tbody>
       </table>
     </div>
@@ -109,6 +109,8 @@ import {
   const LOCAL_KEY = "frame-audio-local-openlist-profile-v1";
   const LABELS = { vps:"VPS Alist", worker:"OpenList Worker", k40:"K40 Alist", local:"區域網路 OpenList" };
   const state = { active:"vps", profiles:{}, local:{baseUrl:""}, loading:true, running:false };
+  const RESULT_COLUMNS = ["a","b","c","d"];
+  const RESULT_ROWS = ["list","info","upstream","range-head","range-data","total"];
   const selected = () => [...document.querySelectorAll(".provider-choice:checked")].map(node=>node.value);
   const fmt = ms => Number.isFinite(ms) ? Math.round(ms)+" ms" : "—";
   const setCell = (id,value,tone="") => { const el=$(id); el.textContent=value; el.className="value "+tone; };
@@ -127,8 +129,11 @@ import {
   }
   function refreshSelectionUI() {
     const choices=selected();
-    $("selection-count").textContent="已選 "+choices.length+" / 2 個來源";
-    $("run-compare").disabled=state.loading||state.running||choices.length!==2||choices.some(id=>!isReady(id));
+    $("selection-count").textContent="已選 "+choices.length+" / 4 個來源（至少 2 個）";
+    $("run-compare").textContent=choices.length>=2
+      ? "開始測試所選 "+choices.length+" 個來源"
+      : "至少選擇兩個來源後開始測試";
+    $("run-compare").disabled=state.loading||state.running||choices.length<2||choices.length>4||choices.some(id=>!isReady(id));
     $("local-login-fields").hidden=!choices.includes("local");
     for(const id of Object.keys(LABELS)) $("card-"+id).classList.toggle("selected",choices.includes(id));
   }
@@ -143,11 +148,13 @@ import {
     if(!Object.hasOwn(LABELS,state.active))state.active="vps";
     state.local=readLocalProfile();
     $("active-source").textContent=LABELS[state.active]+"（上次保存）";
+    let profilesLoaded=false;
     try {
       const response=await fetch("/api/settings/connections",{credentials:"same-origin"});
       const data=await response.json().catch(()=>({}));
       if(!response.ok||!data.ok) throw new Error(data.error||("設定狀態 HTTP "+response.status));
       state.profiles=data.profiles||{};
+      profilesLoaded=true;
     } catch(error) {
       state.profiles={};
       $("load-status").textContent="無法讀取 Pages 來源設定狀態："+(error.message||error)+"。沒有連接任何節點。";
@@ -170,8 +177,10 @@ import {
       ? "地址："+state.local.baseUrl+"。帳號密碼及 JWT 不保存，測試時才登入。"
       : "尚未保存區域網路 OpenList 地址；不會發出登入或 API 請求。";
     document.querySelector('.provider-choice[value="local"]').disabled=!lanReady;
-    $("load-status").textContent="設定狀態已載入。尚未對任何節點發出連線，未連接中國移動雲盤。";
-    $("load-status").className="status ok";
+    if(profilesLoaded) {
+      $("load-status").textContent="設定狀態已載入。尚未對任何節點發出連線，未連接中國移動雲盤。";
+      $("load-status").className="status ok";
+    }
     state.loading=false;
     // Mark the previously saved active source as the default candidate only.
     // This is a local checkbox state, not an activation or network request.
@@ -225,26 +234,42 @@ import {
     return {status:response.status,headerMs,firstByteMs,readMs:performance.now()-started,bytes,finalHost,contentRange};
   }
   function resetResults(names) {
-    $("result-heading-a").textContent=LABELS[names[0]];
-    $("result-heading-b").textContent=LABELS[names[1]];
-    for(const col of ["a","b"]) for(const row of ["list","info","upstream","range-head","range-data","total"]) setCell(col+"-"+row,"測試中…","muted");
+    RESULT_COLUMNS.forEach((col,index)=>{
+      const visible=index<names.length;
+      const heading=$("result-heading-"+col);
+      heading.hidden=!visible;
+      if(visible)heading.textContent=LABELS[names[index]];
+      document.querySelectorAll('[data-result-column="'+col+'"]').forEach(node=>{node.hidden=!visible;});
+      if(visible)for(const row of RESULT_ROWS)setCell(col+"-"+row,"測試中…","muted");
+    });
   }
   async function testOne(provider,path,col) {
     const started=performance.now(),label=LABELS[provider],folder=parentPath(path);
     const result={provider,errors:[],listMs:NaN,infoMs:NaN,upstreamMs:NaN,totalMs:NaN};
     let config;
-    if(provider==="local") {
-      const username=$("username").value.trim(),password=$("password").value;
-      if(!username||!password) throw new Error("區域網路 OpenList 需要輸入帳號與密碼。");
-      say(label+"：正在登入（只有本次勾選的來源會登入）");
-      const token=await loginOpenList({baseUrl:state.local.baseUrl,username,password});
-      $("password").value="";
-      config={provider:"local",baseUrl:state.local.baseUrl,token};
-    } else {
-      if(!state.profiles[provider]?.configured) throw new Error(label+" 未配置；沒有向該節點發送請求。");
-      config={provider,baseUrl:location.origin,token:""};
+    try {
+      if(provider==="local") {
+        const username=$("username").value.trim(),password=$("password").value;
+        if(!username||!password) throw new Error("區域網路 OpenList 需要輸入帳號與密碼。");
+        say(label+"：正在登入（只有本次勾選的來源會登入）");
+        const token=await loginOpenList({baseUrl:state.local.baseUrl,username,password});
+        $("password").value="";
+        config={provider:"local",baseUrl:state.local.baseUrl,token};
+      } else {
+        if(!state.profiles[provider]?.configured) throw new Error(label+" 未配置；沒有向該節點發送請求。");
+        config={provider,baseUrl:location.origin,token:""};
+      }
+      configureOpenListConnection(config);
+    } catch(error) {
+      result.errors.push("登入／連線設定："+(error.message||error));
+      for(const row of ["list","info","range-head"])setCell(col+"-"+row,"失敗："+(error.message||error),"err");
+      setCell(col+"-upstream","未取得","muted");
+      setCell(col+"-range-data","未讀取","muted");
+      result.totalMs=performance.now()-started;
+      setCell(col+"-total",fmt(result.totalMs)+" · 來源未連線","warn-text");
+      say(label+"：登入／連線設定失敗："+(error.message||error),"err");
+      return result;
     }
-    configureOpenListConnection(config);
     say(label+"：開始測試目錄 "+folder);
     const listStarted=performance.now();
     try {
@@ -282,7 +307,7 @@ import {
       try {
         const range=await rangeProbe(info.raw_url);
         setCell(col+"-range-head","HTTP "+range.status+" · "+fmt(range.headerMs)+" · "+range.finalHost,range.status===206?"ok":"warn");
-        setCell(col+"-range-data",range.bytes?fmt(range.firstByteMs)+" 首段 · "+fmt(range.readMs)+" 讀取 "+range.bytes.toLocaleString()+" B":"Range 未通過 · "+range.contentRange,"ok"=== "no"?"ok":range.bytes?"ok":"warn");
+        setCell(col+"-range-data",range.bytes?fmt(range.firstByteMs)+" 首段 · "+fmt(range.readMs)+" 讀取 "+range.bytes.toLocaleString()+" B":"Range 未通過 · "+range.contentRange,range.bytes?"ok":"warn");
         if(range.status!==206||!range.bytes)result.errors.push("音訊來源 Range 未回傳有效的 206 資料。");
         say(label+"：音訊 HTTP "+range.status+"；首段 "+fmt(range.firstByteMs)+"；讀取 "+range.bytes+" bytes",range.bytes?"ok":"warn");
       } catch(error) {
@@ -303,7 +328,7 @@ import {
   async function runComparison() {
     if(state.running)return;
     const choices=selected();
-    if(choices.length!==2||choices.some(id=>!isReady(id)))return;
+    if(choices.length<2||choices.length>4||choices.some(id=>!isReady(id)))return;
     let path;
     try{path=currentPath();}catch(error){$("summary").textContent=error.message;return;}
     if(choices.includes("local")&&(!$("username").value.trim()||!$("password").value)) {
@@ -316,17 +341,24 @@ import {
     document.querySelectorAll(".provider-choice").forEach(node=>node.disabled=true);
     $("log").textContent="";
     resetResults(choices);
-    $("summary").textContent="測試已啟動。只會連接勾選的兩個來源，依序執行；其餘來源不會收到任何 API 請求。";
+    $("summary").textContent="測試已啟動。只會連接勾選的 "+choices.length+" 個來源，依序執行；其餘來源不會收到任何 API 請求。";
     say("使用者明確啟動比較："+choices.map(x=>LABELS[x]).join(" ↔ "));
     try {
-      const first=await testOne(choices[0],path,"a");
-      await new Promise(resolve=>setTimeout(resolve,350));
-      const second=await testOne(choices[1],path,"b");
-      const compare=(key)=>Number.isFinite(first[key])&&Number.isFinite(second[key])
-        ? (first[key]<second[key]?LABELS[first.provider]:LABELS[second.provider])+" 快 "+fmt(Math.abs(first[key]-second[key]))
-        : "資料不足";
-      $("summary").textContent="比較完成。目錄列表："+compare("listMs")+"；檔案資訊："+compare("infoMs")+"；總耗時："+compare("totalMs")+
-        "。本次只有勾選的兩個來源被連接；播放器原本保存的活動來源沒有更改。";
+      const results=[];
+      for(let index=0;index<choices.length;index++) {
+        if(index)await new Promise(resolve=>setTimeout(resolve,350));
+        results.push(await testOne(choices[index],path,RESULT_COLUMNS[index]));
+      }
+      const compare=(key)=>{
+        const ranked=results.filter(item=>Number.isFinite(item[key])).sort((a,b)=>a[key]-b[key]);
+        if(!ranked.length)return "資料不足";
+        if(ranked.length===1)return "僅 "+LABELS[ranked[0].provider]+" 有有效資料（"+fmt(ranked[0][key])+"）";
+        return "最快 "+LABELS[ranked[0].provider]+" "+fmt(ranked[0][key])+
+          "；最慢 "+LABELS[ranked[ranked.length-1].provider]+" "+fmt(ranked[ranked.length-1][key]);
+      };
+      $("summary").textContent=choices.length+" 個來源比較完成。目錄列表："+compare("listMs")+
+        "；檔案資訊："+compare("infoMs")+"；總耗時："+compare("totalMs")+
+        "。本次只有勾選的來源被連接；播放器原本保存的活動來源沒有更改。";
     } catch(error) {
       $("summary").textContent="比較測試中止："+(error.message||error);
       say("比較測試中止："+(error.message||error),"err");
@@ -342,8 +374,8 @@ import {
   }
   document.querySelectorAll(".provider-choice").forEach(node=>node.addEventListener("change",()=>{
     const choices=selected();
-    if(choices.length>2)node.checked=false;
-    if(choices.length>2)$("summary").textContent="一次最多比較兩個來源。";
+    if(choices.length>4)node.checked=false;
+    if(choices.length>4)$("summary").textContent="最多可同時選擇四個來源。";
     refreshSelectionUI();
   }));
   $("reset-selection").addEventListener("click",()=>{
