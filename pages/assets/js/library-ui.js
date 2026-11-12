@@ -62,6 +62,7 @@ export function initLibraryUI(options = {}) {
       cleaned = true;
       for (const [eventName, handler] of listeners) media.removeEventListener(eventName, handler);
       if (timeoutId) clearTimeout(timeoutId);
+      if (activeAudioTimingCleanup === cleanup) activeAudioTimingCleanup = null;
     };
     const mark = (eventName, key) => {
       const handler = () => {
@@ -1321,6 +1322,8 @@ export function initLibraryUI(options = {}) {
         });
         $("#player-toggle").textContent="Ⅱ";
       } catch(e) {
+        activeAudioTimingCleanup?.();
+        activeAudioTimingCleanup = null;
         if(!isCurrentRequest()||isPlaybackInterruption(e))return;
         $("#player-toggle").textContent="▶";
         message("VPS Alist 音訊網址已載入，但瀏覽器未能開始播放。"+(e.message?" "+e.message:""),"error");
