@@ -40,7 +40,7 @@ async function directRequest(config, endpoint, payload, timeoutMs) {
     });
   } catch (cause) {
     if (cause?.name === "AbortError") throw new Error("本機 OpenList " + endpoint + " 請求逾時（" + Math.round(timeoutMs / 1000) + " 秒）。");
-    throw new Error("無法直接連接手機本機 OpenList。請確認服務、網址與 CORS（Authorization、Content-Type）設定。" +
+    throw new Error("無法直接連接手機本機 OpenList。請確認服務、網址與 CORS（Authorization、Content-Type）設定。若使用 Chrome 142+，請在網站設定允許本機網路存取；Chrome 145+ 的 127.0.0.1 通常顯示為「迴圈網路／Apps on device」。若先前拒絕，請到網站權限重新允許。" +
       (cause?.message ? " 詳情：" + String(cause.message).slice(0, 160) : ""));
   } finally { clearTimeout(timeout); }
 }
