@@ -12,20 +12,47 @@ export function configureOpenListConnection(config = {}) {
 export function getOpenListConnection() { return { ...activeConnection, token: "" }; }
 function resolveConnection(baseUrl) { return { ...activeConnection, baseUrl: String(baseUrl || activeConnection.baseUrl || "").trim() }; }
 
+function ipv4Octets(hostname) {
+  if (!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname)) return null;
+  const octets = hostname.split(".").map(Number);
+  return octets.every(value => Number.isInteger(value) && value >= 0 && value <= 255) ? octets : null;
+}
+function isPrivateIpv4(hostname) {
+  const ip = ipv4Octets(hostname);
+  if (!ip) return false;
+  const [a, b] = ip;
+  return a === 10 ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 169 && b === 254);
+}
+export function openListTargetAddressSpace(value) {
+  let url;
+  try { url = new URL(String(value || "")); } catch { return ""; }
+  const hostname = url.hostname.toLowerCase();
+  if (["localhost", "127.0.0.1", "[::1]"].includes(hostname) || hostname.startsWith("127.")) return "loopback";
+  if (isPrivateIpv4(hostname)) return "local";
+  return "";
+}
+export function openListNetworkFetchOptions(value) {
+  const targetAddressSpace = openListTargetAddressSpace(value);
+  return targetAddressSpace ? { targetAddressSpace } : {};
+}
 export function normalizeOpenListUrl(value) {
   let url;
   try { url = new URL(String(value || "").trim()); }
   catch { throw new Error("OpenList 網址格式不正確。"); }
   if (!["https:", "http:"].includes(url.protocol)) throw new Error("OpenList 網址必須使用 HTTP 或 HTTPS。");
-  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
-  if (url.protocol === "http:" && !loopback) {
-    throw new Error("HTTPS FRAME Audio 只能連接 HTTPS OpenList；HTTP 僅允許 localhost、127.0.0.1 或 ::1 本機迴圈位址。");
+  const loopback = openListTargetAddressSpace(url.href) === "loopback";
+  const privateLan = openListTargetAddressSpace(url.href) === "local";
+  if (url.protocol === "http:" && !loopback && !privateLan) {
+    throw new Error("HTTP 只允許本機迴圈位址或私有區域網路 IPv4（10.x、172.16–31.x、192.168.x、169.254.x）。其他網域必須使用 HTTPS。");
   }
   if (url.username || url.password || url.search || url.hash) throw new Error("OpenList 網址不可包含帳號、密碼、查詢參數或片段。");
   return url.origin + url.pathname.replace(/\/+$/, "");
 }
 function sourceLabel(provider) {
-  return provider === "worker" ? "OpenList Worker" : provider === "local" ? "手機本機 OpenList" : "VPS Alist";
+  return provider === "worker" ? "OpenList Worker" : provider === "local" ? "區域網路 OpenList" : "VPS Alist";
 }
 async function directRequest(config, endpoint, payload, timeoutMs) {
   const baseUrl = normalizeOpenListUrl(config.baseUrl);
@@ -33,14 +60,16 @@ async function directRequest(config, endpoint, payload, timeoutMs) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(new URL("api/fs/" + endpoint, baseUrl + "/").href, {
+    const target = new URL("api/fs/" + endpoint, baseUrl + "/").href;
+    return await fetch(target, {
       method: "POST", mode: "cors", credentials: "omit", redirect: "error",
       headers: { Authorization: config.token, "Content-Type": "application/json" },
-      body: JSON.stringify(payload), signal: controller.signal
+      body: JSON.stringify(payload), signal: controller.signal,
+      ...openListNetworkFetchOptions(target)
     });
   } catch (cause) {
     if (cause?.name === "AbortError") throw new Error("本機 OpenList " + endpoint + " 請求逾時（" + Math.round(timeoutMs / 1000) + " 秒）。");
-    throw new Error("無法直接連接手機本機 OpenList。請確認服務、網址與 CORS（Authorization、Content-Type）設定。若使用 Chrome 142+，請在網站設定允許本機網路存取；Chrome 145+ 的 127.0.0.1 通常顯示為「迴圈網路／Apps on device」。若先前拒絕，請到網站權限重新允許。" +
+    throw new Error("無法直接連接區域網路 OpenList。請確認服務、網址與 CORS（Authorization、Content-Type）設定。若使用 Chrome 142+，請在網站設定允許本機網路存取；Chrome 145+ 的 127.0.0.1 通常顯示為「迴圈網路／Apps on device」。若先前拒絕，請到網站權限重新允許。" +
       (cause?.message ? " 詳情：" + String(cause.message).slice(0, 160) : ""));
   } finally { clearTimeout(timeout); }
 }
@@ -167,8 +196,9 @@ export async function probeOpenListAudioRange({ baseUrl, token, path, byteCount 
   const requestedBytes = Math.min(byteCount, fileSize - startByte), endByte = startByte + requestedBytes - 1;
   const rawResponse = await fetch(target.href, {
     method: "GET", mode: "cors", credentials: "omit", redirect: "follow",
-    headers: { Range: "bytes=" + startByte + "-" + endByte }
-  }).catch(() => { throw new Error("已取得檔案資訊，但瀏覽器無法讀取音訊來源。可能是來源網域的 CORS 或網路限制。"); });
+    headers: { Range: "bytes=" + startByte + "-" + endByte },
+    ...openListNetworkFetchOptions(target.href)
+  }).catch(() => { throw new Error("已取得檔案資訊，但瀏覽器無法讀取音訊來源。可能是來源網域的本機網路權限或 CORS 限制。"); });
   const finalUrl = rawResponse.url || target.href;
   let finalHost = "";
   try { finalHost = new URL(finalUrl).hostname; } catch {}

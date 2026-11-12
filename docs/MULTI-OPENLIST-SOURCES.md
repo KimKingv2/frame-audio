@@ -4,7 +4,7 @@ FRAME Audio supports three interchangeable read-only file sources while keeping 
 
 - VPS Alist: existing Pages Functions server-side proxy, using existing ALIST_VPS_API_BASE_URL / ALIST_VPS_API_TOKEN Cloudflare settings as fallbacks.
 - OpenList Worker: Pages Functions server-side proxy to a second OpenList-compatible API.
-- Phone-local OpenList: the browser on the phone calls its own loopback OpenList service directly. This source cannot be proxied by Cloudflare because the Cloudflare edge cannot reach a service bound to the phone's 127.0.0.1.
+- LAN OpenList: the browser on the phone calls its own LAN OpenList service directly. This source cannot be proxied by Cloudflare because the Cloudflare edge cannot reach a service bound to the private LAN device's RFC1918 address.
 
 ## Saved connection settings
 
@@ -18,17 +18,17 @@ When editing server profiles, leave a Token field blank to keep the already-save
 
 ## Local OpenList requirements
 
-For phone-local mode, enter the OpenList API base URL, typically a loopback URL such as http://127.0.0.1:5244 if that is the port configured on the phone. Use the actual port and base path of the local service.
+For LAN-direct mode, enter the OpenList API base URL, a private LAN URL such as http://192.168.31.20:5244. Replace the example IP with the actual address of the device running OpenList.
 
-The local OpenList must:
+The LAN OpenList must:
 - Expose the Alist/OpenList-compatible POST /api/fs/list and POST /api/fs/get endpoints.
-- Chrome 142 and later gates public-site requests to loopback behind a Local Network Access permission. Chrome 145 introduced the separate loopback-network permission for 127.0.0.1, localhost and ::1. The app therefore waits for the explicit Test current source button before its first local request; it does not probe a saved local endpoint at page load.
+- Chrome 142 and later gates public-site requests to private LAN addresses behind a Local Network Access permission. Chrome 145 uses the local-network permission for addresses such as 192.168.31.x. The app waits for the explicit Test current source button before its first LAN request; it does not probe a saved endpoint at page load.
 - Allow CORS from the exact FRAME Audio origin (both https://main.frame-audio.pages.dev for Preview and https://frame-audio.pages.dev for Production, if both are used).
 - Allow Authorization and Content-Type request headers.
 - For audio hosts used for tag inspection, allow cross-origin Range requests and expose Content-Range, Content-Length, and Accept-Ranges as needed.
-- Return audio raw_url values reachable from the phone browser. The HTML5 audio element plays those URLs directly; Pages does not relay or transcode audio.
+- Return audio raw_url values reachable from the client browser. The HTML5 audio element plays those URLs directly; Pages does not relay or transcode audio.
 
-Chrome's Local Network Access rules apply to loopback too: FRAME Audio must be served over HTTPS and the user may need to grant loopback-network permission. For a private LAN address, Chrome 145+ uses local-network permission. Non-loopback HTTP addresses should not be used from the HTTPS FRAME Audio page; use HTTPS for LAN or remote addresses. Browser and Android-version behavior must be checked on the target phone.
+Chrome's Local Network Access permission is required for the public HTTPS FRAME Audio site to contact a private LAN IP. Chrome 145+ uses the local-network permission for RFC1918 addresses such as 192.168.31.x. When the destination is a private IP literal, Chrome can exempt the HTTP request from mixed-content blocking after permission is granted. Non-private HTTP hosts are not allowed; use HTTPS for public or remote addresses.
 
 ## Shared catalogue behavior
 

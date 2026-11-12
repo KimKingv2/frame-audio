@@ -21,7 +21,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   const browseButton = $("#browse-root");
   const CONNECTION_PROVIDER_STORAGE_KEY = "frame-audio-active-openlist-provider";
   const LOCAL_OPENLIST_STORAGE_KEY = "frame-audio-local-openlist-profile-v1";
-  const PROVIDER_LABELS = { vps: "VPS Alist", worker: "OpenList Worker", local: "手機本機 OpenList" };
+  const PROVIDER_LABELS = { vps: "VPS Alist", worker: "OpenList Worker", local: "區域網路 OpenList" };
   let serverProfiles = {
     vps: { baseUrl: "", hasToken: false, configured: false },
     worker: { baseUrl: "", hasToken: false, configured: false },
@@ -350,9 +350,9 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       fillConnectionSettingsForm();
       if (targetProvider === "local") {
         connected = false;
-        $("#connection-label").textContent = "手機本機 OpenList 等待測試";
+        $("#connection-label").textContent = "區域網路 OpenList 等待測試";
         $("#connection-dot").style.background = "#b78b75";
-        setResult("本機來源已保存。請再點擊「測試目前來源並讀取目錄」，授權瀏覽器存取手機本機 OpenList。");
+        setResult("本機來源已保存。請再點擊「測試目前來源並讀取目錄」，授權瀏覽器存取區域網路 OpenList。");
       } else {
         await testConnection();
       }
@@ -1913,7 +1913,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     if (activeProvider === "local") {
       // Chrome's loopback-network permission must be requested from a user gesture.
       // Never probe the phone's local OpenList automatically on page load.
-      setResult("已選取手機本機 OpenList。請在連線設定中點擊「測試目前來源並讀取目錄」，並允許瀏覽器存取本機服務。");
+      setResult("已選取區域網路 OpenList。請在連線設定中點擊「測試目前來源並讀取目錄」，並允許瀏覽器存取本機服務。");
       await Promise.allSettled([testCloudflareStorage()]);
     } else {
       await Promise.allSettled([testConnection(), testCloudflareStorage()]);
