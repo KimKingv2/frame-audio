@@ -58,37 +58,30 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     const scrim = $("#mobile-nav-scrim");
     const isMobile = isMobileSidebarViewport();
     const wasMobileExpanded = document.body.classList.contains("mobile-sidebar-expanded");
-    const wasDesktopCollapsed = document.body.classList.contains("desktop-sidebar-collapsed");
-    const isExpanded = Boolean(expanded);
+    const isExpanded = !isMobile || Boolean(expanded);
 
-    if (isMobile) {
-      document.body.classList.remove("desktop-sidebar-collapsed");
-      document.body.classList.toggle("mobile-sidebar-expanded", isExpanded);
-    } else {
-      document.body.classList.remove("mobile-sidebar-expanded");
-      document.body.classList.toggle("desktop-sidebar-collapsed", !isExpanded);
-    }
+    document.body.classList.remove("desktop-sidebar-collapsed");
+    document.body.classList.toggle("mobile-sidebar-expanded", isMobile && isExpanded);
 
     if (trigger) {
       trigger.setAttribute("aria-expanded", String(isExpanded));
       trigger.setAttribute("aria-label", isExpanded ? "收合導覽欄" : "展開導覽欄");
+      trigger.setAttribute("title", isExpanded ? "收合導覽" : "展開導覽");
       const icon = trigger.querySelector(".side-nav-toggle-icon");
-      const label = trigger.querySelector(".side-nav-toggle-label");
-      if (icon) icon.textContent = isExpanded ? (isMobile ? "×" : "‹") : (isMobile ? "☰" : "›");
-      if (label) label.textContent = isExpanded ? "收合導覽" : "展開導覽";
+      if (icon) icon.textContent = isExpanded ? "×" : "☰";
     }
     if (scrim) scrim.setAttribute("aria-hidden", String(!(isMobile && isExpanded)));
     if (sidebar) sidebar.setAttribute("aria-label", isExpanded ? "已展開的主要導覽" : "主要導覽");
 
     if (isMobile && isExpanded) {
       requestAnimationFrame(() => sidebar?.querySelector(".nav button")?.focus({ preventScroll: true }));
-    } else if (restoreFocus && ((isMobile && wasMobileExpanded) || (!isMobile && wasDesktopCollapsed))) {
+    } else if (restoreFocus && wasMobileExpanded) {
       trigger?.focus({ preventScroll: true });
     }
   }
 
   function syncSideNavigationViewport() {
-    setSideNavigationExpanded(!isMobileSidebarViewport());
+    setSideNavigationExpanded(false);
   }
 
   function showView(name) {
@@ -1583,9 +1576,8 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   }
 
   $("#side-nav-toggle")?.addEventListener("click", () => {
-    const expanded = isMobileSidebarViewport()
-      ? document.body.classList.contains("mobile-sidebar-expanded")
-      : !document.body.classList.contains("desktop-sidebar-collapsed");
+    if (!isMobileSidebarViewport()) return;
+    const expanded = document.body.classList.contains("mobile-sidebar-expanded");
     setSideNavigationExpanded(!expanded, true);
   });
   $("#mobile-nav-scrim")?.addEventListener("click", () => setSideNavigationExpanded(false, true));
@@ -1595,26 +1587,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     }
   });
   window.addEventListener("resize", () => {
-    const isMobile = isMobileSidebarViewport();
-    if (isMobile && !document.body.classList.contains("mobile-sidebar-expanded")) {
-      document.body.classList.remove("desktop-sidebar-collapsed");
-      const trigger = $("#side-nav-toggle");
-      trigger?.setAttribute("aria-expanded", "false");
-      const icon = trigger?.querySelector(".side-nav-toggle-icon");
-      const label = trigger?.querySelector(".side-nav-toggle-label");
-      if (icon) icon.textContent = "☰";
-      if (label) label.textContent = "展開導覽";
-    } else if (!isMobile) {
-      document.body.classList.remove("mobile-sidebar-expanded");
-      document.body.classList.remove("desktop-sidebar-collapsed");
-      const trigger = $("#side-nav-toggle");
-      trigger?.setAttribute("aria-expanded", "true");
-      const icon = trigger?.querySelector(".side-nav-toggle-icon");
-      const label = trigger?.querySelector(".side-nav-toggle-label");
-      if (icon) icon.textContent = "‹";
-      if (label) label.textContent = "收合導覽";
-    }
-    $("#mobile-nav-scrim")?.setAttribute("aria-hidden", String(!document.body.classList.contains("mobile-sidebar-expanded")));
+    setSideNavigationExpanded(false);
   });
   syncSideNavigationViewport();
   document.querySelectorAll("[data-view]").forEach((button) => {

@@ -27,7 +27,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 @media(max-width:520px){.scan-log-toolbar{align-items:flex-start;flex-direction:column}.scan-log-toolbar>div{width:100%}.scan-log-button{flex:1}}
 </style>
 <link rel="stylesheet" href="/assets/css/metadata.css">
-<link rel="stylesheet" href="/assets/css/library.css?v=20261112-right-sidebar-collapsible1">
+<link rel="stylesheet" href="/assets/css/library.css?v=20261112-mobile-nav-player-toggle1">
 <link rel="stylesheet" href="/assets/css/interaction.css?v=20261112-mobile-transport-polish2">
 </head>
 <body>
@@ -37,10 +37,6 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   <div class="brand">
     <span class="mark">F</span>
     <span class="brand-name">FRAME <b>Audio</b></span>
-    <button class="side-nav-toggle" id="side-nav-toggle" type="button" aria-controls="site-sidebar" aria-expanded="true" aria-label="收合導覽欄">
-      <span class="side-nav-toggle-icon" aria-hidden="true">‹</span>
-      <span class="side-nav-toggle-label">收合導覽</span>
-    </button>
   </div>
   <div class="label">LIBRARY</div>
   <nav class="nav" aria-label="媒體庫">
@@ -92,6 +88,9 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
       <button id="player-toggle" class="player-play" type="button" aria-label="播放／暫停" title="播放／暫停">▶</button>
       <button id="player-next" type="button" aria-label="下一首" title="下一首">⏭</button>
     </div>
+    <button class="side-nav-toggle" id="side-nav-toggle" type="button" aria-controls="site-sidebar" aria-expanded="false" aria-label="展開導覽欄" title="展開導覽">
+      <span class="side-nav-toggle-icon" aria-hidden="true">☰</span>
+    </button>
   </div>
   <div class="controls" id="player-detail-controls" aria-label="播放詳情控制">
     <div class="player-control-row">
