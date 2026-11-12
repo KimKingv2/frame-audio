@@ -1370,6 +1370,7 @@ export function initLibraryUI(options = {}) {
   });
   $("#player-now-playing")?.addEventListener("click",()=>{
     if(!state.currentItem){message("請先從曲庫選擇音訊。");return;}
+    options.closeMobileNavigation?.();
     if(state.view==="now-playing")closeNowPlaying();
     else void showView("now-playing");
   });

@@ -1662,6 +1662,11 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     if (event.target === dialog) dialog.close();
   });
   libraryUI = initLibraryUI({
+    closeMobileNavigation: () => {
+      if (isMobileSidebarViewport() && document.body.classList.contains("mobile-sidebar-expanded")) {
+        setSideNavigationExpanded(false);
+      }
+    },
     getMusicRootPath: () => getConfiguredRoot(musicRootInput, "Music"),
     getCredentials: () => ({
       baseUrl: activeBaseUrl,

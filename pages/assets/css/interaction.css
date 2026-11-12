@@ -788,25 +788,9 @@
 }
 
 
-/* Mobile navigation trigger sits directly beside the next-track control. */
-.dock-transport-host .side-nav-toggle{display:none}
-@media(max-width:760px){
-  .dock-transport-host{gap:5px}
-  .dock-transport-host .side-nav-toggle{
-    display:grid;place-items:center;flex:0 0 34px;width:34px;height:36px;min-width:34px;min-height:36px;
-    margin:0 0 0 1px;padding:0;border:1px solid rgba(207,187,233,.2);border-radius:12px;
-    color:#dfd0f0;background:linear-gradient(145deg,rgba(169,132,219,.17),rgba(255,255,255,.035));
-    font-size:17px;line-height:1;cursor:pointer;touch-action:manipulation;
-    box-shadow:inset 0 1px rgba(255,255,255,.055);
-    transition:background .18s ease,border-color .18s ease,color .18s ease,transform .18s ease;
-  }
-  .dock-transport-host .side-nav-toggle:active{transform:scale(.94)}
-  .dock-transport-host .side-nav-toggle:hover,
-  .dock-transport-host .side-nav-toggle[aria-expanded="true"]{
-    color:#fff;border-color:rgba(207,187,233,.38);
-    background:linear-gradient(145deg,rgba(185,154,232,.36),rgba(140,104,181,.2));
-  }
-}
+/* The navigation toggle remains visible beside the queue control on desktop and mobile.
+   DOM order: previous / play / next / queue / navigation. */
+.dock-transport-host .side-nav-toggle{display:grid;place-items:center}
 
 
 /* Playback queue popover. It has its own scrolling area and never scrolls the page. */
