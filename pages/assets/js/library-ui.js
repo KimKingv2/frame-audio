@@ -302,6 +302,14 @@ export function initLibraryUI(options = {}) {
       if(forced||(activeChanged&&!manuallyPaused))scrollLyricIntoList(list,current);
     }
   }
+  root.addEventListener("animationend",event=>{
+    if(event.target===root&&event.animationName==="library-arrive"){
+      root.classList.remove("view-enter");
+    }
+    if(event.animationName==="detail-arrive"&&event.target instanceof HTMLElement){
+      event.target.style.willChange="auto";
+    }
+  });
   function animateLibraryContent(){
     root.classList.remove("view-enter");
     if(state.view==="now-playing")return;
@@ -933,7 +941,9 @@ export function initLibraryUI(options = {}) {
         };
         if (item.artworkHash) {
           const artworkUrl = new URL("/api/artwork/" + encodeURIComponent(item.artworkHash), window.location.origin).href;
-          metadata.artwork = ["96x96","128x128","192x192","256x256","384x384","512x512"].map(size => ({src:artworkUrl,sizes:size}));
+          // Keep one source: WebKit may use only the first artwork candidate.
+          // Let the platform decode the original R2 image at its native resolution.
+          metadata.artwork = [{ src: artworkUrl }];
         }
         session.metadata = new MediaMetadata(metadata);
       }
@@ -1282,6 +1292,9 @@ export function initLibraryUI(options = {}) {
   audio.addEventListener("play",()=>{
     startSession();$("#player-toggle").textContent="Ⅱ";
     document.body.classList.add("is-audio-playing");
+    // Re-publish after the media element starts and the browser can activate
+    // this tab's media session (important for iOS Lock Screen artwork).
+    syncMediaSessionMetadata(state.currentItem);
     syncMediaSessionPlaybackState();
   });
   audio.addEventListener("pause",()=>{

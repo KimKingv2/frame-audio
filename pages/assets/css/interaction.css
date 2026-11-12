@@ -880,3 +880,96 @@ body.desktop-sidebar-collapsed .player-queue-panel{right:90px;width:min(420px,ca
   .player-queue-panel{bottom:calc(86px + env(safe-area-inset-bottom))}
 }
 @media(prefers-reduced-motion:reduce){.player-queue-item,.dock-transport-host .dock-tool-toggle{transition:none!important}}
+
+
+/* Flat Now Playing utility controls: individual buttons, no enclosing toolbar card. */
+.now-playing-tools-host .player-control-group{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:clamp(7px,1.8vw,16px);
+  width:auto;
+  max-width:100%;
+  min-width:0;
+  min-height:48px;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+}
+.now-playing-tools-host .controls .player-utility,
+.now-playing-tools-host .controls .player-stop{
+  display:grid;
+  place-items:center;
+  flex:0 0 44px;
+  width:44px;
+  min-width:44px;
+  max-width:44px;
+  height:44px;
+  min-height:44px;
+  max-height:44px;
+  margin:0;
+  padding:0;
+  border:1px solid rgba(218,199,241,.13);
+  border-radius:14px;
+  color:#ddd2e9;
+  background:rgba(255,255,255,.035);
+  box-shadow:none;
+  font-size:18px;
+  line-height:1;
+  cursor:pointer;
+  touch-action:manipulation;
+  transition:background-color .16s ease,border-color .16s ease,color .16s ease,transform .16s ease;
+}
+.now-playing-tools-host .controls .player-utility:hover,
+.now-playing-tools-host .controls .player-stop:hover{
+  color:#fff;
+  border-color:rgba(218,199,241,.26);
+  background:rgba(255,255,255,.075);
+}
+.now-playing-tools-host .controls .player-utility.active{
+  color:#f1e1ff;
+  border-color:rgba(193,161,233,.26);
+  background:rgba(177,139,224,.16);
+  box-shadow:0 0 18px rgba(146,108,191,.12);
+}
+.now-playing-tools-host .controls .player-stop{color:#d4aaa9}
+.now-playing-tools-host .controls .player-stop:hover{
+  color:#ffe6e3;border-color:rgba(214,145,143,.28);background:rgba(179,91,91,.11);
+}
+.now-playing-tools-host .player-control-separator{
+  flex:0 0 1px;width:1px;height:20px;margin:0 1px;
+  background:linear-gradient(180deg,transparent,rgba(210,191,235,.26),transparent);
+}
+.now-playing-tools-host #player-speed{
+  flex:0 0 48px;width:48px;height:44px;min-height:44px;
+  padding:0 3px;border:1px solid rgba(218,199,241,.13);border-radius:13px;
+  color:#e0d2ef;background:rgba(255,255,255,.035);
+  font-size:11px;text-align:center;text-align-last:center;
+  cursor:pointer;
+}
+.now-playing-tools-host #player-speed:focus-visible{
+  outline:2px solid #c5a8ef;outline-offset:3px;
+}
+@media(max-width:760px){
+  .now-playing-tools-host .player-control-group{gap:clamp(5px,2vw,10px);width:100%}
+  .now-playing-tools-host .controls .player-utility,
+  .now-playing-tools-host .controls .player-stop{
+    flex-basis:38px;width:38px;min-width:38px;max-width:38px;
+    height:40px;min-height:40px;max-height:40px;border-radius:12px;font-size:16px;
+  }
+  .now-playing-tools-host #player-speed{
+    flex-basis:44px;width:44px;height:40px;min-height:40px;border-radius:11px;font-size:10px;
+  }
+  .now-playing-tools-host .player-control-separator{height:18px}
+}
+@media(max-width:390px){
+  .now-playing-tools-host .player-control-group{gap:4px}
+  .now-playing-tools-host .controls .player-utility,
+  .now-playing-tools-host .controls .player-stop{
+    flex-basis:35px;width:35px;min-width:35px;max-width:35px;
+    height:37px;min-height:37px;max-height:37px;border-radius:11px;
+  }
+  .now-playing-tools-host #player-speed{flex-basis:41px;width:41px;height:37px;min-height:37px}
+}

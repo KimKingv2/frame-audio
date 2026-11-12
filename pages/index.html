@@ -27,8 +27,8 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 @media(max-width:520px){.scan-log-toolbar{align-items:flex-start;flex-direction:column}.scan-log-toolbar>div{width:100%}.scan-log-button{flex:1}}
 </style>
 <link rel="stylesheet" href="/assets/css/metadata.css">
-<link rel="stylesheet" href="/assets/css/library.css?v=20261112-sidebar-full-collapse1">
-<link rel="stylesheet" href="/assets/css/interaction.css?v=20261112-dock-navigation-controls1">
+<link rel="stylesheet" href="/assets/css/library.css?v=20261112-refresh-rate-polish1">
+<link rel="stylesheet" href="/assets/css/interaction.css?v=20261112-refresh-rate-polish1">
 </head>
 <body>
 <button class="mobile-nav-scrim" id="mobile-nav-scrim" type="button" aria-label="關閉導覽選單" aria-hidden="true" tabindex="-1"></button>
@@ -105,6 +105,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
         <select id="player-speed" aria-label="播放速度" title="播放速度">
           <option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2×</option>
         </select>
+        <span class="player-control-separator player-control-separator-stop" aria-hidden="true"></span>
         <button class="player-stop" id="player-stop" type="button" aria-label="停止播放" title="停止播放">■</button>
       </div>
     </div>
@@ -198,5 +199,5 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   });
 })();
 </script>
-<script type="module" src="/assets/js/app.js?v=20261112-sidebar-full-collapse1"></script>
+<script type="module" src="/assets/js/app.js?v=20261112-refresh-rate-polish1"></script>
 </body></html>
