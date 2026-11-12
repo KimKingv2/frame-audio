@@ -5,11 +5,48 @@ const DIRECTORY_LIST_RETRY_DELAY_MS = 900;
 let activeConnection = { provider: "vps", baseUrl: "", token: "" };
 
 export function configureOpenListConnection(config = {}) {
-  const provider = ["vps", "worker", "local"].includes(String(config.provider || "")) ? String(config.provider) : "vps";
+  const provider = ["vps", "worker", "k40", "local"].includes(String(config.provider || "")) ? String(config.provider) : "vps";
   activeConnection = { provider, baseUrl: String(config.baseUrl || "").trim(), token: String(config.token || "").trim() };
   return { provider: activeConnection.provider, baseUrl: activeConnection.baseUrl };
 }
 export function getOpenListConnection() { return { ...activeConnection, token: "" }; }
+
+export async function loginOpenList({ baseUrl, username, password, timeoutMs = 20000 }) {
+  const normalizedBase = normalizeOpenListUrl(baseUrl);
+  const user = String(username || "").trim();
+  const secret = String(password || "");
+  if (!user || !secret) throw new Error("請輸入區域網路 OpenList 帳號與密碼。");
+  const target = new URL("api/auth/login", normalizedBase + "/").href;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), Math.max(1000, Math.min(60000, Number(timeoutMs) || 20000)));
+  try {
+    const response = await fetch(target, {
+      method: "POST",
+      mode: "cors",
+      credentials: "omit",
+      redirect: "error",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: user, password: secret }),
+      signal: controller.signal,
+      ...openListNetworkFetchOptions(target)
+    });
+    let payload = {};
+    try { payload = await response.json(); }
+    catch { throw new Error("OpenList 登入回應不是有效 JSON。"); }
+    if (!response.ok || Number(payload?.code) !== 200 || !payload?.data?.token) {
+      const reason = String(payload?.message || payload?.error || "");
+      throw new Error("OpenList 登入失敗（HTTP " + response.status + "）" + (reason ? "：" + reason : "。請檢查帳號與密碼。"));
+    }
+    return String(payload.data.token);
+  } catch (cause) {
+    if (cause?.name === "AbortError") throw new Error("區域網路 OpenList 登入逾時。");
+    if (cause instanceof Error && /登入失敗|回應不是有效 JSON|登入逾時/.test(cause.message)) throw cause;
+    throw new Error("無法連接區域網路 OpenList 登入 API。請檢查網址、CORS、本機網路權限與 HTTPS／VPN 設定。" +
+      (cause?.message ? " 詳情：" + String(cause.message).slice(0, 140) : ""));
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 function resolveConnection(baseUrl) { return { ...activeConnection, baseUrl: String(baseUrl || activeConnection.baseUrl || "").trim() }; }
 
 function ipv4Octets(hostname) {
@@ -52,11 +89,11 @@ export function normalizeOpenListUrl(value) {
   return url.origin + url.pathname.replace(/\/+$/, "");
 }
 function sourceLabel(provider) {
-  return provider === "worker" ? "OpenList Worker" : provider === "local" ? "區域網路 OpenList" : "VPS Alist";
+  return provider === "worker" ? "OpenList Worker" : provider === "k40" ? "K40 Alist" : provider === "local" ? "區域網路 OpenList" : "VPS Alist";
 }
 async function directRequest(config, endpoint, payload, timeoutMs) {
   const baseUrl = normalizeOpenListUrl(config.baseUrl);
-  if (!config.token) throw new Error("請先在設定中填入本機 OpenList API Token。");
+  if (!config.token) throw new Error("區域網路 OpenList 尚未登入，請輸入帳號與密碼。");
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -100,7 +137,7 @@ async function parseResponse(response, provider, operation) {
   if (payload?.ok === false) throw new Error(payload.error || (sourceLabel(provider) + " " + operation + " 失敗。"));
   if (typeof payload?.code === "number" && payload.code !== 200) {
     const code = Number(payload.code);
-    if (code === 401 || code === 403) throw new Error(sourceLabel(provider) + " 驗證失敗，請檢查該來源 API Token。");
+    if (code === 401 || code === 403) throw new Error(sourceLabel(provider) + (provider === "local" ? " 登入已失效，請重新輸入帳號密碼。" : " 驗證失敗，請檢查伺服器端 Secret。"));
     throw new Error(sourceLabel(provider) + " API " + code + "：" + String(payload.message || "未知 API 錯誤"));
   }
   return payload;

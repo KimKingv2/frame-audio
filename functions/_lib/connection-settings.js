@@ -7,19 +7,21 @@ function environmentProfiles(env) {
     worker: {
       baseUrl: String(env.OPENLIST_WORKER_API_BASE_URL || env.ALIST_WORKER_API_BASE_URL || "").trim(),
       token: String(env.OPENLIST_WORKER_API_TOKEN || env.ALIST_WORKER_API_TOKEN || "").trim()
+    },
+    k40: {
+      baseUrl: String(env.ALIST_K40_API_BASE_URL || "").trim(),
+      token: String(env.ALIST_K40_API_TOKEN || "").trim()
     }
   };
 }
 
-// Server credentials are provisioned only through Cloudflare Pages Variables
-// and Secrets. They are never written to D1 or returned to the browser.
 export async function readConnectionProfiles(env) {
   return { profiles: environmentProfiles(env) };
 }
 
 export function publicConnectionProfiles(profiles) {
   const output = {};
-  for (const name of ["vps", "worker"]) {
+  for (const name of ["vps", "worker", "k40"]) {
     const profile = profiles?.[name] || {};
     const baseUrl = String(profile.baseUrl || "");
     const hasToken = Boolean(String(profile.token || ""));

@@ -18,8 +18,9 @@ export function validOpenListPath(value) {
 }
 
 export async function postOpenList(env, endpoint, body, timeoutMs = 20000, provider = "vps") {
-  const source = provider === "worker" ? "worker" : "vps";
-  const label = source === "worker" ? "OpenList Worker" : "VPS Alist";
+  const source = ["vps", "worker", "k40"].includes(String(provider || "")) ? String(provider) : "";
+  if (!source) return { response: error("未指定有效的活動伺服器來源。", 400) };
+  const label = source === "worker" ? "OpenList Worker" : source === "k40" ? "K40 Alist" : "VPS Alist";
   const startedAt = performance.now();
   let profileMs = 0;
   let upstreamMs = 0;
@@ -41,7 +42,7 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000, provi
   const profile = profiles[source] || {};
   const token = String(profile.token || "").trim();
   if (!token) {
-    const tokenName = source === "worker" ? "OPENLIST_WORKER_API_TOKEN" : "ALIST_VPS_API_TOKEN";
+    const tokenName = source === "worker" ? "OPENLIST_WORKER_API_TOKEN" : source === "k40" ? "ALIST_K40_API_TOKEN" : "ALIST_VPS_API_TOKEN";
     return { response: error("尚未設定 " + label + " API Token。請在 Cloudflare Pages Secrets 設定 " + tokenName + "。", 503), timing: timing() };
   }
   const configured = normalizeBase(String(profile.baseUrl || "").trim(), label);
