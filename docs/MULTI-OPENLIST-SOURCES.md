@@ -15,9 +15,9 @@ FRAME Audio has four possible sources that share one D1 catalogue and R2 artwork
 - At startup only the saved active server-side provider may be tested. If LAN is active, the page waits for username/password login from a user gesture.
 - An unconfigured active server provider is reported unavailable; the app does not silently fall back to a different provider.
 - The settings endpoint reads environment bindings and returns endpoint configuration plus `hasToken`; it does not contact any Alist/OpenList node.
-- The diagnostic page tests only the saved active provider.
+- The diagnostic page lists all four providers without probing them. Users can select exactly two; only after the explicit Compare button is pressed are those two providers temporarily activated for this diagnostic run. The saved app-wide active provider is not changed. Unselected providers receive no API requests.
 - VPS, Worker and K40 requests include the explicit active provider ID. Unknown IDs are rejected rather than defaulting to VPS.
-- No inactive source receives list/get/login/range requests or next-track prefetch requests.
+- Outside an explicitly started comparison, no inactive source receives list/get/login/range requests or next-track prefetch requests. During a comparison, only the two explicitly selected providers are contacted, in sequence; the remaining two are untouched.
 
 ## Cloudflare Preview / Production values
 

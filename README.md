@@ -75,8 +75,8 @@ FRAME Audio 是以 VPS Alist 為音訊來源的私人音訊平台，包含 **Mus
 
 ## 連線速度測試
 
-- 開啟 `/playback-diagnostic.html` 只測試目前保存的活動來源：目錄列表、檔案資訊／取鏈及音訊來源 Range 首段；其他三個來源不會被連線或測試。
-- 測試最多讀取 64 KiB，不播放歌曲、不掃描曲庫，也不寫入 D1／R2。
+- `/playback-diagnostic.html` 列出四個來源，可勾選兩個進行速度比較；載入頁面、讀取設定與勾選不會連接任何來源或中國移動雲盤。
+- 只有按下「開始測試所選兩個來源」後，才會依序測試被勾選的兩端；未選的來源不會收到 API 請求。測試最多讀取 64 KiB，不播放歌曲、不掃描曲庫，也不寫入 D1／R2。
 
 
 - 四個來源設定、活動來源隔離、LAN 帳號密碼登入及 IP 可見性說明見 [docs/MULTI-OPENLIST-SOURCES.md](docs/MULTI-OPENLIST-SOURCES.md)。
