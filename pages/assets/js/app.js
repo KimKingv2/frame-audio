@@ -1,7 +1,7 @@
 import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo, configureOpenListConnection, normalizeOpenListUrl, loginOpenList } from "./openlist-client.js?v=20261112-four-source-login1";
-import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261112-playback-timing1";
-import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js?v=20261112-playback-timing1";
-import { initLibraryUI } from "./library-ui.js?v=20261112-playback-timing1";
+import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261112-four-source-login1";
+import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js?v=20261112-four-source-login1";
+import { initLibraryUI } from "./library-ui.js?v=20261112-four-source-login1";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
 (() => {
@@ -315,16 +315,18 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     const targetProvider = $("#active-openlist-provider")?.value || activeProvider;
     if (button) button.disabled = true;
     try {
-      const localBaseInput = String($("#local-openlist-base-url")?.value || "").trim();
-      localProfile = { baseUrl: localBaseInput ? normalizeOpenListUrl(localBaseInput) : "" };
-      writeLocalOpenListProfile(localProfile);
       if (targetProvider === "local") {
+        const localBaseInput = String($("#local-openlist-base-url")?.value || "").trim();
+        const candidateBaseUrl = localBaseInput ? normalizeOpenListUrl(localBaseInput) : "";
         const username = String($("#local-openlist-username")?.value || "").trim();
         const password = String($("#local-openlist-password")?.value || "");
-        if (!localProfile.baseUrl) throw new Error("請先填寫區域網路 OpenList 地址。");
+        if (!candidateBaseUrl) throw new Error("請先填寫區域網路 OpenList 地址。");
         if (!username || !password) throw new Error("請輸入區域網路 OpenList 帳號與密碼。");
         setResult("正在登入目前選取的區域網路 OpenList……");
-        localSessionToken = await loginOpenList({ baseUrl: localProfile.baseUrl, username, password });
+        const token = await loginOpenList({ baseUrl: candidateBaseUrl, username, password });
+        localProfile = { baseUrl: candidateBaseUrl };
+        writeLocalOpenListProfile(localProfile);
+        localSessionToken = token;
         $("#local-openlist-password").value = "";
         applyActiveOpenListProvider("local", true);
         fillConnectionSettingsForm();

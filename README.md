@@ -62,7 +62,7 @@ FRAME Audio 是以 VPS Alist 為音訊來源的私人音訊平台，包含 **Mus
 - Build command：留空
 - Build output directory：`pages`
 
-正式環境與 Preview 環境應各自設定 `DB`、`ARTWORKS` bindings、`FRAME_AUDIO_API_ADMIN_TOKEN`、`ALIST_VPS_API_TOKEN`、`OPENLIST_WORKER_API_TOKEN` Secrets，以及 `ALIST_VPS_API_BASE_URL`、`OPENLIST_WORKER_API_BASE_URL` Variables。Access 必須保護 `frame-audio.pages.dev` 與 `*.frame-audio.pages.dev`。詳細步驟見 [docs/CLOUDFLARE-STORAGE.md](docs/CLOUDFLARE-STORAGE.md)。
+正式環境與 Preview 環境應各自設定 `DB`、`ARTWORKS` bindings；`FRAME_AUDIO_API_ADMIN_TOKEN`、`ALIST_VPS_API_TOKEN`、`OPENLIST_WORKER_API_TOKEN`、`ALIST_K40_API_TOKEN` Secrets；以及 `ALIST_VPS_API_BASE_URL`、`OPENLIST_WORKER_API_BASE_URL`、`ALIST_K40_API_BASE_URL` Variables。Access 必須保護 `frame-audio.pages.dev` 與 `*.frame-audio.pages.dev`。詳細步驟見 [docs/CLOUDFLARE-STORAGE.md](docs/CLOUDFLARE-STORAGE.md)。
 
 新增或修改環境變數及 Secret 後，必須觸發一次新的 Pages 部署，新的設定才會注入該部署。請確認 Secret 設定在正確的環境（Production 或 Preview），再重新部署對應分支。
 
@@ -75,8 +75,8 @@ FRAME Audio 是以 VPS Alist 為音訊來源的私人音訊平台，包含 **Mus
 
 ## 連線速度測試
 
-- 開啟 `/playback-diagnostic.html` 可依序測試 VPS Alist 與區域網路 OpenList 的目錄列表、檔案資訊／取鏈及音訊來源 Range 首段。
-- 兩端使用同一個音訊路徑；測試限制最多讀取 64 KiB，不播放歌曲、不掃描曲庫，也不寫入 D1／R2。
+- 開啟 `/playback-diagnostic.html` 只測試目前保存的活動來源：目錄列表、檔案資訊／取鏈及音訊來源 Range 首段；其他三個來源不會被連線或測試。
+- 測試最多讀取 64 KiB，不播放歌曲、不掃描曲庫，也不寫入 D1／R2。
 
 
 - 四個來源設定、活動來源隔離、LAN 帳號密碼登入及 IP 可見性說明見 [docs/MULTI-OPENLIST-SOURCES.md](docs/MULTI-OPENLIST-SOURCES.md)。
