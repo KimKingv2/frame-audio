@@ -162,7 +162,7 @@ export function formatBytes(bytes) {
   while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
   return n.toFixed(n >= 100 ? 0 : 1) + " " + units[i];
 }
-export async function getOpenListFileInfo({ baseUrl, token, path, timeoutMs = DEFAULT_TIMEOUT_MS }) {
+export async function getOpenListFileInfo({ baseUrl, token, path, timeoutMs = DEFAULT_TIMEOUT_MS, onTiming }) {
   const config = resolveConnection(baseUrl);
   void token;
   const safePath = String(path || "").trim();
@@ -174,13 +174,15 @@ export async function getOpenListFileInfo({ baseUrl, token, path, timeoutMs = DE
   const bodyStartedAt = performance.now();
   const payload = await parseResponse(response, config.provider, "檔案資訊");
   const bodyMs = Math.round(performance.now() - bodyStartedAt);
-  console.info("[FRAME Audio] OpenList file-info request", {
+  const timing = {
     provider: config.provider,
     responseMs,
     bodyMs,
     serverTiming: response.headers.get("server-timing") || null,
     status: response.status
-  });
+  };
+  console.info("[FRAME Audio] OpenList file-info request", timing);
+  try { onTiming?.(timing); } catch {}
   if (!payload?.data || typeof payload.data !== "object") throw new Error(sourceLabel(config.provider) + " 檔案資訊缺少 data。");
   const info = { ...payload.data };
   if (info.raw_url) {

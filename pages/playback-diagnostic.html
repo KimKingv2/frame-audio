@@ -1,28 +1,367 @@
 <!doctype html>
-<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#15131d"><title>FRAME Audio｜播放診斷</title>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#15131d">
+<title>FRAME Audio｜連線速度測試</title>
 <style>
-:root{color-scheme:dark;background:#15131d;color:#eee9f6;font:14px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif}*{box-sizing:border-box}body{margin:0;padding:24px 16px 70px}.wrap{max-width:850px;margin:auto}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:26px}.brand{letter-spacing:.12em;font-size:12px;color:#bda0e8}.brand b{color:#f1eaff}.back{color:#c7b3e4;text-decoration:none;font-size:12px}.card{border:1px solid #cbb2ee25;border-radius:13px;background:#211e2b;padding:20px;margin:14px 0}.card h1{font-size:23px;margin:0 0 8px}.sub{color:#9c93aa;font-size:12px}.grid{display:grid;gap:12px}.field{display:grid;gap:6px}.field label{font-size:11px;color:#b9afc8}.field input{width:100%;border:1px solid #c7b3df30;border-radius:8px;padding:11px;background:#171520;color:#f3eff9;font:12px inherit}.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}button{border:1px solid #b99ae866;border-radius:8px;padding:10px 14px;color:#eee5ff;background:#8c68b52c;cursor:pointer}button.secondary{border-color:#c7b3df33;background:#fff1;color:#c9c1d4}button:disabled{opacity:.5;cursor:wait}.status{white-space:pre-wrap;overflow-wrap:anywhere;background:#14121b;border-radius:9px;padding:12px;color:#b9afc8;font:11px/1.8 ui-monospace,Menlo,monospace;min-height:90px}.log{max-height:420px;overflow:auto}.audio{width:100%;margin-top:12px}.note{font-size:11px;color:#8f879b}.ok{color:#9fd1ac}.warn{color:#e0bd88}.err{color:#eea5a5}
-</style></head><body><div class="wrap">
-<div class="top"><div class="brand">FRAME <b>Audio</b> / DIAGNOSTICS</div><a class="back" href="/">← 返回播放器</a></div>
-<section class="card"><h1>VPS Alist 播放鏈路診斷</h1><div class="sub">只讀檢查伺服器端 Alist 檔案資訊、音訊來源 Range 與 HTML5 Audio。Range 測試最多讀取 64 KiB，不會下載整首或修改原始檔案。</div></section>
-<section class="card"><div class="grid">
-<div class="field"><label>伺服器端憑證</label><div class="note">VPS Alist Token 由 Cloudflare Pages Secret 管理，本頁不會取得或保存 Token。</div></div>
-<div class="field"><label for="path">完整音訊路徑</label><input id="path" placeholder="/中國移動雲盤/Kim King/03 Music/歌曲.mp3"></div>
-</div><div class="actions"><button id="probe">檢查 API + Range（最多 64 KiB）</button><button id="play" class="secondary">直接測試 HTML5 播放</button><button id="stop" class="secondary">停止播放</button></div><p class="note">播放測試會使用 VPS Alist 回傳的 raw_url。若格式不支援，日誌會列出 MediaError code。</p><audio id="audio" class="audio" controls preload="metadata"></audio></section>
-<section class="card"><h2 style="font-size:15px;margin-top:0">診斷結果</h2><div id="summary" class="status">尚未開始。先填 Token 與音訊路徑。</div></section>
-<section class="card"><h2 style="font-size:15px;margin-top:0">事件日誌</h2><div id="log" class="status log">等待操作…</div></section>
+:root{color-scheme:dark;background:#15131d;color:#eee9f6;font:14px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;--line:#cbb2ee25;--muted:#a39bad;--accent:#c5a8ef}
+*{box-sizing:border-box}body{margin:0;padding:22px 16px 64px;background:radial-gradient(ellipse at 50% -20%,#815da51d,transparent 55%),#15131d;color:#eee9f6}
+.wrap{max-width:1040px;margin:auto}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:24px}
+.brand{letter-spacing:.12em;font-size:12px;color:#bda0e8}.brand b{color:#f1eaff}.back{color:#c7b3e4;text-decoration:none;font-size:12px}
+.hero,.card{border:1px solid var(--line);border-radius:15px;background:#211e2b;padding:20px;margin:14px 0}
+.hero{padding:25px 24px;background:radial-gradient(ellipse at 90% 35%,#805ba833,transparent 36%),linear-gradient(115deg,#252033,#292239)}
+.eyebrow{font-size:9px;letter-spacing:.2em;color:#b99ae8;font-weight:700}.hero h1{margin:8px 0 6px;font-size:25px}.sub,.note{color:#9c93aa;font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.source{background:#171520;border:1px solid #c7b3df1f;border-radius:10px;padding:14px;min-width:0}
+.source-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.source h2{font-size:14px;margin:0}.tag{font-size:10px;color:#a7c8b0;background:#77bd8c17;border:1px solid #77bd8c30;border-radius:20px;padding:3px 8px}.tag.warn{color:#e1c18e;background:#d4a45914;border-color:#d4a45933}.tag.err{color:#e6a0a0;background:#d46a6a14;border-color:#d46a6a33}
+.field{display:grid;gap:7px;margin:14px 0}.field label{font-size:11px;color:#b9afc8}.field input{width:100%;border:1px solid #c7b3df30;border-radius:8px;padding:11px 12px;background:#171520;color:#f3eff9;font:13px inherit;outline:none}.field input:focus{border-color:#b99ae8aa}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.btn{border:1px solid #b99ae866;border-radius:8px;padding:10px 14px;color:#eee5ff;background:#8c68b52c;cursor:pointer;font:inherit;font-size:12px}.btn.secondary{border-color:#c7b3df33;background:#fff1;color:#c9c1d4}.btn:disabled{opacity:.45;cursor:wait}
+.status{margin-top:9px;color:#9c93aa;font-size:11px;overflow-wrap:anywhere}.status strong{color:#ddd3ec;font-weight:500}
+.table-wrap{overflow-x:auto;border:1px solid #c7b3df20;border-radius:10px}table{width:100%;border-collapse:collapse;min-width:600px;font-size:12px}th,td{padding:11px 12px;border-bottom:1px solid #c7b3df17;text-align:left;vertical-align:top}th{font-size:10px;color:#a99db8;background:#ffffff05;font-weight:600}td:first-child{color:#c9bfd5;width:23%}tr:last-child td{border-bottom:0}.value{color:#e9e1f2;font-variant-numeric:tabular-nums}.muted{color:#81798e}.ok{color:#9fd1ac}.warn{color:#e0bd88}.err{color:#eea5a5}
+.console{white-space:pre-wrap;overflow-wrap:anywhere;background:#14121b;border-radius:9px;padding:12px;color:#b9afc8;font:11px/1.8 ui-monospace,Menlo,monospace;min-height:70px;max-height:300px;overflow:auto}
+details{margin-top:12px}summary{cursor:pointer;color:#b99ae8;font-size:11px}
+@media(max-width:680px){body{padding:14px 12px 40px}.grid{grid-template-columns:1fr}.hero{padding:20px}.hero h1{font-size:22px}.top{margin-bottom:16px}.card{padding:15px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div class="brand">FRAME <b>Audio</b> / NETWORK DIAGNOSTICS</div><a class="back" href="/">← 返回播放器</a></div>
+  <section class="hero">
+    <div class="eyebrow">PLAYBACK NETWORK BENCHMARK</div>
+    <h1>連線速度測試</h1>
+    <div class="sub">依序測量 VPS Alist 與區域網路 OpenList 的目錄 API、檔案資訊／取鏈、音訊來源首段 Range。使用同一個檔案路徑，方便直接比較。</div>
+  </section>
+
+  <section class="card">
+    <div class="grid">
+      <div class="source">
+        <div class="source-head"><h2>VPS Alist</h2><span class="tag" id="vps-status">讀取設定中</span></div>
+        <div class="status" id="vps-detail">Token 由 Cloudflare Pages Secret 管理，本頁不會取得 Token。</div>
+      </div>
+      <div class="source">
+        <div class="source-head"><h2>區域網路 OpenList</h2><span class="tag warn" id="lan-status">讀取設定中</span></div>
+        <div class="status" id="lan-detail">使用目前瀏覽器已保存的區域網路連線資料；Token 不會顯示。</div>
+      </div>
+    </div>
+    <div class="field">
+      <label for="path">用來測試的音訊完整路徑（兩個來源需有相同路徑）</label>
+      <input id="path" autocomplete="off" spellcheck="false" placeholder="/資料夾/專輯/歌曲.flac">
+    </div>
+    <div class="actions">
+      <button class="btn" id="run-both">依序測試 VPS + 區域網路</button>
+      <button class="btn secondary" id="run-vps">只測 VPS</button>
+      <button class="btn secondary" id="run-lan">只測區域網路</button>
+      <button class="btn secondary" id="refresh-config">重新讀取連線設定</button>
+    </div>
+    <p class="note">測試只讀取同一路徑的目錄資訊、檔案資訊及最多 64 KiB 音訊資料，不會播放音樂、掃描曲庫、寫入 D1／R2 或定時呼叫雲盤。首次測區域網路時，瀏覽器可能詢問「本機網路存取」權限。</p>
+  </section>
+
+  <section class="card">
+    <h2 style="font-size:15px;margin:0 0 12px">測試結果</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>測試階段</th><th>VPS Alist</th><th>區域網路 OpenList</th></tr></thead>
+        <tbody>
+          <tr><td>目錄列表<br><span class="muted">/api/fs/list</span></td><td id="vps-list" class="muted">尚未測試</td><td id="lan-list" class="muted">尚未測試</td></tr>
+          <tr><td>檔案資訊／取鏈<br><span class="muted">/api/fs/get</span></td><td id="vps-info" class="muted">尚未測試</td><td id="lan-info" class="muted">尚未測試</td></tr>
+          <tr><td>服務端上游耗時<br><span class="muted">Pages → VPS Alist</span></td><td id="vps-upstream" class="muted">尚未測試</td><td id="lan-upstream" class="muted">瀏覽器直連，不經 Pages</td></tr>
+          <tr><td>音訊來源回應<br><span class="muted">HTTP Range 標頭</span></td><td id="vps-range-header" class="muted">尚未測試</td><td id="lan-range-header" class="muted">尚未測試</td></tr>
+          <tr><td>首段資料<br><span class="muted">最多 64 KiB</span></td><td id="vps-range-data" class="muted">尚未測試</td><td id="lan-range-data" class="muted">尚未測試</td></tr>
+          <tr><td>總耗時</td><td id="vps-total" class="muted">尚未測試</td><td id="lan-total" class="muted">尚未測試</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="status" id="summary">尚未開始測試。請輸入兩端都存在的音訊檔案路徑。</div>
+    <details><summary>展開測試事件</summary><div id="log" class="console">等待操作……</div></details>
+  </section>
+
+  <section class="card">
+    <h2 style="font-size:14px;margin:0 0 8px">測試結果怎麼看</h2>
+    <div class="note">
+      <p><strong>目錄列表慢：</strong>先檢查 OpenList 服務響應、網路延遲與上游儲存掛載。</p>
+      <p><strong>檔案資訊慢：</strong>多半卡在取得雲盤下載連結或驅動端網路。VPS 會額外顯示 Pages 到 VPS Alist 的上游耗時。</p>
+      <p><strong>Range 首段慢：</strong>檔案資訊已經拿到，但音訊來源下載端點回應或首段資料傳輸較慢。</p>
+      <p><strong>注意：</strong>跨網路測試會受當下 Wi-Fi、手機訊號、DNS、雲盤節點與快取影響。建議在同一裝置、同一網路、同一路徑下各測三次看中位數，不要只看單次結果。</p>
+    </div>
+  </section>
 </div>
-<script>
-(()=>{"use strict";
-const $=id=>document.getElementById(id),audio=$("audio"),log=$("log"),summary=$("summary");
-let rawUrl="",fileInfo=null,timeoutTimer=null;
-function say(s,cls=""){const d=document.createElement("div");d.textContent=new Date().toLocaleTimeString()+"  "+s;if(cls)d.className=cls;log.append(d);log.scrollTop=log.scrollHeight}
-function result(s,cls=""){summary.textContent=s;summary.className="status "+cls}
-function input(){const path=$("path").value.trim();if(!path.startsWith("/"))throw Error("路徑必須以 / 開頭");return {path}}
-async function getInfo(){const x=input();say("POST 伺服器端 /api/openlist/get 開始");const c=new AbortController(),t=setTimeout(()=>c.abort(),20000);let r;try{r=await fetch("/api/openlist/get",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:x.path}),signal:c.signal})}finally{clearTimeout(t)}say("/api/openlist/get HTTP "+r.status);const p=await r.json();if(!r.ok||Number(p.code)!==200)throw Error("VPS Alist API "+(p.code||r.status)+": "+(p.error||p.message||r.statusText));if(!p.data||!p.data.raw_url)throw Error("回應缺少 data.raw_url");fileInfo=p.data;rawUrl=new URL(p.data.raw_url,location.origin+"/").href;say("檔案資訊取得成功；size="+p.data.size+"；raw_url host="+new URL(rawUrl).host,"ok");return {x,p}}
-$("probe").onclick=async()=>{ $("probe").disabled=true;log.textContent="";try{result("檢查中…");const {x}=await getInfo();const size=Number(fileInfo.size||0);if(!size)throw Error("檔案大小為 0");const end=Math.min(65535,size-1);say("GET raw_url Range bytes=0-"+end+"（最多 64 KiB）");const c=new AbortController(),t=setTimeout(()=>c.abort(),25000);let r;try{r=await fetch(rawUrl,{method:"GET",mode:"cors",credentials:"omit",redirect:"follow",headers:{Range:"bytes=0-"+end},signal:c.signal})}finally{clearTimeout(t)}const cr=r.headers.get("content-range")||"(未暴露)",ct=r.headers.get("content-type")||"(未暴露)",cl=r.headers.get("content-length")||"(未暴露)";say("音訊來源 HTTP "+r.status+"；Content-Type="+ct+"；Content-Length="+cl+"；Content-Range="+cr+"；最終 host="+new URL(r.url||rawUrl).host);let bytes=0;if(r.body&&r.status===206){const rd=r.body.getReader();try{while(bytes<65536){const z=await rd.read();if(z.done)break;bytes+=z.value.byteLength}}finally{await rd.cancel().catch(()=>{})}}else if(r.body)await r.body.cancel().catch(()=>{});say("實際讀取 "+bytes+" bytes（已停止串流）",bytes?"ok":"warn");result("API：成功\nHTTP： "+r.status+"\nContent-Type："+ct+"\nContent-Range："+cr+"\n讀取："+bytes+" bytes\n檔案大小："+size+" bytes\n來源主機："+new URL(r.url||rawUrl).host,bytes?"ok":"warn");}catch(e){say("FAIL："+(e.name==="AbortError"?"請求逾時":e.message),"err");result("FAIL："+(e.name==="AbortError"?"請求逾時":e.message),"err")}finally{$("probe").disabled=false}};
-$("play").onclick=async()=>{try{await getInfo();audio.pause();audio.removeAttribute("src");audio.load();audio.src=rawUrl;audio.load();say("raw_url 已交給 HTML5 Audio；等待 metadata/canplay/error");result("播放測試中…")}catch(e){say("FAIL："+e.message,"err");result("FAIL："+e.message,"err")}};
-$("stop").onclick=()=>{audio.pause();audio.removeAttribute("src");audio.load();say("已停止播放並清除 src")};
-audio.addEventListener("loadstart",()=>say("Audio loadstart"));audio.addEventListener("loadedmetadata",()=>say("Audio loadedmetadata：duration="+audio.duration,"ok"));audio.addEventListener("canplay",()=>say("Audio canplay：可開始播放","ok"));audio.addEventListener("playing",()=>say("Audio playing","ok"));audio.addEventListener("stalled",()=>say("Audio stalled：資料供應停滯","warn"));audio.addEventListener("waiting",()=>say("Audio waiting：等待更多資料","warn"));audio.addEventListener("ended",()=>say("Audio ended"));audio.addEventListener("error",()=>{const e=audio.error;const names={1:"MEDIA_ERR_ABORTED",2:"MEDIA_ERR_NETWORK",3:"MEDIA_ERR_DECODE",4:"MEDIA_ERR_SRC_NOT_SUPPORTED"};const msg="Audio error code="+(e?.code||"未知")+" "+(names[e?.code]||"")+"；message="+(e?.message||"瀏覽器未提供");say(msg,"err");result(msg,"err")});
+<script type="module">
+import {
+  configureOpenListConnection,
+  listOpenListDirectory,
+  getOpenListFileInfo,
+  openListNetworkFetchOptions
+} from "./assets/js/openlist-client.js?v=20261112-connection-speed1";
+
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const LOCAL_PROFILE_KEY = "frame-audio-local-openlist-profile-v1";
+  const state = { profiles: null, local: { baseUrl: "", token: "" }, running: false };
+  const labels = { vps: "VPS Alist", lan: "區域網路 OpenList" };
+  const setCell = (id, value, tone = "") => {
+    const node = $(id);
+    node.textContent = value;
+    node.className = "value " + tone;
+  };
+  const fmtMs = value => Number.isFinite(value) ? Math.round(value) + " ms" : "—";
+  const say = (message, tone = "") => {
+    const node = document.createElement("div");
+    node.textContent = new Date().toLocaleTimeString() + "  " + message;
+    if (tone) node.className = tone;
+    $("log").append(node);
+    $("log").scrollTop = $("log").scrollHeight;
+  };
+  const setStatus = (id, text, tone = "") => {
+    const node = $(id);
+    node.textContent = text;
+    node.className = "tag " + tone;
+  };
+  function readLocalProfile() {
+    try {
+      const value = JSON.parse(localStorage.getItem(LOCAL_PROFILE_KEY) || "{}");
+      return { baseUrl: String(value.baseUrl || ""), token: String(value.token || "") };
+    } catch {
+      return { baseUrl: "", token: "" };
+    }
+  }
+  async function refreshSettings() {
+    setStatus("vps-status", "讀取中");
+    setStatus("lan-status", "讀取中", "warn");
+    const [serverResult] = await Promise.allSettled([
+      fetch("/api/settings/connections", { credentials: "same-origin" })
+        .then(async response => {
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok || !data.ok) throw new Error(data.error || ("HTTP " + response.status));
+          return data.profiles || {};
+        })
+    ]);
+    if (serverResult.status === "fulfilled") {
+      state.profiles = serverResult.value;
+      const vps = state.profiles.vps || {};
+      setStatus("vps-status", vps.configured ? "已就緒" : "未設定", vps.configured ? "" : "warn");
+      $("vps-detail").textContent = vps.configured
+        ? "伺服器端已配置：" + (vps.baseUrl || "API URL 未提供") + "。Token 不會傳到瀏覽器。"
+        : "尚未讀取到完整 VPS 設定。請確認 Pages Preview 環境有 VPS URL Variable 與 Token Secret。";
+    } else {
+      state.profiles = {};
+      setStatus("vps-status", "讀取失敗", "err");
+      $("vps-detail").textContent = "無法讀取伺服器端設定：" + (serverResult.reason?.message || serverResult.reason);
+    }
+    state.local = readLocalProfile();
+    const lanReady = Boolean(state.local.baseUrl && state.local.token);
+    setStatus("lan-status", lanReady ? "已保存連線" : "尚未設定", lanReady ? "" : "warn");
+    $("lan-detail").textContent = lanReady
+      ? "已保存地址：" + state.local.baseUrl + "；本機 Token 已存在（不顯示明文）。"
+      : "本瀏覽器尚無完整區域網路設定。請先返回播放器，在「連線設定」中保存區域網路 OpenList 地址與 Token。";
+  }
+  function getTestPath() {
+    const path = $("path").value.trim();
+    if (!path.startsWith("/") || path.length > 4096 || path.includes("\0")) {
+      throw new Error("請輸入以 / 開頭的音訊完整路徑。");
+    }
+    return path;
+  }
+  function parentPath(path) {
+    const index = path.lastIndexOf("/");
+    return index <= 0 ? "/" : path.slice(0, index);
+  }
+  function sourceConfig(provider) {
+    if (provider === "vps") {
+      const profile = state.profiles?.vps || {};
+      if (!profile.configured || !profile.baseUrl) throw new Error("VPS Alist 尚未就緒，請確認 Preview 環境的 VPS Variable 與 Secret。");
+      return { provider: "vps", baseUrl: profile.baseUrl, token: "" };
+    }
+    if (!state.local.baseUrl || !state.local.token) throw new Error("區域網路 OpenList 尚未設定。請先在播放器連線設定保存目前版本所使用的 API Token。");
+    return { provider: "local", baseUrl: state.local.baseUrl, token: state.local.token };
+  }
+  async function rangeProbe(rawUrl) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
+    const startedAt = performance.now();
+    let response;
+    try {
+      response = await fetch(rawUrl, {
+        method: "GET",
+        mode: "cors",
+        credentials: "omit",
+        redirect: "follow",
+        headers: { Range: "bytes=0-65535" },
+        signal: controller.signal,
+        ...openListNetworkFetchOptions(rawUrl)
+      });
+    } catch (error) {
+      if (error.name === "AbortError") throw new Error("音訊 Range 請求逾時（25 秒）。");
+      throw new Error("音訊來源無法由瀏覽器讀取，可能是 CORS、Local Network Access 或來源網路問題：" + error.message);
+    } finally {
+      clearTimeout(timeout);
+    }
+    const headerMs = performance.now() - startedAt;
+    const finalHost = (() => { try { return new URL(response.url || rawUrl).host; } catch { return "未知"; } })();
+    const contentRange = response.headers.get("content-range") || "未暴露";
+    if (response.status !== 206) {
+      try { await response.body?.cancel(); } catch {}
+      return { status: response.status, headerMs, firstByteMs: NaN, readMs: NaN, bytes: 0, finalHost, contentRange };
+    }
+    let bytes = 0;
+    let firstByteMs = NaN;
+    const reader = response.body?.getReader();
+    if (reader) {
+      try {
+        while (bytes < 65536) {
+          const part = await reader.read();
+          if (part.done) break;
+          if (part.value?.byteLength) {
+            if (!Number.isFinite(firstByteMs)) firstByteMs = performance.now() - startedAt;
+            bytes += Math.min(part.value.byteLength, 65536 - bytes);
+          }
+        }
+      } finally {
+        try { await reader.cancel(); } catch {}
+        try { reader.releaseLock(); } catch {}
+      }
+    }
+    return {
+      status: response.status,
+      headerMs,
+      firstByteMs,
+      readMs: performance.now() - startedAt,
+      bytes,
+      finalHost,
+      contentRange
+    };
+  }
+  function resetCells(provider) {
+    const p = provider === "vps" ? "vps" : "lan";
+    for (const key of ["list", "info", "upstream", "range-header", "range-data", "total"]) {
+      setCell(p + "-" + key, "測試中…", "muted");
+    }
+  }
+  async function runProvider(provider) {
+    const startedAt = performance.now();
+    const config = sourceConfig(provider);
+    configureOpenListConnection(config);
+    const path = getTestPath();
+    const folder = parentPath(path);
+    const p = provider === "vps" ? "vps" : "lan";
+    const title = labels[provider === "vps" ? "vps" : "lan"];
+    resetCells(provider);
+    say(title + "：開始測試，目錄 " + folder);
+    const result = { provider, listMs: NaN, infoMs: NaN, upstreamMs: NaN, rangeHeaderMs: NaN, firstByteMs: NaN, rangeReadMs: NaN, bytes: 0, totalMs: NaN, errors: [] };
+
+    const listStarted = performance.now();
+    try {
+      const listing = await listOpenListDirectory({ baseUrl: config.baseUrl, path: folder, page: 1, perPage: 5 });
+      result.listMs = performance.now() - listStarted;
+      setCell(p + "-list", fmtMs(result.listMs) + " · " + listing.items.length + " 項目", "ok");
+      say(title + "：目錄列表 " + fmtMs(result.listMs), "ok");
+    } catch (error) {
+      result.errors.push("目錄列表：" + error.message);
+      setCell(p + "-list", "失敗：" + error.message, "err");
+      say(title + "：目錄列表失敗：" + error.message, "err");
+    }
+
+    let info = null;
+    const infoStarted = performance.now();
+    let serverTiming = "";
+    let serverInfoTiming = null;
+    try {
+      info = await getOpenListFileInfo({
+        baseUrl: config.baseUrl,
+        path,
+        timeoutMs: 55000,
+        onTiming: timing => { serverTiming = timing.serverTiming || ""; serverInfoTiming = timing; }
+      });
+      result.infoMs = performance.now() - infoStarted;
+      if (!info.raw_url) throw new Error("API 沒有回傳 raw_url。");
+      const size = Number(info.size || 0);
+      setCell(p + "-info", fmtMs(result.infoMs) + " · " + (size ? (size / 1048576).toFixed(1) + " MiB" : "大小未知"), "ok");
+      const timingMatch = serverTiming.match(/openlist_upstream;dur=([\d.]+)/);
+      if (timingMatch) result.upstreamMs = Number(timingMatch[1]);
+      setCell(p + "-upstream", Number.isFinite(result.upstreamMs)
+        ? fmtMs(result.upstreamMs) + " · 上游 API"
+        : (provider === "vps" ? "未取得 Server-Timing" : "瀏覽器直連，不經 Pages"), Number.isFinite(result.upstreamMs) ? "ok" : "muted");
+      say(title + "：檔案資訊 " + fmtMs(result.infoMs) +
+        (Number.isFinite(result.upstreamMs) ? "；Pages 上游 " + fmtMs(result.upstreamMs) : "") +
+        (serverInfoTiming?.status ? "；HTTP " + serverInfoTiming.status : ""), "ok");
+    } catch (error) {
+      result.errors.push("檔案資訊：" + error.message);
+      setCell(p + "-info", "失敗：" + error.message, "err");
+      setCell(p + "-upstream", "未取得", "muted");
+      say(title + "：檔案資訊失敗：" + error.message, "err");
+    }
+
+    if (info?.raw_url) {
+      try {
+        const range = await rangeProbe(info.raw_url);
+        result.rangeHeaderMs = range.headerMs;
+        result.firstByteMs = range.firstByteMs;
+        result.rangeReadMs = range.readMs;
+        result.bytes = range.bytes;
+        setCell(p + "-range-header", "HTTP " + range.status + " · " + fmtMs(range.headerMs) + " · " + range.finalHost,
+          range.status === 206 ? "ok" : "warn");
+        if (range.status === 206 && range.bytes > 0) {
+          setCell(p + "-range-data", fmtMs(range.firstByteMs) + " 首段 · " + fmtMs(range.readMs) + " 讀取 " + range.bytes.toLocaleString() + " B", "ok");
+        } else {
+          setCell(p + "-range-data", "Range 未通過 · " + range.contentRange, "warn");
+          result.errors.push("音訊來源 Range 未回傳有效的 206 資料。");
+        }
+        say(title + "：音訊來源 HTTP " + range.status + "；首段 " +
+          (Number.isFinite(range.firstByteMs) ? fmtMs(range.firstByteMs) : "未取得") +
+          "；讀取 " + range.bytes + " bytes", range.status === 206 && range.bytes ? "ok" : "warn");
+      } catch (error) {
+        result.errors.push("Range：" + error.message);
+        setCell(p + "-range-header", "失敗：" + error.message, "err");
+        setCell(p + "-range-data", "未讀取", "muted");
+        say(title + "：Range 失敗：" + error.message, "err");
+      }
+    } else {
+      setCell(p + "-range-header", "略過：未取得 raw_url", "muted");
+      setCell(p + "-range-data", "略過", "muted");
+    }
+
+    result.totalMs = performance.now() - startedAt;
+    setCell(p + "-total", fmtMs(result.totalMs) + (result.errors.length ? " · " + result.errors.length + " 項問題" : " · 完成"), result.errors.length ? "warn" : "ok");
+    say(title + "：測試結束，總耗時 " + fmtMs(result.totalMs), result.errors.length ? "warn" : "ok");
+    return result;
+  }
+  async function withButtons(callback) {
+    if (state.running) return;
+    state.running = true;
+    for (const id of ["run-both", "run-vps", "run-lan", "refresh-config"]) $(id).disabled = true;
+    try { await callback(); }
+    catch (error) {
+      $("summary").textContent = error.message || String(error);
+      say("測試中止：" + (error.message || error), "err");
+    } finally {
+      state.running = false;
+      for (const id of ["run-both", "run-vps", "run-lan", "refresh-config"]) $(id).disabled = false;
+    }
+  }
+  $("run-vps").addEventListener("click", () => withButtons(async () => {
+    $("summary").textContent = "VPS Alist 測試中……";
+    const result = await runProvider("vps");
+    $("summary").textContent = "VPS Alist：" + (result.errors.length ? "測試完成，但有 " + result.errors.length + " 項問題。" : "各階段測試完成。");
+  }));
+  $("run-lan").addEventListener("click", () => withButtons(async () => {
+    $("summary").textContent = "區域網路 OpenList 測試中……首次可能觸發瀏覽器本機網路權限詢問。";
+    const result = await runProvider("lan");
+    $("summary").textContent = "區域網路 OpenList：" + (result.errors.length ? "測試完成，但有 " + result.errors.length + " 項問題。" : "各階段測試完成。");
+  }));
+  $("run-both").addEventListener("click", () => withButtons(async () => {
+    $("summary").textContent = "依序測試 VPS Alist 與區域網路 OpenList。";
+    const vps = await runProvider("vps");
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const lan = await runProvider("lan");
+    const diff = Number.isFinite(vps.totalMs) && Number.isFinite(lan.totalMs)
+      ? "總耗時差：" + fmtMs(Math.abs(vps.totalMs - lan.totalMs)) + "（" + (vps.totalMs < lan.totalMs ? "VPS 較快" : "區域網路較快") + "）。"
+      : "";
+    $("summary").textContent = "兩端測試結束。VPS 問題 " + vps.errors.length + " 項；區域網路問題 " + lan.errors.length + " 項。" + diff + " 建議相同網路下重複測試三次再比較。";
+  }));
+  $("refresh-config").addEventListener("click", () => withButtons(refreshSettings));
+  refreshSettings().catch(error => say("設定讀取失敗：" + error.message, "err"));
 })();
-</script></body></html>
+</script>
+</body>
+</html>
