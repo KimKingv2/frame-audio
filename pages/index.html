@@ -175,7 +175,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
           <div class="provider-card-heading"><strong>手機本機 OpenList</strong><span>DEVICE DIRECT</span></div>
           <div class="field"><label for="local-openlist-base-url">本機 API 網址</label><input id="local-openlist-base-url" type="url" placeholder="http://127.0.0.1:5244" spellcheck="false" autocomplete="off"></div>
           <div class="field"><label for="local-openlist-token">本機 API Token</label><input id="local-openlist-token" type="password" placeholder="輸入這台手機本機 OpenList Token" autocomplete="new-password" spellcheck="false"></div>
-          <div class="hint">本機 Token 只保存在目前手機瀏覽器的本機儲存區，因為瀏覽器必須直接向 127.0.0.1 請求。請只使用必要權限的 Token。</div>
+          <div class="hint">本機 Token 只保存在目前手機瀏覽器的本機儲存區，因為瀏覽器必須直接向 127.0.0.1 請求。Chrome 首次連線可能會詢問「迴圈網路／本機網路」權限，請允許。保存後請另外點擊「測試目前來源」觸發授權，不會在網頁載入時自動連線。</div>
         </section>
       </div>
       <div class="actions"><button type="button" class="primary" id="save-switch-openlist">保存設定並切換來源</button><button type="button" class="secondary" id="test-connection">測試目前來源並讀取目錄</button></div>

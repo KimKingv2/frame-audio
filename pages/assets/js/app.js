@@ -348,15 +348,23 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       }
       applyActiveOpenListProvider(targetProvider, true);
       fillConnectionSettingsForm();
-      await testConnection();
+      if (targetProvider === "local") {
+        connected = false;
+        $("#connection-label").textContent = "手機本機 OpenList 等待測試";
+        $("#connection-dot").style.background = "#b78b75";
+        setResult("本機來源已保存。請再點擊「測試目前來源並讀取目錄」，授權瀏覽器存取手機本機 OpenList。");
+      } else {
+        await testConnection();
+      }
       if (status) {
-        if (serverSaveError && targetProvider === "local") {
-          status.textContent = "本機來源已保存並切換。VPS / Worker 伺服器端設定尚未保存：" + serverSaveError.message;
+        if (serverSaveError) {
+          status.textContent = (targetProvider === "local" ? "本機來源已保存並切換。" : "已切換目前來源。") +
+            "但 VPS / Worker 的伺服器端設定尚未保存：" + serverSaveError.message;
           status.className = "statusbox";
         } else {
           status.textContent = "設定已保存，目前使用：" + (PROVIDER_LABELS[targetProvider] || targetProvider) +
             "。三種來源共用同一套 D1 曲庫與 R2 封面。";
-          status.className = "statusbox ok";
+          status.className = targetProvider === "local" ? "statusbox" : "statusbox ok";
         }
       }
     } catch (cause) {
@@ -1902,6 +1910,13 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   setStorageResult("正在檢查伺服器端 D1 / R2 Secrets 與資料庫綁定……");
   (async () => {
     await loadConnectionSettings();
-    await Promise.allSettled([testConnection(), testCloudflareStorage()]);
+    if (activeProvider === "local") {
+      // Chrome's loopback-network permission must be requested from a user gesture.
+      // Never probe the phone's local OpenList automatically on page load.
+      setResult("已選取手機本機 OpenList。請在連線設定中點擊「測試目前來源並讀取目錄」，並允許瀏覽器存取本機服務。");
+      await Promise.allSettled([testCloudflareStorage()]);
+    } else {
+      await Promise.allSettled([testConnection(), testCloudflareStorage()]);
+    }
   })();
 })();
