@@ -52,23 +52,43 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     return window.matchMedia ? window.matchMedia("(max-width: 760px)").matches : false;
   }
 
-  function setSideNavigationExpanded(expanded, restoreFocus = false) {
+  const DESKTOP_SIDEBAR_STORAGE_KEY = "frame-audio-desktop-sidebar-collapsed";
+
+  function readDesktopSidebarCollapsed() {
+    try {
+      return localStorage.getItem(DESKTOP_SIDEBAR_STORAGE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function setSideNavigationExpanded(expanded, restoreFocus = false, persistDesktop = false) {
     const sidebar = $("#site-sidebar");
     const trigger = $("#side-nav-toggle");
     const scrim = $("#mobile-nav-scrim");
     const isMobile = isMobileSidebarViewport();
     const wasMobileExpanded = document.body.classList.contains("mobile-sidebar-expanded");
-    const isExpanded = !isMobile || Boolean(expanded);
+    const isExpanded = Boolean(expanded);
 
-    document.body.classList.remove("desktop-sidebar-collapsed");
-    document.body.classList.toggle("mobile-sidebar-expanded", isMobile && isExpanded);
+    if (isMobile) {
+      document.body.classList.remove("desktop-sidebar-collapsed");
+      document.body.classList.toggle("mobile-sidebar-expanded", isExpanded);
+    } else {
+      document.body.classList.remove("mobile-sidebar-expanded");
+      document.body.classList.toggle("desktop-sidebar-collapsed", !isExpanded);
+      if (persistDesktop) {
+        try {
+          localStorage.setItem(DESKTOP_SIDEBAR_STORAGE_KEY, isExpanded ? "0" : "1");
+        } catch {}
+      }
+    }
 
     if (trigger) {
       trigger.setAttribute("aria-expanded", String(isExpanded));
       trigger.setAttribute("aria-label", isExpanded ? "收合導覽欄" : "展開導覽欄");
       trigger.setAttribute("title", isExpanded ? "收合導覽" : "展開導覽");
       const icon = trigger.querySelector(".side-nav-toggle-icon");
-      if (icon) icon.textContent = isExpanded ? "×" : "☰";
+      if (icon) icon.textContent = isExpanded ? (isMobile ? "×" : "‹") : "☰";
     }
     if (scrim) scrim.setAttribute("aria-hidden", String(!(isMobile && isExpanded)));
     if (sidebar) sidebar.setAttribute("aria-label", isExpanded ? "已展開的主要導覽" : "主要導覽");
@@ -81,7 +101,11 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   }
 
   function syncSideNavigationViewport() {
-    setSideNavigationExpanded(false);
+    if (isMobileSidebarViewport()) {
+      setSideNavigationExpanded(false);
+    } else {
+      setSideNavigationExpanded(!readDesktopSidebarCollapsed());
+    }
   }
 
   function showView(name) {
@@ -1576,9 +1600,10 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   }
 
   $("#side-nav-toggle")?.addEventListener("click", () => {
-    if (!isMobileSidebarViewport()) return;
-    const expanded = document.body.classList.contains("mobile-sidebar-expanded");
-    setSideNavigationExpanded(!expanded, true);
+    const expanded = isMobileSidebarViewport()
+      ? document.body.classList.contains("mobile-sidebar-expanded")
+      : !document.body.classList.contains("desktop-sidebar-collapsed");
+    setSideNavigationExpanded(!expanded, true, !isMobileSidebarViewport());
   });
   $("#mobile-nav-scrim")?.addEventListener("click", () => setSideNavigationExpanded(false, true));
   document.addEventListener("keydown", event => {

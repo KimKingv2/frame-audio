@@ -28,7 +28,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 </style>
 <link rel="stylesheet" href="/assets/css/metadata.css">
 <link rel="stylesheet" href="/assets/css/library.css?v=20261112-mobile-nav-player-toggle1">
-<link rel="stylesheet" href="/assets/css/interaction.css?v=20261112-mobile-transport-polish2">
+<link rel="stylesheet" href="/assets/css/interaction.css?v=20261112-queue-and-fixed-sidebar1">
 </head>
 <body>
 <button class="mobile-nav-scrim" id="mobile-nav-scrim" type="button" aria-label="關閉導覽選單" aria-hidden="true" tabindex="-1"></button>
@@ -88,7 +88,10 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
       <button id="player-toggle" class="player-play" type="button" aria-label="播放／暫停" title="播放／暫停">▶</button>
       <button id="player-next" type="button" aria-label="下一首" title="下一首">⏭</button>
     </div>
-    <button class="side-nav-toggle" id="side-nav-toggle" type="button" aria-controls="site-sidebar" aria-expanded="false" aria-label="展開導覽欄" title="展開導覽">
+    <button class="player-queue-toggle dock-tool-toggle" id="player-queue-toggle" type="button" aria-controls="player-queue-panel" aria-expanded="false" aria-label="播放列表" title="播放列表">
+      <span aria-hidden="true">☷</span><span class="player-queue-count" id="player-queue-count">0</span>
+    </button>
+    <button class="side-nav-toggle dock-tool-toggle" id="side-nav-toggle" type="button" aria-controls="site-sidebar" aria-expanded="false" aria-label="展開導覽欄" title="展開導覽">
       <span class="side-nav-toggle-icon" aria-hidden="true">☰</span>
     </button>
   </div>
@@ -112,6 +115,20 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
     </div>
   </div>
 </div>
+
+<section class="player-queue-panel" id="player-queue-panel" aria-labelledby="player-queue-heading" hidden>
+  <header class="player-queue-header">
+    <div class="player-queue-heading-copy">
+      <span class="kicker">UP NEXT</span>
+      <h2 id="player-queue-heading">播放列表</h2>
+      <p id="player-queue-summary">尚未建立播放佇列</p>
+    </div>
+    <button class="player-queue-close" id="player-queue-close" type="button" aria-label="關閉播放列表" title="關閉">×</button>
+  </header>
+  <div class="player-queue-list" id="player-queue-list" role="list" aria-label="目前播放佇列">
+    <div class="player-queue-empty">從歌曲、專輯、歌手、資料夾或 Podcast 節目開始播放，這裡就會顯示待播項目。</div>
+  </div>
+</section>
 
 <audio id="audio-player" preload="none"></audio>
 

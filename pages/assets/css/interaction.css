@@ -807,3 +807,92 @@
     background:linear-gradient(145deg,rgba(185,154,232,.36),rgba(140,104,181,.2));
   }
 }
+
+
+/* Playback queue popover. It has its own scrolling area and never scrolls the page. */
+.player-queue-panel[hidden]{display:none!important}
+.player-queue-panel{
+  position:fixed;right:262px;bottom:96px;z-index:91;
+  display:flex;flex-direction:column;width:min(420px,calc(100vw - 290px));
+  max-height:min(62vh,540px);overflow:hidden;
+  border:1px solid rgba(206,184,239,.18);border-radius:18px;
+  color:#eee8f6;background:linear-gradient(160deg,rgba(34,29,46,.99),rgba(20,18,28,.995));
+  box-shadow:0 22px 70px rgba(0,0,0,.5);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+}
+body.desktop-sidebar-collapsed .player-queue-panel{right:90px;width:min(420px,calc(100vw - 120px))}
+.player-queue-header{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;flex:0 0 auto;
+  padding:17px 18px 14px;border-bottom:1px solid rgba(206,184,239,.1);
+}
+.player-queue-heading-copy{min-width:0}
+.player-queue-heading-copy .kicker{font-size:8px;letter-spacing:.2em}
+.player-queue-heading-copy h2{margin:4px 0 3px;color:#f0e9f8;font-size:17px;font-weight:680}
+.player-queue-heading-copy p{margin:0;color:#93899f;font-size:10px}
+.player-queue-close{
+  display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;padding:0;
+  border:1px solid rgba(206,184,239,.13);border-radius:11px;color:#cfc2de;background:rgba(255,255,255,.045);
+  font-size:22px;line-height:1;cursor:pointer;
+}
+.player-queue-close:hover{color:#fff;background:rgba(255,255,255,.1)}
+.player-queue-list{min-height:70px;max-height:min(54vh,460px);overflow-y:auto;overscroll-behavior:contain;padding:7px}
+.player-queue-empty{padding:25px 18px;color:#93899f;font-size:11px;line-height:1.8;text-align:center}
+.player-queue-item{
+  display:flex;align-items:center;gap:11px;width:100%;min-height:58px;padding:8px 10px;
+  border:1px solid transparent;border-radius:12px;color:#ddd5e8;background:transparent;text-align:left;
+  cursor:pointer;touch-action:manipulation;transition:background .16s ease,border-color .16s ease,color .16s ease;
+}
+.player-queue-item:hover{border-color:rgba(206,184,239,.12);background:rgba(255,255,255,.055);color:#fff}
+.player-queue-item.is-current{border-color:rgba(193,161,233,.19);background:linear-gradient(95deg,rgba(169,132,219,.2),rgba(169,132,219,.055))}
+.player-queue-number{
+  display:grid;place-items:center;flex:0 0 32px;width:32px;height:32px;border-radius:10px;
+  color:#9c91aa;background:rgba(255,255,255,.045);font:10px ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+.player-queue-item.is-current .player-queue-number{color:#eadbff;background:rgba(169,132,219,.22)}
+.player-queue-copy{display:grid;gap:4px;min-width:0;flex:1}
+.player-queue-title{overflow:hidden;color:inherit;font-size:11px;font-weight:640;text-overflow:ellipsis;white-space:nowrap}
+.player-queue-subtitle{overflow:hidden;color:#92899f;font-size:9px;text-overflow:ellipsis;white-space:nowrap}
+.player-queue-status{flex:0 0 auto;color:#82798f;font-size:9px;white-space:nowrap}
+.player-queue-item.is-current .player-queue-status{color:#d7b9f7}
+.dock-transport-host{gap:8px}
+.dock-transport-host .dock-tool-toggle{
+  position:relative;display:grid;place-items:center;flex:0 0 42px;
+  width:42px;min-width:42px;height:42px;min-height:42px;padding:0;
+  border:1px solid rgba(207,187,233,.17);border-radius:13px;color:#dfd0f0;
+  background:linear-gradient(145deg,rgba(169,132,219,.15),rgba(255,255,255,.035));
+  font-size:17px;line-height:1;cursor:pointer;touch-action:manipulation;
+  box-shadow:inset 0 1px rgba(255,255,255,.055);
+  transition:background .18s ease,border-color .18s ease,color .18s ease,transform .18s ease;
+}
+.dock-transport-host .dock-tool-toggle:hover,
+.dock-transport-host .dock-tool-toggle[aria-expanded="true"]{
+  color:#fff;border-color:rgba(207,187,233,.38);
+  background:linear-gradient(145deg,rgba(185,154,232,.36),rgba(140,104,181,.2));
+}
+.dock-transport-host .dock-tool-toggle:active{transform:scale(.94)}
+.player-queue-count{
+  position:absolute;right:-5px;top:-5px;display:grid;place-items:center;
+  min-width:17px;height:17px;padding:0 4px;border:1px solid #211b2b;border-radius:9px;
+  color:#2a2037;background:#ceb0f1;font:700 8px/1 -apple-system,BlinkMacSystemFont,sans-serif;
+}
+@media(max-width:760px){
+  .player-queue-panel{right:10px;bottom:calc(88px + env(safe-area-inset-bottom));width:min(420px,calc(100vw - 20px));max-height:min(58vh,480px)}
+  .player-queue-list{max-height:min(50vh,400px)}
+  .player-queue-header{padding:14px 15px 12px}
+  .player-queue-item{min-height:54px;padding:7px 8px}
+  .dock-transport-host{
+    position:relative!important;inset:auto!important;display:flex!important;
+    align-items:center;justify-content:flex-end!important;gap:3px;
+    width:auto!important;min-width:0;flex:0 0 auto;
+  }
+  .dock-transport-host .dock-tool-toggle{
+    flex-basis:31px;width:31px;min-width:31px;height:34px;min-height:34px;border-radius:11px;font-size:15px;
+  }
+}
+@media(max-width:390px){
+  .dock-transport-host{gap:2px}
+  .dock-transport-host .dock-tool-toggle{
+    flex-basis:29px;width:29px;min-width:29px;height:32px;min-height:32px;border-radius:10px;font-size:14px;
+  }
+  .player-queue-panel{bottom:calc(86px + env(safe-area-inset-bottom))}
+}
+@media(prefers-reduced-motion:reduce){.player-queue-item,.dock-transport-host .dock-tool-toggle{transition:none!important}}
