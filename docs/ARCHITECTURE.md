@@ -43,7 +43,7 @@
 - Bounded HTTP Range metadata reads.
 - Browser audio playback and ordered queue handling.
 - Artwork retrieval from R2.
-- Cloudflare Access plus Pages middleware for private same-origin API access; server-side Secrets provide the VPS Alist API token and FRAME Audio's internal API admin gate; D1 and R2 are accessed through their existing Pages bindings.
+- Cloudflare Access plus Pages middleware for private same-origin API access; Pages Variables provide server-side API base URLs, Pages Secrets provide VPS / Worker Tokens and FRAME Audio's internal API admin gate; D1 and R2 are accessed through their existing Pages bindings.
 - Retry queues, D1 scan checkpoints and user-visible diagnostic logs.
 
 ## Private data boundary
@@ -60,10 +60,10 @@ Podcast uses the same bounded browser Range approach but a separate state namesp
 
 ## D1 data model
 - `tracks`, `folders`, `catalog_state`: Music and scan state.
-- `connection_settings`: AES-GCM encrypted VPS / Worker profiles; phone-local credentials remain in that device's browser only.
+- VPS / Worker connection profiles are read from Cloudflare Pages environment bindings and are not stored in D1. Phone-local credentials remain in that device's browser only.
 - `podcast_shows`, `podcast_episodes`: Podcast catalogue.
 - `listening_progress`: current per-item resume position and Podcast playback speed.
 - `listening_events`: per-session plays, active listening time and completion state.
 
 ## Deployment boundary
-Cloudflare Pages serves the static application and same-origin Functions API. Cloudflare Access protects Production and Preview hostnames. Pages middleware rejects API requests without an Access assertion and injects the `FRAME_AUDIO_API_ADMIN_TOKEN` application-level admin Secret server-side. Pages Functions read `ALIST_VPS_API_TOKEN` and `ALIST_VPS_API_BASE_URL` server-side for VPS Alist calls. Production and Preview require their own environment settings and existing D1/R2 bindings. The browser does not receive or persist either API credential.
+Cloudflare Pages serves the static application and same-origin Functions API. Cloudflare Access protects Production and Preview hostnames. Pages middleware rejects API requests without an Access assertion and injects the `FRAME_AUDIO_API_ADMIN_TOKEN` application-level admin Secret server-side. Pages Functions read `ALIST_VPS_API_BASE_URL` / `ALIST_VPS_API_TOKEN` and `ALIST_WORKER_API_BASE_URL` / `ALIST_WORKER_API_TOKEN` server-side. Production and Preview require their own environment settings and existing D1/R2 bindings. The browser never receives either server-side Token; only the LAN-direct profile remains on the device.

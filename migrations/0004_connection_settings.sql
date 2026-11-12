@@ -1,6 +1,5 @@
-CREATE TABLE IF NOT EXISTS connection_settings (
-  id TEXT PRIMARY KEY NOT NULL CHECK (id = 'openlist'),
-  encrypted_value TEXT NOT NULL,
-  nonce TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
+-- RETIRED / NO-OP.
+-- VPS Alist and OpenList Worker credentials are now read from Cloudflare Pages
+-- Variables and Secrets. The application no longer reads or writes this table.
+-- Do not execute this migration. If the table was created by an earlier test,
+-- it is left untouched and ignored.
