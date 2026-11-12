@@ -24,8 +24,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   const PROVIDER_LABELS = { vps: "VPS Alist", worker: "OpenList Worker", local: "區域網路 OpenList" };
   let serverProfiles = {
     vps: { baseUrl: "", hasToken: false, configured: false },
-    worker: { baseUrl: "", hasToken: false, configured: false },
-    settingsTableReady: false
+    worker: { baseUrl: "", hasToken: false, configured: false }
   };
   let localProfile = { baseUrl: "", token: "" };
   let activeProvider = "vps";
@@ -205,8 +204,8 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
 
   // Remove the legacy credential record without reading or parsing its token values.
   try { localStorage.removeItem("frame-audio-credentials-v1"); } catch {}
-  // VPS/Worker credentials stay encrypted on the server. The phone-local
-  // token stays in this browser because direct loopback requests need it.
+  // VPS/Worker credentials remain in Cloudflare Pages environment bindings.
+  // The LAN profile stays in this browser because direct requests need its token.
   function readLocalOpenListProfile() {
     try {
       const saved = JSON.parse(localStorage.getItem(LOCAL_OPENLIST_STORAGE_KEY) || "{}");
@@ -250,26 +249,28 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     const vps = serverProfiles.vps || {};
     const worker = serverProfiles.worker || {};
     const setValue = (id, value) => { const node = $("#" + id); if (node) node.value = String(value || ""); };
-    setValue("vps-openlist-base-url", vps.baseUrl);
-    setValue("worker-openlist-base-url", worker.baseUrl);
     setValue("local-openlist-base-url", localProfile.baseUrl);
     setValue("local-openlist-token", localProfile.token);
-    const vpsToken = $("#vps-openlist-token");
-    const workerToken = $("#worker-openlist-token");
-    if (vpsToken) { vpsToken.value = ""; vpsToken.placeholder = vps.hasToken ? "已保存，留空即可沿用" : "輸入 VPS Alist API Token"; }
-    if (workerToken) { workerToken.value = ""; workerToken.placeholder = worker.hasToken ? "已保存，留空即可沿用" : "輸入 OpenList Worker API Token"; }
+    const renderServerStatus = (id, label, profile) => {
+      const node = $("#" + id);
+      if (!node) return;
+      node.textContent = label + "：" + (profile.configured ? "已就緒" : "未完整設定") +
+        (profile.baseUrl ? " · " + profile.baseUrl : "");
+    };
+    renderServerStatus("vps-openlist-env-status", "VPS Alist", vps);
+    renderServerStatus("worker-openlist-env-status", "OpenList Worker", worker);
     const status = $("#provider-settings-status");
     if (status) {
-      status.textContent = serverProfiles.settingsTableReady === false
-        ? "D1 連線設定表尚未初始化。執行 migrations/0004_connection_settings.sql 後，才能保存 VPS / Worker 的網址與 Token。"
-        : "VPS Token：" + (vps.hasToken ? "已保存" : "未設定") +
-          "；Worker Token：" + (worker.hasToken ? "已保存" : "未設定") +
-          "；本機 Token：" + (localProfile.token ? "已保存在此裝置" : "未設定") + "。";
-      status.className = "statusbox" + (serverProfiles.settingsTableReady === false ? " error" : "");
+      status.textContent = "VPS Alist：" + (vps.configured ? "已就緒" : "未設定完整") +
+        "；OpenList Worker：" + (worker.configured ? "已就緒" : "未設定完整") +
+        "；區域網路 Token：" + (localProfile.token ? "已保存在此裝置" : "尚未設定") +
+        "。VPS／Worker 憑證只從 Cloudflare Pages Variables and Secrets 讀取，瀏覽器不會取得 Token。";
+      status.className = "statusbox" + ((vps.configured || worker.configured) ? " ok" : "");
     }
     const active = $("#active-openlist-provider");
     if (active) active.value = activeProvider;
   }
+
   async function loadConnectionSettings() {
     localProfile = readLocalOpenListProfile();
     try {
@@ -279,72 +280,53 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       if (!response.ok || !data.ok) throw new Error(data.error || ("連線設定 HTTP " + response.status));
       serverProfiles = {
         vps: data.profiles?.vps || { baseUrl: "", hasToken: false, configured: false },
-        worker: data.profiles?.worker || { baseUrl: "", hasToken: false, configured: false },
-        settingsTableReady: data.settingsTableReady === true
+        worker: data.profiles?.worker || { baseUrl: "", hasToken: false, configured: false }
       };
     } catch (cause) {
-      console.warn("[FRAME Audio] Could not load saved OpenList profiles", cause);
-      serverProfiles.settingsTableReady = false;
+      console.warn("[FRAME Audio] Could not load Cloudflare OpenList environment profiles", cause);
+      serverProfiles = {
+        vps: { baseUrl: "", hasToken: false, configured: false },
+        worker: { baseUrl: "", hasToken: false, configured: false }
+      };
       const status = $("#provider-settings-status");
       if (status) {
-        status.textContent = "無法讀取伺服器端連線設定：" + (cause.message || cause);
+        status.textContent = "無法讀取 Cloudflare 伺服器端來源狀態：" + (cause.message || cause);
         status.className = "statusbox error";
       }
     }
     activeProvider = selectedProviderFromStorage();
-    if (activeProvider === "worker" && !serverProfiles.worker?.configured) activeProvider = "vps";
-    if (activeProvider === "local" && !localProfile.baseUrl) activeProvider = "vps";
+    if (activeProvider === "worker" && !serverProfiles.worker?.configured) {
+      activeProvider = serverProfiles.vps?.configured ? "vps" : (localProfile.baseUrl ? "local" : "vps");
+    }
+    if (activeProvider === "vps" && !serverProfiles.vps?.configured &&
+        !localProfile.baseUrl && serverProfiles.worker?.configured) activeProvider = "worker";
+    if (activeProvider === "local" && !localProfile.baseUrl) {
+      activeProvider = serverProfiles.vps?.configured ? "vps" :
+        (serverProfiles.worker?.configured ? "worker" : "vps");
+    }
     fillConnectionSettingsForm();
     applyActiveOpenListProvider(activeProvider, true);
   }
+
   async function saveAndSwitchOpenList() {
     const button = $("#save-switch-openlist");
     const status = $("#provider-settings-status");
     const targetProvider = $("#active-openlist-provider")?.value || "vps";
     if (button) button.disabled = true;
     try {
-      const vpsBaseUrl = String($("#vps-openlist-base-url")?.value || "").trim();
-      const workerBaseUrl = String($("#worker-openlist-base-url")?.value || "").trim();
       const localBaseInput = String($("#local-openlist-base-url")?.value || "").trim();
       const localToken = String($("#local-openlist-token")?.value || "").trim();
       const localBaseUrl = localBaseInput ? normalizeOpenListUrl(localBaseInput) : "";
       localProfile = { baseUrl: localBaseUrl, token: localToken };
       writeLocalOpenListProfile(localProfile);
-
-      let serverSaveError = null;
-      if (serverProfiles.settingsTableReady) {
-        try {
-          const response = await fetch("/api/settings/connections", {
-            method: "POST", credentials: "same-origin",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              profiles: {
-                vps: { baseUrl: vpsBaseUrl, token: String($("#vps-openlist-token")?.value || "") },
-                worker: { baseUrl: workerBaseUrl, token: String($("#worker-openlist-token")?.value || "") }
-              }
-            })
-          });
-          let data = {};
-          try { data = await response.json(); } catch {}
-          if (!response.ok || !data.ok) throw new Error(data.error || ("保存連線設定 HTTP " + response.status));
-          serverProfiles = {
-            vps: data.profiles?.vps || serverProfiles.vps,
-            worker: data.profiles?.worker || serverProfiles.worker,
-            settingsTableReady: true
-          };
-        } catch (cause) { serverSaveError = cause; }
-      } else {
-        serverSaveError = new Error("請先在既有 D1 執行 migrations/0004_connection_settings.sql，才能保存 VPS / Worker 設定。");
-      }
-
       if (targetProvider === "local" && (!localProfile.baseUrl || !localProfile.token)) {
-        throw new Error("本機 OpenList 需要填寫網址與 API Token。");
+        throw new Error("區域網路 OpenList 需要填寫網址與 API Token。");
       }
-      if (targetProvider === "worker" && (!serverProfiles.worker?.baseUrl || !serverProfiles.worker?.hasToken)) {
-        throw new Error(serverSaveError?.message || "OpenList Worker 尚未設定完整的 HTTPS 網址與 API Token。");
+      if (targetProvider === "worker" && !serverProfiles.worker?.configured) {
+        throw new Error("OpenList Worker 尚未就緒。請在 Cloudflare Pages 的 Variables and Secrets 設定 ALIST_WORKER_API_BASE_URL 與 ALIST_WORKER_API_TOKEN，然後重新部署。");
       }
       if (targetProvider === "vps" && !serverProfiles.vps?.configured) {
-        throw new Error(serverSaveError?.message || "VPS Alist 尚未設定可用的 HTTPS 網址與 API Token。");
+        throw new Error("VPS Alist 尚未就緒。請在 Cloudflare Pages 的 Variables and Secrets 設定 ALIST_VPS_API_BASE_URL 與 ALIST_VPS_API_TOKEN，然後重新部署。");
       }
       applyActiveOpenListProvider(targetProvider, true);
       fillConnectionSettingsForm();
@@ -352,27 +334,23 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         connected = false;
         $("#connection-label").textContent = "區域網路 OpenList 等待測試";
         $("#connection-dot").style.background = "#b78b75";
-        setResult("本機來源已保存。請再點擊「測試目前來源並讀取目錄」，授權瀏覽器存取區域網路 OpenList。");
+        setResult("區域網路來源已保存在此裝置。請點擊「測試目前來源並讀取目錄」，授權瀏覽器存取區域網路 OpenList。");
       } else {
         await testConnection();
       }
       if (status) {
-        if (serverSaveError) {
-          status.textContent = (targetProvider === "local" ? "本機來源已保存並切換。" : "已切換目前來源。") +
-            "但 VPS / Worker 的伺服器端設定尚未保存：" + serverSaveError.message;
-          status.className = "statusbox";
-        } else {
-          status.textContent = "設定已保存，目前使用：" + (PROVIDER_LABELS[targetProvider] || targetProvider) +
-            "。三種來源共用同一套 D1 曲庫與 R2 封面。";
-          status.className = targetProvider === "local" ? "statusbox" : "statusbox ok";
-        }
+        status.textContent = "目前使用：" + (PROVIDER_LABELS[targetProvider] || targetProvider) +
+          "。VPS／Worker 憑證由 Cloudflare Pages Variables and Secrets 固定管理；三種來源共用同一套 D1 曲庫與 R2 封面。";
+        status.className = "statusbox" + (targetProvider === "local" ? "" : " ok");
       }
     } catch (cause) {
-      if (status) { status.textContent = "設定或切換失敗：" + (cause.message || cause); status.className = "statusbox error"; }
+      if (status) {
+        status.textContent = "設定或切換失敗：" + (cause.message || cause);
+        status.className = "statusbox error";
+      }
       setResult(cause.message || "保存或切換 OpenList 來源失敗。", "error");
     } finally { if (button) button.disabled = false; }
   }
-
 
   async function testCloudflareStorage() {
     const button = $("#test-storage");

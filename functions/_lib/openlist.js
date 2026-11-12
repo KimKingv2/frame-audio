@@ -26,7 +26,7 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000, provi
   catch (cause) { return { response: error(cause.message || "讀取 OpenList 來源設定失敗。", 503) }; }
   const profile = profiles[source] || {};
   const token = String(profile.token || "").trim();
-  if (!token) return { response: error("尚未設定 " + label + " API Token。請在 FRAME Audio 設定中保存此來源的 Token。", 503) };
+  if (!token) return { response: error("尚未設定 " + label + " API Token。請在 Cloudflare Pages Variables and Secrets 設定對應的 ALIST_*_API_TOKEN Secret。", 503) };
   const configured = normalizeBase(String(profile.baseUrl || "").trim(), label);
   if (configured.response) return configured;
 

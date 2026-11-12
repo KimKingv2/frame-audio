@@ -1,48 +1,38 @@
 # FRAME Audio - Multi-source OpenList connections
 
-FRAME Audio supports three interchangeable read-only file sources while keeping one shared D1 catalogue and R2 artwork store:
+FRAME Audio supports three interchangeable read-only sources and shares one D1 catalogue / R2 artwork store:
 
-- VPS Alist: existing Pages Functions server-side proxy, using existing ALIST_VPS_API_BASE_URL / ALIST_VPS_API_TOKEN Cloudflare settings as fallbacks.
-- OpenList Worker: Pages Functions server-side proxy to a second OpenList-compatible API.
-- LAN OpenList: the browser on the phone calls its own LAN OpenList service directly. This source cannot be proxied by Cloudflare because the Cloudflare edge cannot reach a service bound to the private LAN device's RFC1918 address.
+- **VPS Alist:** Pages Functions proxy. URL and Token come from Cloudflare environment bindings.
+- **OpenList Worker:** Pages Functions proxy. URL and Token come from Cloudflare environment bindings.
+- **LAN OpenList:** the phone browser directly calls a separate device on the same private network, for example `http://192.168.31.xx:5244`.
 
-## Saved connection settings
+## VPS Alist and Worker credentials
 
-Apply migrations/0004_connection_settings.sql to the existing frame-audio-catalog D1 database. Do not create a new D1 database and do not alter existing catalogue tables.
+Set four values in Cloudflare Pages → Settings → Variables and Secrets, separately for Preview and Production:
 
-The VPS and Worker base URLs and tokens are stored together as AES-GCM ciphertext in D1. The encryption key is derived on the server from the existing FRAME_AUDIO_API_ADMIN_TOKEN / FRAME_AUDIO_ADMIN_TOKEN Secret. The settings API returns only base URLs and token-presence flags, never decrypted token values. If the internal admin Secret is rotated, open Settings and save the connection profiles again to re-encrypt them.
+| Name | Type |
+|---|---|
+| `ALIST_VPS_API_BASE_URL` | Text / Variable |
+| `ALIST_VPS_API_TOKEN` | Secret |
+| `ALIST_WORKER_API_BASE_URL` | Text / Variable |
+| `ALIST_WORKER_API_TOKEN` | Secret |
 
-The phone-local profile is saved in that phone browser's localStorage because the browser must present its token directly to its local service. Anyone with access to that browser profile or same-origin page script can access that local token. Do not use this option with a token that grants more access than needed. The local token is never written to D1, R2, GitHub, or the server-side connection API.
+`FRAME_AUDIO_API_ADMIN_TOKEN` remains a separate Secret for FRAME Audio's own private API gate. Do not reuse it as an Alist Token.
 
-When editing server profiles, leave a Token field blank to keep the already-saved value. Explicitly clear a token only when replacing it with a new value or when the profile should be disabled.
+Pages Functions read the server credentials for each request. The browser receives only base URLs and boolean status fields such as `hasToken`, never the Tokens. The settings page cannot write server credentials, and no VPS / Worker credential is stored in D1. Migration `0004_connection_settings.sql` is retired/no-op and is not required. Any old unused `connection_settings` table is left untouched and ignored.
 
-## Local OpenList requirements
+Legacy VPS aliases `OPENLIST_BASE_URL` / `OPENLIST_API_TOKEN` and Worker URL alias `OPENLIST_WORKER_API_BASE_URL` remain accepted; use `ALIST_*` for new settings.
 
-For LAN-direct mode, enter the OpenList API base URL, a private LAN URL such as http://192.168.31.20:5244. Replace the example IP with the actual address of the device running OpenList.
+## LAN-direct OpenList
 
-The LAN OpenList must:
-- Expose the Alist/OpenList-compatible POST /api/fs/list and POST /api/fs/get endpoints.
-- Chrome 142 and later gates public-site requests to private LAN addresses behind a Local Network Access permission. Chrome 145 uses the local-network permission for addresses such as 192.168.31.x. The app waits for the explicit Test current source button before its first LAN request; it does not probe a saved endpoint at page load.
-- Allow CORS from the exact FRAME Audio origin (both https://main.frame-audio.pages.dev for Preview and https://frame-audio.pages.dev for Production, if both are used).
-- Allow Authorization and Content-Type request headers.
-- For audio hosts used for tag inspection, allow cross-origin Range requests and expose Content-Range, Content-Length, and Accept-Ranges as needed.
-- Return audio raw_url values reachable from the client browser. The HTML5 audio element plays those URLs directly; Pages does not relay or transcode audio.
+Enter the LAN OpenList URL and Token on the phone. Replace the example IP with the actual address and port of the other device running OpenList.
 
-Chrome's Local Network Access permission is required for the public HTTPS FRAME Audio site to contact a private LAN IP. Chrome 145+ uses the local-network permission for RFC1918 addresses such as 192.168.31.x. When the destination is a private IP literal, Chrome can exempt the HTTP request from mixed-content blocking after permission is granted. Non-private HTTP hosts are not allowed; use HTTPS for public or remote addresses.
+The LAN profile is stored in the phone browser's `localStorage` because the browser attaches its Token to direct private-network requests. Use a read-only / least-privilege Token. Plain HTTP does not encrypt Authorization over Wi-Fi, so use a trusted network and prefer HTTPS on the LAN. The LAN Token is not sent through Pages, D1, R2 or the server-side connection API.
+
+LAN OpenList must expose `POST /api/fs/list` and `POST /api/fs/get`, allow CORS from the exact FRAME Audio origin, allow `Authorization` and `Content-Type`, and return `raw_url` values reachable from the phone browser. Metadata Range reads also require suitable CORS headers. HTML5 Audio connects directly to `raw_url`; Pages does not relay or transcode audio.
+
+The app waits for the explicit Test current source button before its first LAN request; it does not probe a saved LAN endpoint at page load. Chrome may require Local Network Access permission for public HTTPS pages contacting private LAN addresses.
 
 ## Shared catalogue behavior
 
-All three source profiles use the same configured Music and Podcast root paths. D1 tracks, folders, podcasts, scan checkpoints, retries, listening progress and analytics remain shared. R2 artwork remains shared and content-addressed. Switching a source does not clear, recreate, migrate or automatically rescan D1/R2 data.
-
-A source switch changes only folder listing, file-info lookup, metadata Range source and the raw audio URL resolved for new playback. Existing D1 entries continue to represent the same absolute paths. If different providers do not point to the same underlying files and paths, verify the mapping before indexing or playing.
-
-## Existing server resources
-
-- D1 database: frame-audio-catalog
-- R2 bucket: frame-audio-artwork
-- D1 binding: DB
-- R2 binding: ARTWORKS
-- Secret: FRAME_AUDIO_API_ADMIN_TOKEN or FRAME_AUDIO_ADMIN_TOKEN
-- Existing VPS fallbacks: ALIST_VPS_API_BASE_URL / ALIST_VPS_API_TOKEN (also accepts legacy OPENLIST_BASE_URL / OPENLIST_API_TOKEN).
-
-No VPS, DNS, Worker deployment, R2 or production configuration is changed by this code update.
+All three sources use the same configured Music and Podcast root paths. D1 tracks, folders, podcasts, scan checkpoints, retries, listening progress and analytics remain shared. R2 artwork remains shared. Switching sources does not clear or rebuild D1/R2 data. Verify that providers expose the same absolute path layout before indexing or playing.

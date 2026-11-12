@@ -156,34 +156,34 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
           <option value="worker">OpenList Worker（伺服器端）</option>
           <option value="local">區域網路 OpenList（裝置直連）</option>
         </select>
-        <div class="hint">選擇後按「保存設定並切換來源」。目錄瀏覽、檔案資訊、標籤 Range 讀取及新播放都會切換到同一來源。</div>
+        <div class="hint">選擇後按「保存設定並切換來源」。VPS／Worker 由 Pages 伺服器端憑證設定管理；區域網路來源由目前裝置直接連線。</div>
       </div>
       <div class="provider-grid">
         <section class="provider-card">
           <div class="provider-card-heading"><strong>VPS Alist</strong><span>SERVER PROXY</span></div>
-          <div class="field"><label for="vps-openlist-base-url">API 基礎網址</label><input id="vps-openlist-base-url" type="url" placeholder="沿用 Cloudflare Pages Secret" spellcheck="false" autocomplete="off"></div>
-          <div class="field"><label for="vps-openlist-token">API Token</label><input id="vps-openlist-token" type="password" placeholder="已保存則留空沿用" autocomplete="new-password" spellcheck="false"></div>
-          <div class="hint">憑證由 Pages Functions 代理請求；Token 加密保存在 D1，或沿用既有 Cloudflare Secret。</div>
+          <div class="hint" id="vps-openlist-env-status">正在讀取 Cloudflare Pages 設定……</div>
+          <div class="hint">網址 Variable：<code>ALIST_VPS_API_BASE_URL</code><br>Token Secret：<code>ALIST_VPS_API_TOKEN</code></div>
+          <div class="hint">Pages Functions 在伺服器端呼叫 VPS Alist。Token 不會傳到瀏覽器。</div>
         </section>
         <section class="provider-card">
           <div class="provider-card-heading"><strong>OpenList Worker</strong><span>SERVER PROXY</span></div>
-          <div class="field"><label for="worker-openlist-base-url">API 基礎網址</label><input id="worker-openlist-base-url" type="url" placeholder="https://你的-worker-網域" spellcheck="false" autocomplete="off"></div>
-          <div class="field"><label for="worker-openlist-token">API Token</label><input id="worker-openlist-token" type="password" placeholder="已保存則留空沿用" autocomplete="new-password" spellcheck="false"></div>
-          <div class="hint">Worker Token 不會傳回瀏覽器，由 Pages Functions 在伺服器端呼叫 Worker。</div>
+          <div class="hint" id="worker-openlist-env-status">正在讀取 Cloudflare Pages 設定……</div>
+          <div class="hint">網址 Variable：<code>ALIST_WORKER_API_BASE_URL</code><br>Token Secret：<code>ALIST_WORKER_API_TOKEN</code></div>
+          <div class="hint">Worker 憑證由 Pages Functions 在伺服器端使用，不會傳到瀏覽器。</div>
         </section>
         <section class="provider-card provider-card-local">
           <div class="provider-card-heading"><strong>區域網路 OpenList</strong><span>DEVICE DIRECT</span></div>
           <div class="field"><label for="local-openlist-base-url">區域網路 API 網址</label><input id="local-openlist-base-url" type="url" placeholder="http://192.168.31.xx:5244" spellcheck="false" autocomplete="off"></div>
           <div class="field"><label for="local-openlist-token">區域網路 API Token</label><input id="local-openlist-token" type="password" placeholder="輸入這台區域網路 OpenList Token" autocomplete="new-password" spellcheck="false"></div>
-          <div class="hint">本機 Token 只保存在目前手機瀏覽器的本機儲存區，因為手機瀏覽器要直接向 192.168.31.xx 請求。Chrome 首次連線可能會詢問「本機網路」權限，請允許。保存後請另外點擊「測試目前來源」觸發授權，不會在網頁載入時自動連線。</div>
+          <div class="hint">手機瀏覽器直接連接同一 Wi-Fi 的另一台設備。網址與 Token 保存在目前瀏覽器的本機儲存區；Chrome 首次連線可能會詢問「本機網路」權限，請允許。保存後請另外點擊「測試目前來源」，不會在網頁載入時自動連線。</div>
         </section>
       </div>
-      <div class="actions"><button type="button" class="primary" id="save-switch-openlist">保存設定並切換來源</button><button type="button" class="secondary" id="test-connection">測試目前來源並讀取目錄</button></div>
+      <div class="actions"><button type="button" class="primary" id="save-switch-openlist">保存區域網路設定／切換來源</button><button type="button" class="secondary" id="test-connection">測試目前來源並讀取目錄</button></div>
       <div class="statusbox" id="provider-settings-status" role="status">正在讀取已保存的來源設定……</div>
     </section>
     <div class="field">
       <label>Cloudflare 私有儲存</label>
-      <div class="hint">Cloudflare Access 保護管理 API。FRAME Audio 內部管理 Token、D1 / R2 管理權限與 VPS / Worker 憑證均留在伺服器端；VPS / Worker 憑證會以 AES-GCM 加密保存於 D1。D1 連線設定表需先執行 migrations/0004_connection_settings.sql。</div>
+      <div class="hint">Cloudflare Access 保護管理 API。FRAME Audio 內部管理 Token 與 D1 / R2 管理權限留在伺服器端。VPS Alist／OpenList Worker 的網址與 Token 固定由 Cloudflare Pages Variables and Secrets 提供；區域網路 Token 僅用於目前裝置直連。</div>
     </div>
     <div class="formgrid">
       <div class="field"><label for="music-root-path">Music 索引根目錄</label><input id="music-root-path" type="text" value="/中國移動雲盤/Kim King/03 Music" spellcheck="false"><div class="hint">Music 掃描只讀取此目錄及其子資料夾；可手動修改，或在下方瀏覽資料夾後選為 Music 根目錄。</div></div>
@@ -232,5 +232,5 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   });
 })();
 </script>
-<script type="module" src="/assets/js/app.js?v=20261112-multi-openlist2"></script>
+<script type="module" src="/assets/js/app.js?v=20261112-env-profiles1"></script>
 </body></html>
