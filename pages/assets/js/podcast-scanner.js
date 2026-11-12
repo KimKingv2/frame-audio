@@ -4,7 +4,7 @@ import {
   formatBytes,
   getOpenListFileInfo
 } from "./openlist-client.js?v=20261112-four-source-login1";
-import { inspectAudioMetadata } from "./metadata-inspector.js";
+import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261112-four-source-login1";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
 const MAX_FILE_ATTEMPTS = 20;

@@ -271,7 +271,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         "；K40 Alist：" + (k40.configured ? "已就緒" : "未設定完整") +
         "；區域網路 OpenList：" + (localProfile.baseUrl ? "已保存地址，需重新登入" : "尚未設定") +
         "。三個伺服器端來源只讀取 Pages Variables／Secrets；區域網路帳號密碼與 JWT 只保留在目前頁面記憶體。";
-      status.className = "statusbox" + ((vps.configured || worker.configured) ? " ok" : "");
+      status.className = "statusbox" + ((vps.configured || worker.configured || k40.configured) ? " ok" : "");
     }
     const active = $("#active-openlist-provider");
     if (active) active.value = activeProvider;
