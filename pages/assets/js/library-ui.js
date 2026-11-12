@@ -826,8 +826,9 @@ export function initLibraryUI(options = {}) {
       row.type = "button";
       row.className = "player-queue-item" + (current ? " is-current" : "");
       row.dataset.queueIndex = String(queueIndex);
-      row.setAttribute("role", "listitem");
       if (current) row.setAttribute("aria-current", "true");
+      const listItem = document.createElement("div");
+      listItem.setAttribute("role", "listitem");
 
       const number = document.createElement("span");
       number.className = "player-queue-number";
@@ -847,7 +848,8 @@ export function initLibraryUI(options = {}) {
       status.className = "player-queue-status";
       status.textContent = current ? "正在播放" : "待播";
       row.append(number, copy, status);
-      list.append(row);
+      listItem.append(row);
+      list.append(listItem);
     });
   }
 
