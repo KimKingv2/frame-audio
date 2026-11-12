@@ -973,3 +973,24 @@ body.desktop-sidebar-collapsed .player-queue-panel{right:90px;width:min(420px,ca
   }
   .now-playing-tools-host #player-speed{flex-basis:41px;width:41px;height:37px;min-height:37px}
 }
+
+
+/* Smooth queue popover entrance and exit. Keep it mounted until the exit completes. */
+.player-queue-panel.queue-opening{
+  animation:player-queue-enter .32s cubic-bezier(.2,.78,.22,1) both;
+}
+.player-queue-panel.queue-closing{
+  animation:player-queue-exit .24s cubic-bezier(.55,.06,.68,.19) both;
+  pointer-events:none;
+}
+@keyframes player-queue-enter{
+  from{opacity:0;transform:translate3d(0,12px,0) scale(.975);filter:blur(3px)}
+  to{opacity:1;transform:translate3d(0,0,0) scale(1);filter:blur(0)}
+}
+@keyframes player-queue-exit{
+  from{opacity:1;transform:translate3d(0,0,0) scale(1);filter:blur(0)}
+  to{opacity:0;transform:translate3d(0,9px,0) scale(.985);filter:blur(2px)}
+}
+@media(prefers-reduced-motion:reduce){
+  .player-queue-panel.queue-opening,.player-queue-panel.queue-closing{animation-duration:.01ms!important}
+}

@@ -10,6 +10,10 @@ export function initLibraryUI(options = {}) {
   const defaultDocumentTitle = document.title || "FRAME Audio";
   let lastMediaPositionUpdate = 0;
   let mediaMetadataItemKey = "";
+  let mediaSessionArtworkRequestId = 0;
+  let mediaSessionArtworkPendingKey = "";
+  let mediaSessionArtworkObjectUrl = "";
+  let mediaSessionArtworkObjectUrlKey = "";
   const state = {
     view:"music",lastLibraryView:"music",tracks:[],folders:[],shows:[],episodes:[],loaded:false,loadedAt:0,busy:false,
     selectedShowId:"",selectedAlbum:null,search:"",searchComposing:false,items:[],itemType:"track",reportPeriod:"week",reportType:"episode",
@@ -160,6 +164,28 @@ export function initLibraryUI(options = {}) {
     bindLyricsManualScroll(list);
     syncLyricsHighlight({forceScroll:true});
   }
+  function animatePlayerControlMove(element, direction) {
+    if (!element || typeof element.animate !== "function") return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const entering = direction !== "return";
+    const frames = entering
+      ? [
+          { opacity: 0, transform: "translate3d(0,14px,0) scale(.95)", filter: "blur(3px)" },
+          { opacity: 1, transform: "translate3d(0,0,0) scale(1)", filter: "blur(0)" }
+        ]
+      : [
+          { opacity: 0, transform: "translate3d(0,10px,0) scale(.97)", filter: "blur(2px)" },
+          { opacity: 1, transform: "translate3d(0,0,0) scale(1)", filter: "blur(0)" }
+        ];
+    try {
+      element.animate(frames, {
+        duration: entering ? 460 : 380,
+        easing: "cubic-bezier(.2,.78,.22,1)",
+        fill: "none"
+      });
+    } catch {}
+  }
+
   function renderNowPlaying() {
     let page=document.querySelector(".now-playing-page");
     if(page?.dataset.closing==="true")return;
@@ -167,12 +193,14 @@ export function initLibraryUI(options = {}) {
     // Keep the original, event-bound controls alive while rebuilding the detail view.
     const transport=$("#player-transport");
     const detailControls=$("#player-detail-controls");
+    const transportStartsInDock=transport?.parentElement?.classList.contains("dock-transport-host");
+    const controlsStartInDock=detailControls?.parentElement?.classList.contains("dock");
     if(!page){
       page=document.createElement("section");
       page.className="now-playing-page now-playing-enter";
       page.setAttribute("aria-label","正在播放");
       page.addEventListener("animationend",event=>{
-        if(event.target===page&&event.animationName==="now-playing-panel-in")page.classList.remove("now-playing-enter");
+        if(event.target===page&&event.animationName==="now-playing-slide-up")page.classList.remove("now-playing-enter");
       });
       // The overlay lives outside the library DOM, so delegate its controls here.
       page.addEventListener("click",handleClick);
@@ -205,8 +233,14 @@ export function initLibraryUI(options = {}) {
       '</div>';
     const transportHost=page.querySelector(".now-playing-transport-host");
     const controlsHost=page.querySelector(".now-playing-tools-host");
-    if(transport&&transportHost)transportHost.append(transport);
-    if(detailControls&&controlsHost)controlsHost.append(detailControls);
+    if(transport&&transportHost){
+      transportHost.append(transport);
+      if(transportStartsInDock)animatePlayerControlMove(transport,"enter");
+    }
+    if(detailControls&&controlsHost){
+      controlsHost.append(detailControls);
+      if(controlsStartInDock)animatePlayerControlMove(detailControls,"enter");
+    }
     bindLyricsManualScroll($("#now-playing-lyrics-list"));
     syncNowPlayingArtwork(item);syncLyricsHighlight({forceScroll:true});
   }
@@ -244,7 +278,7 @@ export function initLibraryUI(options = {}) {
     void page.offsetWidth;
     page.classList.add("now-playing-exit");
     page.addEventListener("animationend",event=>{
-      if(event.target===page&&event.animationName==="now-playing-panel-out")finish();
+      if(event.target===page&&event.animationName==="now-playing-slide-down")finish();
     },{once:true});
     fallbackTimer=setTimeout(finish,900);
   }
@@ -759,7 +793,10 @@ export function initLibraryUI(options = {}) {
       const detailControls=returningFromNowPlaying.querySelector("#player-detail-controls");
       const dockTransport=document.querySelector(".dock-transport-host");
       const dock=document.querySelector(".dock");
-      if(transport&&dockTransport)dockTransport.append(transport);
+      if(transport&&dockTransport){
+        dockTransport.append(transport);
+        animatePlayerControlMove(transport,"return");
+      }
       if(detailControls&&dock)dock.append(detailControls);
       returningFromNowPlaying.remove();
       document.body.classList.toggle("is-podcast-view",["shows","show-detail","continue"].includes(state.view));
@@ -916,13 +953,14 @@ export function initLibraryUI(options = {}) {
   function syncMediaSessionMetadata(item) {
     const session = navigator.mediaSession;
     const title = item?.title || "";
-    const artist = item ? (item.subtitle || item.albumArtist || item.album || (item.itemType === "episode" ? "Podcast" : "")) : "";
+    const artist = item ? (item.subtitle || item.artist || (Array.isArray(item.artists) ? item.artists.join(" / ") : "") || item.albumArtist || item.album || (item.itemType === "episode" ? "Podcast" : "")) : "";
     document.title = item
       ? [title, artist].filter(Boolean).join(" · ") + " | FRAME Audio"
       : defaultDocumentTitle;
     if (!session) return;
 
-    const itemKey = item ? String(item.itemType || "audio") + ":" + String(item.id || item.path || title) : "";
+    const artworkHash = item ? String(item.artworkHash || item.artwork_hash || item.artwork?.sha256 || "") : "";
+    const itemKey = item ? [String(item.itemType || "audio"), String(item.id || item.path || title), artworkHash].join(":") : "";
     const changed = itemKey !== mediaMetadataItemKey;
     mediaMetadataItemKey = itemKey;
     try {
@@ -931,21 +969,65 @@ export function initLibraryUI(options = {}) {
         session.playbackState = "none";
         if (typeof session.setPositionState === "function") session.setPositionState({});
         lastMediaPositionUpdate = 0;
+        mediaSessionArtworkRequestId++;
+        mediaSessionArtworkPendingKey = "";
+        if (mediaSessionArtworkObjectUrl) URL.revokeObjectURL(mediaSessionArtworkObjectUrl);
+        mediaSessionArtworkObjectUrl = "";
+        mediaSessionArtworkObjectUrlKey = "";
         return;
       }
       if (typeof MediaMetadata !== "undefined") {
+        const album = String(item.album || item.showTitle || (item.itemType === "episode" ? artist : "") || "");
         const metadata = {
           title: String(title || "未命名音訊"),
           artist: String(artist || "FRAME Audio"),
-          album: String(item.album || item.showTitle || (item.itemType === "episode" ? artist : ""))
+          album
         };
-        if (item.artworkHash) {
-          const artworkUrl = new URL("/api/artwork/" + encodeURIComponent(item.artworkHash), window.location.origin).href;
-          // Keep one source: WebKit may use only the first artwork candidate.
-          // Let the platform decode the original R2 image at its native resolution.
-          metadata.artwork = [{ src: artworkUrl }];
+        let artworkUrl = "";
+        if (artworkHash) {
+          artworkUrl = new URL("/api/artwork/" + encodeURIComponent(artworkHash), window.location.origin).href;
+          if (mediaSessionArtworkObjectUrl && mediaSessionArtworkObjectUrlKey === itemKey) {
+            metadata.artwork = [{ src: mediaSessionArtworkObjectUrl }];
+          } else {
+            // Resolve the protected artwork inside the authenticated page.
+            // Media Session receives a blob URL, not a private API URL that
+            // the OS/Bluetooth metadata consumer would need to authorize.
+            metadata.artwork = [{ src: artworkUrl }];
+          }
         }
         session.metadata = new MediaMetadata(metadata);
+
+        if (!artworkHash) {
+          mediaSessionArtworkRequestId++;
+          mediaSessionArtworkPendingKey = "";
+          if (mediaSessionArtworkObjectUrl) URL.revokeObjectURL(mediaSessionArtworkObjectUrl);
+          mediaSessionArtworkObjectUrl = "";
+          mediaSessionArtworkObjectUrlKey = "";
+        } else if (mediaSessionArtworkObjectUrlKey !== itemKey && mediaSessionArtworkPendingKey !== itemKey) {
+          mediaSessionArtworkPendingKey = itemKey;
+          const requestId = ++mediaSessionArtworkRequestId;
+          fetch(artworkUrl, { credentials: "same-origin", cache: "force-cache" })
+            .then(response => response.ok ? response.blob() : null)
+            .then(blob => {
+              if (!blob || !blob.size || (blob.type && !/^image\//i.test(blob.type))) {
+                throw new Error("Media Session artwork could not be loaded.");
+              }
+              if (requestId !== mediaSessionArtworkRequestId || mediaMetadataItemKey !== itemKey) return;
+              const nextUrl = URL.createObjectURL(blob);
+              const previousUrl = mediaSessionArtworkObjectUrl;
+              mediaSessionArtworkObjectUrl = nextUrl;
+              mediaSessionArtworkObjectUrlKey = itemKey;
+              mediaSessionArtworkPendingKey = "";
+              session.metadata = new MediaMetadata({
+                ...metadata,
+                artwork: [{ src: nextUrl, ...(blob.type ? { type: blob.type } : {}) }]
+              });
+              if (previousUrl && previousUrl !== nextUrl) URL.revokeObjectURL(previousUrl);
+            })
+            .catch(() => {
+              if (requestId === mediaSessionArtworkRequestId) mediaSessionArtworkPendingKey = "";
+            });
+        }
       }
       session.playbackState = audio.paused ? "paused" : "playing";
       if (changed && typeof session.setPositionState === "function") {
@@ -1297,6 +1379,11 @@ export function initLibraryUI(options = {}) {
     syncMediaSessionMetadata(state.currentItem);
     syncMediaSessionPlaybackState();
   });
+  audio.addEventListener("playing",()=>{
+    // Re-publish once playback is active for Bluetooth/AVRCP metadata.
+    syncMediaSessionMetadata(state.currentItem);
+    syncMediaSessionPlaybackState();
+  });
   audio.addEventListener("pause",()=>{
     accountTime();persistSession(false);saveProgress(true);$("#player-toggle").textContent="▶";
     document.body.classList.remove("is-audio-playing");
@@ -1387,20 +1474,58 @@ export function initLibraryUI(options = {}) {
     if(state.view==="now-playing")closeNowPlaying();
     else void showView("now-playing");
   });
+  let queuePanelCloseTimer = 0;
+  let queuePanelTransitionId = 0;
+  function setPlayerQueueOpen(open, restoreFocus = false) {
+    const panel = $("#player-queue-panel");
+    const button = $("#player-queue-toggle");
+    if (!panel || !button) return;
+    const transitionId = ++queuePanelTransitionId;
+    if (queuePanelCloseTimer) {
+      clearTimeout(queuePanelCloseTimer);
+      queuePanelCloseTimer = 0;
+    }
+    if (open) {
+      panel.classList.remove("queue-closing", "queue-opening");
+      panel.hidden = false;
+      void panel.offsetWidth;
+      panel.classList.add("queue-opening");
+      button.setAttribute("aria-expanded", "true");
+      renderPlayerQueue();
+      panel.addEventListener("animationend", event => {
+        if (transitionId === queuePanelTransitionId && event.target === panel && event.animationName === "player-queue-enter") {
+          panel.classList.remove("queue-opening");
+        }
+      }, { once: true });
+      return;
+    }
+    if (panel.hidden) {
+      button.setAttribute("aria-expanded", "false");
+      return;
+    }
+    panel.classList.remove("queue-opening");
+    panel.classList.add("queue-closing");
+    button.setAttribute("aria-expanded", "false");
+    const finish = () => {
+      if (transitionId !== queuePanelTransitionId) return;
+      panel.hidden = true;
+      panel.classList.remove("queue-closing");
+      queuePanelCloseTimer = 0;
+      if (restoreFocus) button.focus({ preventScroll: true });
+    };
+    panel.addEventListener("animationend", event => {
+      if (event.target === panel && event.animationName === "player-queue-exit") finish();
+    }, { once: true });
+    queuePanelCloseTimer = setTimeout(finish, 360);
+  }
   $("#player-queue-toggle")?.addEventListener("click",()=>{
     const panel=$("#player-queue-panel");
-    const button=$("#player-queue-toggle");
-    if(!panel||!button)return;
-    panel.hidden=!panel.hidden;
-    button.setAttribute("aria-expanded",String(!panel.hidden));
-    if(!panel.hidden)renderPlayerQueue();
+    if(!panel)return;
+    const isOpen=!panel.hidden&&!panel.classList.contains("queue-closing");
+    setPlayerQueueOpen(!isOpen);
   });
   $("#player-queue-close")?.addEventListener("click",()=>{
-    const panel=$("#player-queue-panel");
-    const button=$("#player-queue-toggle");
-    if(panel)panel.hidden=true;
-    button?.setAttribute("aria-expanded","false");
-    button?.focus({preventScroll:true});
+    setPlayerQueueOpen(false,true);
   });
   $("#player-queue-list")?.addEventListener("click",event=>{
     const row=event.target.closest("[data-queue-index]");
@@ -1415,8 +1540,7 @@ export function initLibraryUI(options = {}) {
     if(event.key!=="Escape")return;
     const panel=$("#player-queue-panel");
     if(panel&&!panel.hidden){
-      panel.hidden=true;
-      $("#player-queue-toggle")?.setAttribute("aria-expanded","false");
+      setPlayerQueueOpen(false,true);
     }
   });
 
