@@ -65,3 +65,10 @@ FRAME Audio 是以 VPS Alist 為音訊來源的私人音訊平台，包含 **Mus
 正式環境與 Preview 環境應各自設定 `DB`、`ARTWORKS` bindings、`FRAME_AUDIO_API_ADMIN_TOKEN`、`ALIST_VPS_API_TOKEN`、`OPENLIST_WORKER_API_TOKEN` Secrets，以及 `ALIST_VPS_API_BASE_URL`、`OPENLIST_WORKER_API_BASE_URL` Variables。Access 必須保護 `frame-audio.pages.dev` 與 `*.frame-audio.pages.dev`。詳細步驟見 [docs/CLOUDFLARE-STORAGE.md](docs/CLOUDFLARE-STORAGE.md)。
 
 新增或修改環境變數及 Secret 後，必須觸發一次新的 Pages 部署，新的設定才會注入該部署。請確認 Secret 設定在正確的環境（Production 或 Preview），再重新部署對應分支。
+
+
+## 播放延遲診斷
+
+- 保留 Alist／OpenList API 取得檔案資訊、瀏覽器直接播放 `raw_url` 的架構，不改成 WebDAV，也不加入雲盤心跳。
+- 播放診斷會分別記錄檔案資訊請求、Pages 上游 API 耗時、瀏覽器音訊載入里程碑，以及下一首預取緩衝狀態。
+- 操作與指標解讀見 [docs/PLAYBACK-LATENCY-DIAGNOSTICS.md](docs/PLAYBACK-LATENCY-DIAGNOSTICS.md)。

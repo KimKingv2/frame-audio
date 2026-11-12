@@ -1,4 +1,4 @@
-import { getOpenListFileInfo } from "./openlist-client.js?v=20261112-multi-openlist2";
+import { getOpenListFileInfo } from "./openlist-client.js?v=20261112-playback-timing1";
 import { parseSynchronizedLyrics } from "./player-effects.js?v=20261111-sylt-ms1";
 
 const PERIODS = [["week","近 7 日"],["month","近 30 日"],["year","近 365 日"],["all","全部時間"]];
@@ -12,6 +12,7 @@ export function initLibraryUI(options = {}) {
   let mediaMetadataItemKey = "";
   let mediaSessionArtworkRequestId = 0;
   let mediaSessionArtworkPendingKey = "";
+  let activeAudioTimingCleanup = null;
   let mediaSessionArtworkObjectUrl = "";
   let mediaSessionArtworkObjectUrlKey = "";
   const state = {
@@ -49,6 +50,51 @@ export function initLibraryUI(options = {}) {
     }
     state.shuffleOrder=order;
     state.shufflePosition=order.indexOf(currentIndex);
+  }
+
+  function attachAudioStartupTiming(media, startedAt, context = {}) {
+    const timings = {};
+    const listeners = [];
+    let timeoutId = 0;
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      for (const [eventName, handler] of listeners) media.removeEventListener(eventName, handler);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+    const mark = (eventName, key) => {
+      const handler = () => {
+        if (timings[key] === undefined) timings[key] = Math.round(performance.now() - startedAt);
+        if (eventName === "playing") {
+          console.info("[FRAME Audio] Audio startup pipeline", {
+            ...context,
+            ...timings,
+            totalToPlayingMs: timings.playingMs
+          });
+          cleanup();
+        }
+      };
+      media.addEventListener(eventName, handler);
+      listeners.push([eventName, handler]);
+    };
+    mark("loadstart", "loadStartMs");
+    mark("loadedmetadata", "loadedMetadataMs");
+    mark("loadeddata", "loadedDataMs");
+    mark("canplay", "canPlayMs");
+    mark("playing", "playingMs");
+    const onError = () => {
+      console.warn("[FRAME Audio] Audio startup pipeline failed", {
+        ...context,
+        ...timings,
+        errorCode: media.error?.code || null
+      });
+      cleanup();
+    };
+    media.addEventListener("error", onError);
+    listeners.push(["error", onError]);
+    timeoutId = setTimeout(cleanup, 60000);
+    return cleanup;
   }
 
   function clearNextPreload() {
@@ -105,11 +151,15 @@ export function initLibraryUI(options = {}) {
     if (!config.connected || !config.storageReady || !config.baseUrl) return;
 
     const generation = state.preloadGeneration;
+    const preloadStartedAt = performance.now();
     const entry = {
       itemId: item.id,
       path: pathOf(item),
       itemType: state.currentItem.itemType,
       generation,
+      startedAt: preloadStartedAt,
+      fileInfoMs: null,
+      bufferReady: false,
       info: null,
       audio: null,
       promise: null
@@ -125,14 +175,49 @@ export function initLibraryUI(options = {}) {
       if (state.preloadEntry !== entry || state.preloadGeneration !== generation) return null;
       if (!info || info.is_dir || !info.raw_url) throw new Error("下一首音訊沒有有效的播放網址。");
       entry.info = info;
+      entry.fileInfoMs = Math.round(performance.now() - preloadStartedAt);
 
       const warmedAudio = new Audio();
       warmedAudio.preload = "auto";
+      for (const [eventName, milestone] of [["loadedmetadata", "metadata"], ["loadeddata", "data"], ["canplay", "canplay"]]) {
+        warmedAudio.addEventListener(eventName, () => {
+          if (state.preloadEntry !== entry) return;
+          if (milestone === "canplay") entry.bufferReady = true;
+          console.info("[FRAME Audio] Next-track buffer", {
+            milestone,
+            fileInfoMs: entry.fileInfoMs,
+            elapsedMs: Math.round(performance.now() - preloadStartedAt),
+            readyState: warmedAudio.readyState,
+            bufferReady: entry.bufferReady
+          });
+        }, { once: true });
+      }
+      warmedAudio.addEventListener("stalled", () => {
+        if (state.preloadEntry === entry) {
+          console.warn("[FRAME Audio] Next-track buffer stalled", {
+            elapsedMs: Math.round(performance.now() - preloadStartedAt),
+            readyState: warmedAudio.readyState
+          });
+        }
+      }, { once: true });
+      warmedAudio.addEventListener("error", () => {
+        if (state.preloadEntry === entry) {
+          console.warn("[FRAME Audio] Next-track buffer failed", {
+            fileInfoMs: entry.fileInfoMs,
+            errorCode: warmedAudio.error?.code || null
+          });
+        }
+      }, { once: true });
       warmedAudio.src = info.raw_url;
       entry.audio = warmedAudio;
       state.preloadAudio = warmedAudio;
       try { warmedAudio.load(); } catch {}
-      console.info("[FRAME Audio] Next-track file info ready", { sizeBytes: Number(info.size || 0), warmedAudio: true, transport: "direct-raw-url" });
+      console.info("[FRAME Audio] Next-track file info ready", {
+        fileInfoMs: entry.fileInfoMs,
+        sizeBytes: Number(info.size || 0),
+        warmedAudio: true,
+        transport: "direct-raw-url"
+      });
       return info;
     }).catch(error => {
       if (state.preloadEntry === entry && state.preloadGeneration === generation) {
@@ -1124,6 +1209,8 @@ export function initLibraryUI(options = {}) {
   }
   async function playItem(type,raw,queue=[raw],index=0,playOptions={}) {
     const selectionStartedAt=performance.now();
+    activeAudioTimingCleanup?.();
+    activeAudioTimingCleanup = null;
     const requestId=++state.playRequestId;
     const isCurrentRequest=()=>requestId===state.playRequestId;
     const config=getConfig();
@@ -1196,6 +1283,12 @@ export function initLibraryUI(options = {}) {
       $("#player-type").textContent=(type==="episode"?"PODCAST":"MUSIC")+" · VPS ALIST";
 
       const mediaLoadStartedAt=performance.now();
+      activeAudioTimingCleanup = attachAudioStartupTiming(audio, mediaLoadStartedAt, {
+        provider: config.provider || "vps",
+        source: cachedEntry ? "next-preload" : "api",
+        fileInfoMs: fileInfoElapsedMs,
+        podcastProgressMs: type === "episode" ? progressLookupMs : null
+      });
       const warmedAudio=cachedEntry?.audio||null;
       if(cachedEntry&&state.preloadEntry===cachedEntry){
         state.preloadEntry=null;
@@ -1234,6 +1327,8 @@ export function initLibraryUI(options = {}) {
       }
     }catch(e){
       if(!isCurrentRequest())return;
+      activeAudioTimingCleanup?.();
+      activeAudioTimingCleanup = null;
       message("VPS Alist 播放失敗（未切換其他來源）："+(e.message||e),"error");
     }
   }

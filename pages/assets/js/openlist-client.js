@@ -168,8 +168,19 @@ export async function getOpenListFileInfo({ baseUrl, token, path, timeoutMs = DE
   const safePath = String(path || "").trim();
   if (!safePath.startsWith("/") || safePath.includes("\0")) throw new Error("檔案路徑必須是以 / 開頭的完整路徑。");
   const safeTimeout = Math.max(1000, Math.min(180000, Number(timeoutMs) || DEFAULT_TIMEOUT_MS));
+  const requestStartedAt = performance.now();
   const response = await requestOpenList(config, "get", { path: safePath, password: "" }, safeTimeout);
+  const responseMs = Math.round(performance.now() - requestStartedAt);
+  const bodyStartedAt = performance.now();
   const payload = await parseResponse(response, config.provider, "檔案資訊");
+  const bodyMs = Math.round(performance.now() - bodyStartedAt);
+  console.info("[FRAME Audio] OpenList file-info request", {
+    provider: config.provider,
+    responseMs,
+    bodyMs,
+    serverTiming: response.headers.get("server-timing") || null,
+    status: response.status
+  });
   if (!payload?.data || typeof payload.data !== "object") throw new Error(sourceLabel(config.provider) + " 檔案資訊缺少 data。");
   const info = { ...payload.data };
   if (info.raw_url) {
