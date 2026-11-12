@@ -72,3 +72,8 @@ FRAME Audio 是以 VPS Alist 為音訊來源的私人音訊平台，包含 **Mus
 - 保留 Alist／OpenList API 取得檔案資訊、瀏覽器直接播放 `raw_url` 的架構，不改成 WebDAV，也不加入雲盤心跳。
 - 播放診斷會分別記錄檔案資訊請求、Pages 上游 API 耗時、瀏覽器音訊載入里程碑，以及下一首預取緩衝狀態。
 - 操作與指標解讀見 [docs/PLAYBACK-LATENCY-DIAGNOSTICS.md](docs/PLAYBACK-LATENCY-DIAGNOSTICS.md)。
+
+## 連線速度測試
+
+- 開啟 `/playback-diagnostic.html` 可依序測試 VPS Alist 與區域網路 OpenList 的目錄列表、檔案資訊／取鏈及音訊來源 Range 首段。
+- 兩端使用同一個音訊路徑；測試限制最多讀取 64 KiB，不播放歌曲、不掃描曲庫，也不寫入 D1／R2。

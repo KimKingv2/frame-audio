@@ -289,11 +289,20 @@ import {
       if (!info.raw_url) throw new Error("API 沒有回傳 raw_url。");
       const size = Number(info.size || 0);
       setCell(p + "-info", fmtMs(result.infoMs) + " · " + (size ? (size / 1048576).toFixed(1) + " MiB" : "大小未知"), "ok");
-      const timingMatch = serverTiming.match(/openlist_upstream;dur=([\d.]+)/);
-      if (timingMatch) result.upstreamMs = Number(timingMatch[1]);
-      setCell(p + "-upstream", Number.isFinite(result.upstreamMs)
-        ? fmtMs(result.upstreamMs) + " · 上游 API"
-        : (provider === "vps" ? "未取得 Server-Timing" : "瀏覽器直連，不經 Pages"), Number.isFinite(result.upstreamMs) ? "ok" : "muted");
+      const timingValues = Object.fromEntries(
+        [...serverTiming.matchAll(/([a-z_]+);dur=([\d.]+)/g)].map(match => [match[1], Number(match[2])])
+      );
+      result.upstreamMs = Number.isFinite(timingValues.openlist_upstream) ? timingValues.openlist_upstream : NaN;
+      const serviceParts = [
+        ["上游", timingValues.openlist_upstream],
+        ["讀設定", timingValues.openlist_profile],
+        ["JSON", timingValues.openlist_body],
+        ["重試等待", timingValues.retry_wait],
+        ["Function", timingValues.function_total]
+      ].filter(([, value]) => Number.isFinite(value)).map(([label, value]) => label + " " + fmtMs(value));
+      setCell(p + "-upstream", provider === "vps"
+        ? (serviceParts.length ? serviceParts.join(" · ") : "未取得 Server-Timing")
+        : "瀏覽器直連，不經 Pages", serviceParts.length ? "ok" : "muted");
       say(title + "：檔案資訊 " + fmtMs(result.infoMs) +
         (Number.isFinite(result.upstreamMs) ? "；Pages 上游 " + fmtMs(result.upstreamMs) : "") +
         (serverInfoTiming?.status ? "；HTTP " + serverInfoTiming.status : ""), "ok");
