@@ -3,7 +3,7 @@ import {
   joinOpenListPath,
   formatBytes,
   getOpenListFileInfo
-} from "./openlist-client.js?v=20261112-multi-openlist1";
+} from "./openlist-client.js?v=20261112-multi-openlist2";
 import { inspectAudioMetadata } from "./metadata-inspector.js";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
