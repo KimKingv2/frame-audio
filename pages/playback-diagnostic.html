@@ -54,7 +54,7 @@ details{margin-top:12px}summary{cursor:pointer;color:#b99ae8;font-size:11px}
       <button class="btn secondary" id="run-lan">只測區域網路</button>
       <button class="btn secondary" id="refresh-config">重新讀取連線設定</button>
     </div>
-    <p class="note">測試只讀取同一路徑的目錄資訊、檔案資訊及最多 64 KiB 音訊資料，不會播放音樂、掃描曲庫、寫入 D1／R2 或定時呼叫雲盤。首次測區域網路時，瀏覽器可能詢問「本機網路存取」權限。</p>
+    <p class="note">測試只讀取同一路徑的目錄資訊、檔案資訊及最多 64 KiB 音訊資料，不會播放音樂、掃描曲庫、寫入 D1／R2 或定時呼叫雲盤。首次測區域網路時，瀏覽器可能詢問「本機網路存取」權限；授權後建議再測一次，排除權限彈窗造成的額外等待。</p>
   </section>
 
   <section class="card">
@@ -240,8 +240,6 @@ import {
   }
   async function runProvider(provider) {
     const startedAt = performance.now();
-    const config = sourceConfig(provider);
-    configureOpenListConnection(config);
     const path = getTestPath();
     const folder = parentPath(path);
     const p = provider === "vps" ? "vps" : "lan";
@@ -249,6 +247,20 @@ import {
     resetCells(provider);
     say(title + "：開始測試，目錄 " + folder);
     const result = { provider, listMs: NaN, infoMs: NaN, upstreamMs: NaN, rangeHeaderMs: NaN, firstByteMs: NaN, rangeReadMs: NaN, bytes: 0, totalMs: NaN, errors: [] };
+    let config;
+    try {
+      config = sourceConfig(provider);
+      configureOpenListConnection(config);
+    } catch (error) {
+      result.errors.push(error.message || String(error));
+      for (const key of ["list", "info", "upstream", "range-header", "range-data"]) {
+        setCell(p + "-" + key, "未就緒：" + (error.message || error), "err");
+      }
+      result.totalMs = performance.now() - startedAt;
+      setCell(p + "-total", "未執行", "err");
+      say(title + "：無法開始：" + (error.message || error), "err");
+      return result;
+    }
 
     const listStarted = performance.now();
     try {
