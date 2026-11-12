@@ -55,3 +55,10 @@ HTML5 Audio still reads the active source's returned `raw_url` directly; Pages d
 ## Shared catalogue behavior
 
 All four sources share the same Music and Podcast root paths, D1 tracks/folders/podcasts/scan checkpoints/listening history, and R2 artwork. Verify that each exposes the same absolute path layout before indexing or playing. Switching sources does not clear or rebuild D1/R2.
+
+
+## Browser LAN troubleshooting
+
+- `/lan-access-diagnostic.html` separates the browser permission state, a no-auth `GET /api/public/settings`, and the credentialed `POST /api/auth/login` preflight path.
+- The diagnostic page performs no provider requests on page load. Each local request requires an explicit click. It does not read files, create download links, or contact the cloud-drive provider.
+- Login diagnostics never print or persist the username, password, or returned JWT.

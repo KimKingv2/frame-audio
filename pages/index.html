@@ -183,7 +183,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
           <div class="field"><label for="local-openlist-base-url">區域網路 OpenList 地址</label><input id="local-openlist-base-url" type="url" placeholder="http://192.168.31.xx:5244" spellcheck="false" autocomplete="off"></div>
           <div class="field"><label for="local-openlist-username">OpenList 帳號</label><input id="local-openlist-username" type="text" placeholder="輸入 OpenList 使用者名稱" autocomplete="username" spellcheck="false"></div>
           <div class="field"><label for="local-openlist-password">OpenList 密碼</label><input id="local-openlist-password" type="password" placeholder="輸入 OpenList 密碼" autocomplete="current-password" spellcheck="false"></div>
-          <div class="hint">瀏覽器直接向區域網路 OpenList 的 /api/auth/login 登入。地址會保存在此裝置；帳號密碼與 JWT 不寫入 localStorage、D1 或 Pages Secret，只保留在目前頁面記憶體。重新整理後需要重新登入。</div>
+          <div class="hint">瀏覽器直接向區域網路 OpenList 的 /api/auth/login 登入。地址會保存在此裝置；帳號密碼與 JWT 不寫入 localStorage、D1 或 Pages Secret，只保留在目前頁面記憶體。重新整理後需要重新登入。</div><div class="hint"><a href="/lan-access-diagnostic.html" style="color:#c7b3e4">Firefox／區域網路連線診斷 →</a></div>
         </section>
       </div>
       <div class="actions"><button type="button" class="primary" id="save-switch-openlist">保存設定並切換來源／區域網路登入</button><button type="button" class="secondary" id="test-connection">測試目前活動來源</button></div>

@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#15131d">
+<title>FRAME Audio｜區域網路存取診斷</title>
+<style>
+:root{color-scheme:dark;background:#15131d;color:#eee9f6;font:14px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;--line:#cbb2ee25;--muted:#9c93aa;--accent:#c5a8ef}
+*{box-sizing:border-box}body{margin:0;padding:20px 14px 52px;background:radial-gradient(ellipse at 50% -20%,#815da51d,transparent 55%),#15131d;color:#eee9f6}.wrap{max-width:850px;margin:auto}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:22px}.brand{letter-spacing:.12em;font-size:12px;color:#bda0e8}.brand b{color:#f1eaff}.back{color:#c7b3e4;text-decoration:none;font-size:12px}
+.hero,.card{border:1px solid var(--line);border-radius:15px;background:#211e2b;padding:20px;margin:14px 0}.hero{padding:24px;background:radial-gradient(ellipse at 90% 35%,#805ba833,transparent 36%),linear-gradient(115deg,#252033,#292239)}
+.eyebrow{font-size:9px;letter-spacing:.2em;color:#b99ae8;font-weight:700}.hero h1{margin:8px 0 6px;font-size:24px}.sub,.note{color:var(--muted);font-size:12px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px}.status{font-size:12px;color:#b9afc8;overflow-wrap:anywhere}.ok{color:#9fd1ac}.warn{color:#e0bd88}.err{color:#eea5a5}
+.field{display:grid;gap:7px;margin:13px 0}.field label{font-size:11px;color:#b9afc8}.field input{width:100%;border:1px solid #c7b3df30;border-radius:8px;padding:11px 12px;background:#171520;color:#f3eff9;font:13px inherit;outline:none}.field input:focus{border-color:#b99ae8aa}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:13px}.btn{border:1px solid #b99ae866;border-radius:8px;padding:10px 14px;color:#eee5ff;background:#8c68b52c;cursor:pointer;font:inherit;font-size:12px}.btn.secondary{border-color:#c7b3df33;background:#fff1;color:#c9c1d4}.btn:disabled{opacity:.45;cursor:not-allowed}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.tile{border:1px solid #c7b3df25;border-radius:10px;padding:12px;background:#171520;min-width:0}.tile strong{font-size:12px}.tile .status{margin-top:5px}
+.notice{border-left:2px solid #6bb58b;padding:5px 0 5px 12px;color:#a9cdb5;font-size:11px}.notice.warnline{border-color:#c99b5a;color:#cbbda6}
+.console{white-space:pre-wrap;overflow-wrap:anywhere;background:#14121b;border-radius:9px;padding:12px;color:#b9afc8;font:11px/1.8 ui-monospace,Menlo,monospace;min-height:75px;max-height:360px;overflow:auto}
+a{color:#c7b3e4}
+@media(max-width:620px){body{padding:13px 11px 36px}.grid{grid-template-columns:1fr}.hero{padding:20px}.hero h1{font-size:21px}.card{padding:15px}.top{margin-bottom:15px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div class="brand">FRAME <b>Audio</b> / LOCAL NETWORK DIAGNOSTICS</div><a class="back" href="/">← 返回播放器</a></div>
+  <section class="hero">
+    <div class="eyebrow">BROWSER FETCH · LNA · CORS</div>
+    <h1>區域網路存取診斷</h1>
+    <div class="sub">專門排查 Android Firefox 無法由 FRAME Audio 登入區域網路 OpenList 的問題。頁面載入時不會連接任何區域網路設備。</div>
+  </section>
+
+  <section class="card">
+    <h2 style="font-size:15px;margin:0 0 10px">環境與權限狀態</h2>
+    <div class="grid">
+      <div class="tile"><strong>瀏覽器</strong><div class="status" id="ua">讀取中</div></div>
+      <div class="tile"><strong>安全上下文</strong><div class="status" id="secure">讀取中</div></div>
+      <div class="tile"><strong>目前網站來源</strong><div class="status" id="origin">讀取中</div></div>
+      <div class="tile"><strong>Request.targetAddressSpace</strong><div class="status" id="target-option">讀取中</div></div>
+      <div class="tile"><strong>local-network 權限</strong><div class="status" id="perm-local">查詢中</div></div>
+      <div class="tile"><strong>loopback-network 權限</strong><div class="status" id="perm-loopback">查詢中</div></div>
+      <div class="tile"><strong>local-network-access 權限別名</strong><div class="status" id="perm-alias">查詢中</div></div>
+      <div class="tile"><strong>Android 瀏覽器引擎線索</strong><div class="status" id="engine">讀取中</div></div>
+    </div>
+    <div class="actions"><button class="btn secondary" id="refresh-permissions" type="button">重新查詢權限</button></div>
+  </section>
+
+  <section class="card">
+    <h2 style="font-size:15px;margin:0 0 8px">OpenList 目標</h2>
+    <div class="field"><label for="base-url">區域網路 OpenList 網址</label><input id="base-url" type="url" autocomplete="off" spellcheck="false" placeholder="http://192.168.31.xxx:5244"></div>
+    <p class="note">會自動讀取這個瀏覽器已保存的區域網路網址（僅讀取，不修改）。請確認地址是手機可以直接打開的同一個 OpenList 網址。</p>
+    <div class="notice">下列測試只會連接你填寫的 OpenList 主機，不會呼叫中國移動雲盤，不會讀取檔案、不會掃描資料夾，也不會寫入 D1／R2。只有點擊對應測試按鈕才會送出請求。</div>
+  </section>
+
+  <section class="card">
+    <h2 style="font-size:15px;margin:0 0 8px">測試 A：免登入 GET</h2>
+    <p class="note">呼叫 OpenList 公開設定 API <code>/api/public/settings</code>。這是簡單 GET，不需要帳號密碼，也不會取得檔案下載連結。它可先測試瀏覽器是否允許跨來源讀取區域網路 API。</p>
+    <div class="actions">
+      <button class="btn" id="get-with-target" type="button">GET（目前程式的 local address 設定）</button>
+      <button class="btn secondary" id="get-without-target" type="button">GET（不帶 targetAddressSpace）</button>
+    </div>
+    <div class="status" id="get-result">尚未測試。</div>
+  </section>
+
+  <section class="card">
+    <h2 style="font-size:15px;margin:0 0 8px">測試 B：登入 POST</h2>
+    <p class="note">重現 FRAME Audio 現在使用的 <code>POST /api/auth/login</code>，包含 JSON Content-Type 和 <code>targetAddressSpace: "local"</code>。瀏覽器可能先發送 CORS OPTIONS 預檢。成功取得 JWT 後只確認成功，不顯示、不保存 Token。</p>
+    <div class="field"><label for="username">OpenList 帳號</label><input id="username" autocomplete="username" spellcheck="false" placeholder="使用者名稱"></div>
+    <div class="field"><label for="password">OpenList 密碼</label><input id="password" type="password" autocomplete="current-password" placeholder="只在本次登入測試使用"></div>
+    <div class="actions"><button class="btn" id="login-test" type="button">手動測試登入 API</button></div>
+    <div class="status" id="login-result">尚未測試。</div>
+  </section>
+
+  <section class="card">
+    <div class="row"><h2 style="font-size:15px;margin:0">診斷紀錄</h2><button class="btn secondary" id="copy-report" type="button">複製診斷結果</button></div>
+    <p class="note">報告不包含 OpenList 帳號、密碼或 JWT。分享前仍請檢查是否包含你不想公開的內網 IP。</p>
+    <div id="log" class="console">頁面已載入。尚未對區域網路發出任何請求。</div>
+  </section>
+</div>
+<script>
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const LOCAL_KEY = "frame-audio-local-openlist-profile-v1";
+  const report = [];
+  const started = new Date().toISOString();
+  const setStatus = (id, value, tone="") => { const node=$(id); node.textContent=value; node.className="status "+tone; };
+  const log = (label, detail) => {
+    const line = new Date().toLocaleTimeString()+"  "+label+"： "+detail;
+    report.push(line);
+    $("log").textContent += "\n"+line;
+    $("log").scrollTop=$("log").scrollHeight;
+  };
+  const getBase = () => {
+    const raw=$("base-url").value.trim();
+    let url;
+    try { url=new URL(raw); } catch { throw new Error("請輸入有效的 OpenList 網址。"); }
+    if(!["http:","https:"].includes(url.protocol)||url.username||url.password||url.search||url.hash) {
+      throw new Error("網址必須是純 HTTP／HTTPS 來源，不可包含帳密、查詢參數或片段。");
+    }
+    return url.origin+url.pathname.replace(/\/+$/,"");
+  };
+  const endpoint = (base,path) => new URL(path.replace(/^\/+/, ""),base.replace(/\/+$/,"")+"/").href;
+  const targetOptions = () => ({ targetAddressSpace:"local" });
+  async function queryPermission(name) {
+    if(!navigator.permissions?.query) return "Permissions API 不支援";
+    try {
+      const result=await navigator.permissions.query({name});
+      return result.state;
+    } catch(error) {
+      return "不支援／查詢失敗："+(error.name||"Error")+"："+(error.message||"");
+    }
+  }
+  async function refreshPermissions() {
+    setStatus("perm-local","查詢中");
+    setStatus("perm-loopback","查詢中");
+    setStatus("perm-alias","查詢中");
+    const names=["local-network","loopback-network","local-network-access"];
+    const results=await Promise.all(names.map(queryPermission));
+    setStatus("perm-local",results[0],results[0]==="granted"?"ok":results[0]==="denied"?"err":"warn");
+    setStatus("perm-loopback",results[1],results[1]==="granted"?"ok":results[1]==="denied"?"err":"warn");
+    setStatus("perm-alias",results[2],results[2]==="granted"?"ok":results[2]==="denied"?"err":"warn");
+    log("權限查詢",names.map((n,i)=>n+"="+results[i]).join("；"));
+  }
+  async function runGet(withTarget) {
+    let base;
+    try { base=getBase(); }
+    catch(error) { setStatus("get-result",error.message,"err");return; }
+    const url=endpoint(base,"api/public/settings");
+    setStatus("get-result","請求中…");
+    log("GET 開始",(new URL(base)).host+"；targetAddressSpace="+(withTarget?"local":"未設定"));
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),12000);
+    try {
+      const options={method:"GET",mode:"cors",credentials:"omit",redirect:"follow",cache:"no-store",signal:controller.signal};
+      if(withTarget)Object.assign(options,targetOptions());
+      const response=await fetch(url,options);
+      const text=await response.text();
+      let code="回應已收到";
+      try { const payload=JSON.parse(text); if(typeof payload?.code==="number")code="API code "+payload.code; }
+      catch {}
+      const message="成功讀取 HTTP "+response.status+"；"+code+"；type="+response.type;
+      setStatus("get-result",message,response.ok?"ok":"warn");
+      log("GET 結果",message);
+    } catch(error) {
+      const message=(error.name||"Error")+"："+(error.message||String(error))+(error.name==="AbortError"?"（12 秒逾時）":"");
+      setStatus("get-result",message,"err");
+      log("GET 失敗",message);
+    } finally { clearTimeout(timeout); }
+    await refreshPermissions();
+  }
+  async function runLogin() {
+    let base;
+    try { base=getBase(); }
+    catch(error) { setStatus("login-result",error.message,"err");return; }
+    const username=$("username").value.trim();
+    const password=$("password").value;
+    if(!username||!password) { setStatus("login-result","請輸入帳號與密碼。尚未發出登入請求。","warn");return; }
+    const url=endpoint(base,"api/auth/login");
+    $("login-test").disabled=true;
+    setStatus("login-result","登入請求中…");
+    log("登入 POST 開始",(new URL(base)).host+"；密碼及回應 Token 不會寫入診斷紀錄");
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),20000);
+    try {
+      const response=await fetch(url,{
+        method:"POST",mode:"cors",credentials:"omit",redirect:"error",cache:"no-store",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({username,password}),
+        signal:controller.signal,
+        ...targetOptions()
+      });
+      let payload={};
+      try { payload=await response.json(); }
+      catch { throw new Error("HTTP "+response.status+"，但回應不是有效 JSON。"); }
+      const ok=response.ok&&Number(payload?.code)===200&&Boolean(payload?.data?.token);
+      const message=ok?"登入 API 成功（HTTP "+response.status+"）。JWT 未顯示、未保存，僅在本次測試結束後釋放。"
+        :"登入 API 回應 HTTP "+response.status+"；API code "+String(payload?.code??"未知")+"；"+String(payload?.message||payload?.error||"沒有取得 Token。");
+      setStatus("login-result",message,ok?"ok":"err");
+      log("登入 POST 結果",message);
+      payload=null;
+    } catch(error) {
+      const message=(error.name||"Error")+"："+(error.message||String(error))+(error.name==="AbortError"?"（20 秒逾時）":"");
+      setStatus("login-result",message,"err");
+      log("登入 POST 失敗",message);
+    } finally {
+      clearTimeout(timeout);
+      $("password").value="";
+      $("login-test").disabled=false;
+      await refreshPermissions();
+    }
+  }
+  $("ua").textContent=navigator.userAgent;
+  $("secure").textContent=String(window.isSecureContext);
+  $("origin").textContent=location.origin;
+  try {
+    const request=new Request(location.href,{targetAddressSpace:"local"});
+    $("target-option").textContent=("targetAddressSpace" in request)?"支援；值="+String(request.targetAddressSpace):"未暴露此屬性（初始化參數可能被忽略）";
+  } catch(error) { $("target-option").textContent="建立 Request 失敗："+error.name+"："+error.message; }
+  const ua=navigator.userAgent;
+  $("engine").textContent=/Firefox/i.test(ua)?"Firefox／Gecko":/Chrome|CriOS/i.test(ua)?"Chrome／Chromium":/DuckDuckGo/i.test(ua)?"DuckDuckGo（請以 UA 實際引擎為準）":/AppleWebKit/i.test(ua)?"WebKit／其他 Android 瀏覽器":"未能辨識";
+  try {
+    const saved=JSON.parse(localStorage.getItem(LOCAL_KEY)||"{}");
+    if(saved.baseUrl)$("base-url").value=String(saved.baseUrl);
+  } catch {}
+  $("refresh-permissions").addEventListener("click",refreshPermissions);
+  $("get-with-target").addEventListener("click",()=>runGet(true));
+  $("get-without-target").addEventListener("click",()=>runGet(false));
+  $("login-test").addEventListener("click",runLogin);
+  $("copy-report").addEventListener("click",async()=>{
+    const summary=[
+      "FRAME Audio LAN diagnostics",
+      "time="+started,
+      "origin="+location.origin,
+      "userAgent="+navigator.userAgent,
+      "secureContext="+window.isSecureContext,
+      "targetAddressSpace="+$("target-option").textContent,
+      "openlistHost="+(()=>{try{return new URL(getBase()).host;}catch{return "invalid-or-empty";}})(),
+      "permissions="+["local-network","loopback-network","local-network-access"].map(n=>n+":"+document.getElementById("perm-"+(n==="local-network"?"local":n==="loopback-network"?"loopback":"alias")).textContent).join("; "),
+      ...report
+    ].join("\n");
+    try { await navigator.clipboard.writeText(summary); log("複製診斷結果","已複製；內容不包含帳號、密碼或 JWT。"); }
+    catch { log("複製診斷結果","瀏覽器未允許剪貼簿，請手動複製上方紀錄。"); }
+  });
+  refreshPermissions();
+})();
+</script>
+</body>
+</html>
