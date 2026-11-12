@@ -1,6 +1,6 @@
 # FRAME Audio · Cloudflare storage, server-side secrets and deployment
 
-FRAME Audio uses Cloudflare Pages Functions as its same-origin API, D1 for catalogue / scan / listening data, and R2 for deduplicated artwork. VPS Alist remains the read-only source for original audio files.
+FRAME Audio uses Cloudflare Pages Functions as its same-origin API, D1 for catalogue / scan / listening data, and R2 for deduplicated artwork. VPS Alist, OpenList Worker and phone-local OpenList are interchangeable read-only sources for original audio files; the catalogue and artwork resources remain shared.
 
 ## Required resources
 
@@ -11,6 +11,8 @@ FRAME Audio uses Cloudflare Pages Functions as its same-origin API, D1 for catal
 - Secret: `FRAME_AUDIO_API_ADMIN_TOKEN` (FRAME Audio internal API admin gate)
 - Secret: `ALIST_VPS_API_TOKEN` (VPS Alist API credential)
 - Text: `ALIST_VPS_API_BASE_URL` (VPS Alist API base URL)
+- Optional Text / Secret: `ALIST_WORKER_API_BASE_URL` / `ALIST_WORKER_API_TOKEN` (Worker environment fallback; saved profiles are encrypted in D1)
+- D1 table `connection_settings`: encrypted VPS / Worker settings after applying `migrations/0004_connection_settings.sql`.
 
 The D1 and R2 resources are accessed through the existing `DB` and `ARTWORKS` Pages bindings. `FRAME_AUDIO_API_ADMIN_TOKEN` is an application-level gate for private FRAME Audio routes; it is **not** a Cloudflare Account API Token and does not directly grant access to the Cloudflare account.
 
@@ -33,6 +35,7 @@ Run migrations in order only when the corresponding schema is not already presen
 1. `migrations/0001_catalog.sql` — Music tracks, folders and scan checkpoints.
 2. `migrations/0002_podcasts.sql` — Podcast shows and episodes.
 3. `migrations/0003_listening.sql` — playback progress, per-episode Podcast playback speed and listening events.
+4. `migrations/0004_connection_settings.sql` — encrypted multi-source connection profiles. This is an additive table; it does not alter catalogue rows or R2 objects.
 
 The migrations are additive. Do not drop tables, clear catalogue rows, reset scan states, or replace the existing R2 bucket.
 
@@ -75,10 +78,11 @@ Protect both production hostname `frame-audio.pages.dev` and the Preview hostnam
 
 ## Connection checks
 
-Open the site and complete the Access email OTP login. The connection dialog should automatically test:
+Open the site and complete the Access email OTP login. The connection dialog loads saved profiles and tests the selected source:
 
-1. VPS Alist through the same-origin Pages Function routes `/api/openlist/list` and `/api/openlist/get`.
-2. Cloudflare D1 and R2 through the existing catalogue status endpoint.
+1. VPS Alist or OpenList Worker through the same-origin Pages Function routes `/api/openlist/list` and `/api/openlist/get`.
+2. Phone-local OpenList directly from the browser after the user taps Test current source and grants any browser Local Network Access permission.
+3. Cloudflare D1 and R2 through the existing catalogue status endpoint.
 
 A successful status check reports Music track/folder counts, Podcast schema status and listening schema status. A missing `ALIST_VPS_API_TOKEN` or `ALIST_VPS_API_BASE_URL` returns an explicit server-side configuration error. A connection-level 502 includes a sanitized underlying error type/code (and writes the same non-secret diagnostic to Pages logs) to distinguish DNS, TLS, redirect and network failures; it never logs or returns the API Token.
 

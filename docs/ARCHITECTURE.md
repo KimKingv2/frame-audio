@@ -3,7 +3,7 @@
 ## Product areas
 
 ### Music
-- Browse tracks, artists, albums, and the original VPS Alist folder tree.
+- Browse tracks, artists, albums, and the selected OpenList source folder tree.
 - Albums, artists, and folders can launch an ordered playback queue.
 - Extract embedded artwork and lyrics into a private, SHA-256-deduplicated R2 asset store.
 - Store metadata and resumable scan checkpoints in D1.
@@ -24,7 +24,7 @@
 
 ### Playback and listening analytics
 - One shared browser audio player supports Music tracks and Podcast episodes.
-- VPS Alist is the single source for folder browsing, Music / Podcast scanning, metadata reads, and playback URL resolution; original audio remains in China Mobile Cloud Drive.
+- VPS Alist, OpenList Worker and phone-local OpenList are interchangeable read-only sources for folder browsing, Music / Podcast scanning, metadata reads and playback URL resolution; each source uses the same configured absolute Music / Podcast paths.
 - Playback position is periodically saved and restored when the same item is opened again.
 - Listening time is accumulated from actual active playback, not from the media duration or a seek operation.
 - One listening event/session contributes one play. Repeated progress writes update the same session rather than incrementing play count repeatedly.
@@ -39,7 +39,7 @@
 - Cumulative scan failures are labelled as historical failure events; they are not presented as current unresolved count.
 
 ## Shared core
-- VPS Alist API access and authenticated file URL resolution.
+- Provider-aware OpenList API access (VPS Alist Pages proxy, OpenList Worker Pages proxy, or phone-local direct connection) and authenticated file URL resolution.
 - Bounded HTTP Range metadata reads.
 - Browser audio playback and ordered queue handling.
 - Artwork retrieval from R2.
@@ -52,7 +52,7 @@ The public repository contains source code, schemas and migrations only. User ca
 The browser obtains temporary VPS Alist playback URLs at playback time. Tokens and temporary URL signatures must not be placed in public JSON.
 
 ## Indexing strategy
-The Music library is incrementally indexed from VPS Alist. Existing D1 catalogue rows and R2 artwork remain in place when the source API is migrated; no scan runs automatically on page load. The browser reads metadata through bounded 256 KiB HTTP Range requests, with a 16 MiB transfer cap and a 90-second per-file metadata deadline. It does not download complete audio files.
+The Music library is incrementally indexed from the selected OpenList source. All sources must expose the same absolute directory layout; switching sources does not migrate or rebuild the D1 catalogue. Existing D1 catalogue rows and R2 artwork remain in place when the source API is migrated; no scan runs automatically on page load. The browser reads metadata through bounded 256 KiB HTTP Range requests, with a 16 MiB transfer cap and a 90-second per-file metadata deadline. It does not download complete audio files.
 
 Each batch has ceilings of 500 successful writes, 500 directory entries, 500 completed folders and 7,500 seconds. A file is attempted up to 20 times; authentication and permission errors stop immediately. D1 stores the cursor, folder queue, counts and recent errors so later batches can resume.
 
@@ -60,6 +60,7 @@ Podcast uses the same bounded browser Range approach but a separate state namesp
 
 ## D1 data model
 - `tracks`, `folders`, `catalog_state`: Music and scan state.
+- `connection_settings`: AES-GCM encrypted VPS / Worker profiles; phone-local credentials remain in that device's browser only.
 - `podcast_shows`, `podcast_episodes`: Podcast catalogue.
 - `listening_progress`: current per-item resume position and Podcast playback speed.
 - `listening_events`: per-session plays, active listening time and completion state.

@@ -22,12 +22,13 @@ For phone-local mode, enter the OpenList API base URL, typically a loopback URL 
 
 The local OpenList must:
 - Expose the Alist/OpenList-compatible POST /api/fs/list and POST /api/fs/get endpoints.
+- Chrome 142 and later gates public-site requests to loopback behind a Local Network Access permission. Chrome 145 introduced the separate loopback-network permission for 127.0.0.1, localhost and ::1. The app therefore waits for the explicit Test current source button before its first local request; it does not probe a saved local endpoint at page load.
 - Allow CORS from the exact FRAME Audio origin (both https://main.frame-audio.pages.dev for Preview and https://frame-audio.pages.dev for Production, if both are used).
 - Allow Authorization and Content-Type request headers.
 - For audio hosts used for tag inspection, allow cross-origin Range requests and expose Content-Range, Content-Length, and Accept-Ranges as needed.
 - Return audio raw_url values reachable from the phone browser. The HTML5 audio element plays those URLs directly; Pages does not relay or transcode audio.
 
-Browsers treat loopback HTTP differently from ordinary insecure HTTP origins, but the exact browser and local OpenList CORS configuration still matter. Non-loopback HTTP addresses are blocked as mixed content from the HTTPS FRAME Audio site; use HTTPS for LAN or remote addresses.
+Chrome's Local Network Access rules apply to loopback too: FRAME Audio must be served over HTTPS and the user may need to grant loopback-network permission. For a private LAN address, Chrome 145+ uses local-network permission. Non-loopback HTTP addresses should not be used from the HTTPS FRAME Audio page; use HTTPS for LAN or remote addresses. Browser and Android-version behavior must be checked on the target phone.
 
 ## Shared catalogue behavior
 
