@@ -611,19 +611,6 @@ export function initLibraryUI(options = {}) {
   function revokeCovers(){for(const url of state.artworkUrls)URL.revokeObjectURL(url);state.artworkUrls.clear();}
   const pathOf=item=>item.file?.path||item.path||"";
   const artworkOf=item=>item.artwork?.sha256||item.artworkHash||item.artwork_hash||null;
-  function albumArtworkOf(tracks) {
-    const counts=new Map();
-    for(const track of orderedAlbumTracks(tracks||[])) {
-      const hash=String(artworkOf(track)||"");
-      if(!/^[a-f0-9]{64}$/i.test(hash))continue;
-      counts.set(hash,(counts.get(hash)||0)+1);
-    }
-    let selected=null,selectedCount=0;
-    for(const [hash,count] of counts) {
-      if(count>selectedCount){selected=hash;selectedCount=count;}
-    }
-    return selected;
-  }
   function playable(item,type) {
     const path=pathOf(item);
     const subtitle=type==="episode"?(item.showTitle||item.subtitle||"") :
@@ -964,7 +951,7 @@ export function initLibraryUI(options = {}) {
     state.items=albumsWithDiagnostics;state.itemType="album";
     root.innerHTML=searchBar("搜尋專輯或專輯藝人")+sectionHead("ALBUMS","專輯",'<span class="library-muted">'+albumsWithDiagnostics.length+' 張</span>')+
       '<div class="media-card-grid">'+albumsWithDiagnostics.slice(0,300).map((a,i)=>'<button class="media-card" data-action="open-album" data-index="'+i+'">'+
-      cover(albumArtworkOf(a.tracks),a.title,"media-card-cover")+'<strong>'+esc(a.title)+'</strong><span>'+esc(a.artist)+'</span><small>'+a.tracks.length+' 首</small></button>').join("")+'</div>';
+      cover(artworkOf(a.tracks[0]),a.title,"media-card-cover")+'<strong>'+esc(a.title)+'</strong><span>'+esc(a.artist)+'</span><small>'+a.tracks.length+' 首</small></button>').join("")+'</div>';
     loadCovers();
   }
   function albumRefreshTargetCount(album) {
@@ -1052,7 +1039,7 @@ export function initLibraryUI(options = {}) {
       ?'<details class="album-tag-diagnostic"><summary>另有 '+possibleDuplicates.length+' 組可能重複的專輯（尚未自動合併）</summary><ul>'+possibleDuplicates.map(candidate=>'<li>'+esc(candidate.title)+' · '+esc(candidate.artist)+' · '+candidate.tracks.length+' 首'+(candidate.albumNameVariants.length?' · '+candidate.albumNameVariants.map(value=>esc(displayAlbumTagVariant(value))).join(" / "):"")+'</li>').join("")+'</ul></details>'
       :"";
     root.innerHTML='<button class="back-link" data-action="back-albums">← 所有專輯</button>'+
-      '<div class="show-detail album-detail">'+cover(albumArtworkOf(tracks),album.title,"show-detail-cover")+
+      '<div class="show-detail album-detail">'+cover(artworkOf(tracks[0]),album.title,"show-detail-cover")+
       '<div><span class="kicker">ALBUM</span><h3>'+esc(album.title)+'</h3><p>'+esc(album.artist||"未知歌手")+'</p>'+
       '<span class="library-muted">'+esc(details)+'</span>'+tagDiagnostic+duplicateDiagnostic+
       '<div class="album-detail-actions"><button class="primary" data-action="play-album">▶ 播放整張專輯</button>'+
