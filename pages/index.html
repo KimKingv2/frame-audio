@@ -966,6 +966,93 @@ body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-icon:not(:has
 .playback-log-line[data-level="success"]{
   color:#9fc9a9!important;
 }
+
+/* Dock favorite is part of the transport row, always immediately before Previous. */
+.dock-transport-host .player-transport > .dock-favorite-toggle{
+  display:grid!important;
+  place-items:center!important;
+  flex:0 0 38px!important;
+  width:38px!important;
+  min-width:38px!important;
+  max-width:38px!important;
+  height:40px!important;
+  min-height:40px!important;
+  max-height:40px!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:50%!important;
+  color:#a994b6!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+.dock-transport-host .player-transport > .dock-favorite-toggle:hover:not(:disabled){
+  color:#d7bfdc!important;
+  background:transparent!important;
+}
+.dock-transport-host .player-transport > .dock-favorite-toggle.is-favorite{
+  color:#c49bcf!important;
+}
+.dock-transport-host .player-transport > .dock-favorite-toggle svg{
+  width:19px!important;
+  height:19px!important;
+}
+@media(max-width:900px) and (min-width:761px){
+  .dock-transport-host .player-transport > .dock-favorite-toggle{
+    flex-basis:34px!important;width:34px!important;min-width:34px!important;max-width:34px!important;
+    height:36px!important;min-height:36px!important;max-height:36px!important;
+  }
+}
+@media(max-width:760px){
+  .dock-transport-host .player-transport > .dock-favorite-toggle{
+    flex-basis:32px!important;width:32px!important;min-width:32px!important;max-width:32px!important;
+    height:36px!important;min-height:36px!important;max-height:36px!important;
+  }
+}
+@media(max-width:390px){
+  .dock-transport-host .player-transport > .dock-favorite-toggle{
+    flex-basis:29px!important;width:29px!important;min-width:29px!important;max-width:29px!important;
+    height:34px!important;min-height:34px!important;max-height:34px!important;
+  }
+}
+
+/* On the expanded mobile drawer, hover must not paint a full purple row. */
+@media(max-width:760px){
+  body.mobile-sidebar-expanded #site-sidebar .nav button:hover,
+  body.mobile-sidebar-expanded #site-sidebar .nav button.active:hover{
+    background:transparent!important;
+    background-image:none!important;
+    box-shadow:none!important;
+    border-color:transparent!important;
+    transform:none!important;
+  }
+  body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-icon{
+    background:transparent!important;
+    filter:none!important;
+  }
+
+  /* Keep the drawer anchored to the right edge. Animate opacity only, not geometry. */
+  #site-sidebar{
+    transform:translate3d(0,0,0)!important;
+    transform-origin:right center!important;
+    will-change:opacity!important;
+  }
+  body.mobile-sidebar-expanded:not(.mobile-sidebar-closing) #site-sidebar{
+    animation:frame-mobile-sidebar-fade-in .28s ease both!important;
+  }
+  body.mobile-sidebar-closing #site-sidebar{
+    animation:frame-mobile-sidebar-fade-out .22s ease both!important;
+  }
+}
+@keyframes frame-mobile-sidebar-fade-in{
+  from{opacity:0}
+  to{opacity:1}
+}
+@keyframes frame-mobile-sidebar-fade-out{
+  from{opacity:1}
+  to{opacity:0}
+}
+
 </style>
 </head>
 <body>
@@ -1026,12 +1113,12 @@ body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-icon:not(:has
         <span id="player-type">READY</span>
       </div>
     </button>
-    <button class="dock-favorite-toggle" id="player-favorite-toggle" type="button" disabled aria-label="尚未播放歌曲" aria-pressed="false" title="尚未播放歌曲">
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z"/></svg>
-    </button>
   </div>
   <div class="dock-transport-host" aria-label="播放控制">
     <div class="player-transport" id="player-transport">
+      <button class="dock-favorite-toggle" id="player-favorite-toggle" type="button" disabled aria-label="尚未播放歌曲" aria-pressed="false" title="尚未播放歌曲">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z"/></svg>
+      </button>
       <button id="player-prev" type="button" aria-label="上一首" title="上一首">⏮</button>
       <button id="player-toggle" class="player-play" type="button" aria-label="播放／暫停" title="播放／暫停">▶</button>
       <button id="player-next" type="button" aria-label="下一首" title="下一首">⏭</button>
