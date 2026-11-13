@@ -335,8 +335,10 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     const renderServerStatus = (id, label, profile) => {
       const node = $("#" + id);
       if (!node) return;
+      const authLabel = profile.authMode === "automatic-login" ? " · 自動登入" :
+        profile.authMode === "legacy-token" ? " · 舊 Token" : "";
       node.textContent = label + "：" + (profile.configured ? "已就緒" : "未完整設定") +
-        (profile.baseUrl ? " · " + profile.baseUrl : "");
+        authLabel + (profile.baseUrl ? " · " + profile.baseUrl : "");
     };
     renderServerStatus("vps-openlist-env-status", "VPS Alist", vps);
     renderServerStatus("worker-openlist-env-status", "OpenList Worker", worker);
