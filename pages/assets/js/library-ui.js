@@ -399,7 +399,7 @@ export function initLibraryUI(options = {}) {
     const parsed=currentLyrics(),kind=item.itemType==="episode"?"PODCAST":"MUSIC";
     const artist=item.subtitle||item.albumArtist||item.album||"";
     page.innerHTML='<div class="now-playing-topbar">'+
-      '<button class="now-playing-back" data-action="back-now-playing" type="button" aria-label="收起正在播放詳情"><span aria-hidden="true">⌄</span><small>收起</small></button>'+
+      '<button class="now-playing-back" data-action="back-now-playing" type="button" aria-label="收起正在播放詳情"><svg class="now-playing-back-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="m5.5 7.5 4.5 4.5 4.5-4.5"/></svg><small>收起</small></button>'+
       '<div class="now-playing-topbar-copy"><span class="kicker">NOW PLAYING</span><strong>正在播放</strong></div>'+
       '<span class="now-playing-kind">'+kind+'</span></div>'+
       '<div class="now-playing-main">'+

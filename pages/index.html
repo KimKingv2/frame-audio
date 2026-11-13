@@ -1022,6 +1022,28 @@ body.mobile-sidebar-expanded{
   scrollbar-gutter:stable;
 }
 
+
+/* Now Playing: replace the text glyph with a refined, crisp chevron. */
+.now-playing-back .now-playing-back-icon{
+  display:block!important;
+  flex:0 0 15px!important;
+  width:15px!important;
+  height:15px!important;
+  overflow:visible!important;
+  fill:none!important;
+  stroke:currentColor!important;
+  stroke-width:1.8!important;
+  stroke-linecap:round!important;
+  stroke-linejoin:round!important;
+  opacity:.92;
+  transform:translateY(-.25px);
+  transition:transform .24s cubic-bezier(.2,.8,.2,1),opacity .24s ease;
+}
+.now-playing-back:hover .now-playing-back-icon{
+  transform:translateY(1px);
+  opacity:1;
+}
+
 </style>
 </head>
 <body>
@@ -1260,5 +1282,5 @@ body.mobile-sidebar-expanded{
   });
 })();
 </script>
-<script type="module" src="/assets/js/app.js?v=20261113-playback-notice-timeout1"></script>
+<script type="module" src="/assets/js/app.js?v=20261113-collapse-chevron1"></script>
 </body></html>
