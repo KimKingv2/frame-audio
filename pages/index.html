@@ -967,36 +967,19 @@ body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-icon:not(:has
   color:#9fc9a9!important;
 }
 
-/* Dock favorite is part of the transport row, always immediately before Previous. */
+/* Dock favorite stays immediately beside Previous at every viewport width. */
 .dock-transport-host .player-transport > .dock-favorite-toggle{
-  display:grid!important;
-  place-items:center!important;
-  flex:0 0 38px!important;
-  width:38px!important;
-  min-width:38px!important;
-  max-width:38px!important;
-  height:40px!important;
-  min-height:40px!important;
-  max-height:40px!important;
-  margin:0!important;
-  padding:0!important;
-  border:0!important;
-  border-radius:50%!important;
-  color:#a994b6!important;
-  background:transparent!important;
-  box-shadow:none!important;
+  display:grid!important;place-items:center!important;
+  flex:0 0 38px!important;width:38px!important;min-width:38px!important;max-width:38px!important;
+  height:40px!important;min-height:40px!important;max-height:40px!important;
+  margin:0!important;padding:0!important;border:0!important;border-radius:50%!important;
+  color:#a994b6!important;background:transparent!important;box-shadow:none!important;
 }
 .dock-transport-host .player-transport > .dock-favorite-toggle:hover:not(:disabled){
-  color:#d7bfdc!important;
-  background:transparent!important;
+  color:#d7bfdc!important;background:transparent!important;
 }
-.dock-transport-host .player-transport > .dock-favorite-toggle.is-favorite{
-  color:#c49bcf!important;
-}
-.dock-transport-host .player-transport > .dock-favorite-toggle svg{
-  width:19px!important;
-  height:19px!important;
-}
+.dock-transport-host .player-transport > .dock-favorite-toggle.is-favorite{color:#c49bcf!important}
+.dock-transport-host .player-transport > .dock-favorite-toggle svg{width:19px!important;height:19px!important}
 @media(max-width:900px) and (min-width:761px){
   .dock-transport-host .player-transport > .dock-favorite-toggle{
     flex-basis:34px!important;width:34px!important;min-width:34px!important;max-width:34px!important;
@@ -1016,41 +999,27 @@ body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-icon:not(:has
   }
 }
 
-/* On the expanded mobile drawer, hover must not paint a full purple row. */
-@media(max-width:760px){
-  body.mobile-sidebar-expanded #site-sidebar .nav button:hover,
-  body.mobile-sidebar-expanded #site-sidebar .nav button.active:hover{
-    background:transparent!important;
-    background-image:none!important;
-    box-shadow:none!important;
-    border-color:transparent!important;
-    transform:none!important;
-  }
-  body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-icon{
-    background:transparent!important;
-    filter:none!important;
-  }
+/* The scrim is a full-screen button: neutralize the global button hover fill. */
+button.mobile-nav-scrim,
+button.mobile-nav-scrim:hover:not(:disabled),
+button.mobile-nav-scrim:focus,
+button.mobile-nav-scrim:focus-visible,
+button.mobile-nav-scrim:active{
+  background:rgba(7,5,12,.62)!important;
+  background-image:none!important;
+  border:0!important;
+  box-shadow:none!important;
+  color:transparent!important;
+  outline:0!important;
+  filter:none!important;
+}
 
-  /* Keep the drawer anchored to the right edge. Animate opacity only, not geometry. */
-  #site-sidebar{
-    transform:translate3d(0,0,0)!important;
-    transform-origin:right center!important;
-    will-change:opacity!important;
-  }
-  body.mobile-sidebar-expanded:not(.mobile-sidebar-closing) #site-sidebar{
-    animation:frame-mobile-sidebar-fade-in .28s ease both!important;
-  }
-  body.mobile-sidebar-closing #site-sidebar{
-    animation:frame-mobile-sidebar-fade-out .22s ease both!important;
-  }
+/* Keep the viewport's scrollbar gutter reserved while the drawer locks page scroll. */
+html{
+  scrollbar-gutter:stable;
 }
-@keyframes frame-mobile-sidebar-fade-in{
-  from{opacity:0}
-  to{opacity:1}
-}
-@keyframes frame-mobile-sidebar-fade-out{
-  from{opacity:1}
-  to{opacity:0}
+body.mobile-sidebar-expanded{
+  scrollbar-gutter:stable;
 }
 
 </style>
