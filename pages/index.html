@@ -163,20 +163,20 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
         <section class="provider-card">
           <div class="provider-card-heading"><strong>VPS Alist</strong><span>SERVER PROXY</span></div>
           <div class="hint" id="vps-openlist-env-status">正在讀取 Cloudflare Pages 設定……</div>
-          <div class="hint">網址 Variable：<code>ALIST_VPS_API_BASE_URL</code><br>Token Secret：<code>ALIST_VPS_API_TOKEN</code></div>
-          <div class="hint">Pages Functions 在伺服器端呼叫 VPS Alist。Token 不會傳到瀏覽器。</div>
+          <div class="hint">網址 Variable：<code>ALIST_VPS_API_BASE_URL</code><br>帳號 Secrets：<code>ALIST_VPS_USERNAME</code>、<code>ALIST_VPS_PASSWORD</code></div>
+          <div class="hint">Pages Functions 在伺服器端使用專用帳號登入，快取及更新 Token。帳號密碼與 Token 都不會傳到瀏覽器。</div>
         </section>
         <section class="provider-card">
           <div class="provider-card-heading"><strong>OpenList Worker</strong><span>SERVER PROXY</span></div>
           <div class="hint" id="worker-openlist-env-status">正在讀取 Cloudflare Pages 設定……</div>
-          <div class="hint">網址 Variable：<code>OPENLIST_WORKER_API_BASE_URL</code><br>Token Secret：<code>OPENLIST_WORKER_API_TOKEN</code></div>
-          <div class="hint">Worker 憑證由 Pages Functions 在伺服器端使用，不會傳到瀏覽器。</div>
+          <div class="hint">網址 Variable：<code>OPENLIST_WORKER_API_BASE_URL</code><br>帳號 Secrets：<code>OPENLIST_WORKER_USERNAME</code>、<code>OPENLIST_WORKER_PASSWORD</code></div>
+          <div class="hint">Pages Functions 使用專用帳號登入，快取及更新 Token；帳號密碼不會傳到瀏覽器。</div>
         </section>
         <section class="provider-card">
           <div class="provider-card-heading"><strong>K40 Alist</strong><span>SERVER PROXY</span></div>
           <div class="hint" id="k40-openlist-env-status">正在讀取 Cloudflare Pages 設定……</div>
-          <div class="hint">網址 Variable：<code>ALIST_K40_API_BASE_URL</code><br>Token Secret：<code>ALIST_K40_API_TOKEN</code></div>
-          <div class="hint">Pages Functions 只在 K40 Alist 成為活動來源時呼叫它。K40 地址必須是 Pages Functions 可連接的 HTTPS 地址。</div>
+          <div class="hint">網址 Variable：<code>ALIST_K40_API_BASE_URL</code><br>帳號 Secrets：<code>ALIST_K40_USERNAME</code>、<code>ALIST_K40_PASSWORD</code></div>
+          <div class="hint">Pages Functions 只在 K40 Alist 成為活動來源時使用專用帳號登入並呼叫它。K40 地址必須是 Pages Functions 可連接的 HTTPS 地址。</div>
         </section>
         <section class="provider-card provider-card-local">
           <div class="provider-card-heading"><strong>區域網路 OpenList</strong><span>DEVICE DIRECT</span></div>
@@ -191,7 +191,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
     </section>
     <div class="field">
       <label>Cloudflare 私有儲存</label>
-      <div class="hint">Cloudflare Access 保護管理 API。VPS Alist、OpenList Worker、K40 Alist 的網址與 Token 由 Pages Variables and Secrets 提供。區域網路 OpenList 使用帳號密碼直接登入，JWT 僅在目前頁面記憶體中保存。</div>
+      <div class="hint">Cloudflare Access 保護管理 API。VPS Alist、OpenList Worker、K40 Alist 的網址及專用帳號 Secrets 由 Pages 提供；Pages Functions 在伺服器端自動取得及更新 JWT。區域網路 OpenList 使用帳號密碼直接登入，JWT 僅在目前頁面記憶體中保存。</div>
     </div>
     <div class="formgrid">
       <div class="field"><label for="music-root-path">Music 索引根目錄</label><input id="music-root-path" type="text" value="/中國移動雲盤/Kim King/03 Music" spellcheck="false"><div class="hint">Music 掃描只讀取此目錄及其子資料夾；可手動修改，或在下方瀏覽資料夾後選為 Music 根目錄。</div></div>
@@ -240,5 +240,5 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   });
 })();
 </script>
-<script type="module" src="/assets/js/app.js?v=20261113-mobile-nav-motion1"></script>
+<script type="module" src="/assets/js/app.js?v=20261113-server-auth1"></script>
 </body></html>

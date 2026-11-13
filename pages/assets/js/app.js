@@ -347,7 +347,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         "；OpenList Worker：" + (worker.configured ? "已就緒" : "未設定完整") +
         "；K40 Alist：" + (k40.configured ? "已就緒" : "未設定完整") +
         "；區域網路 OpenList：" + (localProfile.baseUrl ? "已保存地址，需重新登入" : "尚未設定") +
-        "。三個伺服器端來源只讀取 Pages Variables／Secrets；區域網路帳號密碼與 JWT 只保留在目前頁面記憶體。";
+        "。三個伺服器端來源由 Pages Functions 自動登入並管理 Token；帳號密碼不會傳到瀏覽器。區域網路帳號密碼與 JWT 只保留在目前頁面記憶體。";
       status.className = "statusbox" + ((vps.configured || worker.configured || k40.configured) ? " ok" : "");
     }
     const active = $("#active-openlist-provider");
@@ -412,9 +412,9 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         if (!["vps", "worker", "k40"].includes(targetProvider)) throw new Error("請選擇有效的音訊來源。");
         if (!serverProfiles[targetProvider]?.configured) {
           const names = {
-            vps: "ALIST_VPS_API_BASE_URL / ALIST_VPS_API_TOKEN",
-            worker: "OPENLIST_WORKER_API_BASE_URL / OPENLIST_WORKER_API_TOKEN",
-            k40: "ALIST_K40_API_BASE_URL / ALIST_K40_API_TOKEN"
+            vps: "ALIST_VPS_API_BASE_URL + ALIST_VPS_USERNAME / ALIST_VPS_PASSWORD",
+            worker: "OPENLIST_WORKER_API_BASE_URL + OPENLIST_WORKER_USERNAME / OPENLIST_WORKER_PASSWORD",
+            k40: "ALIST_K40_API_BASE_URL + ALIST_K40_USERNAME / ALIST_K40_PASSWORD"
           }[targetProvider];
           throw new Error((PROVIDER_LABELS[targetProvider] || targetProvider) + " 尚未就緒。請在 Cloudflare Pages Preview 設定 " + names + "，然後重新部署。");
         }
@@ -1201,7 +1201,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
 
           const failureMessage = String(indexed.error || "未知索引錯誤").slice(0, 700);
           if (/管理金鑰不正確|尚未設定 FRAME_AUDIO_ADMIN_TOKEN|HTTP 401|HTTP 403|驗證失敗|沒有.*權限/i.test(failureMessage)) {
-            throw new Error(failureMessage + " 請重新測試 Cloudflare 儲存連線或檢查 VPS Alist Token 後再繼續。");
+            throw new Error(failureMessage + " 請檢查對應來源的專用帳號 Secrets 及資料夾權限後再繼續。");
           }
           if (attempt < maxFileAttempts) {
             const retryDelayMs = 1500 * attempt;
@@ -1406,7 +1406,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
 
                 const failureMessage = String(indexed.error || "未知索引錯誤").slice(0, 700);
                 if (/管理金鑰不正確|尚未設定 FRAME_AUDIO_ADMIN_TOKEN|HTTP 401|HTTP 403|驗證失敗|沒有.*權限/i.test(failureMessage)) {
-                  throw new Error(failureMessage + " 請重新測試 Cloudflare 儲存連線或檢查 VPS Alist Token 後再繼續。");
+                  throw new Error(failureMessage + " 請檢查對應來源的專用帳號 Secrets 及資料夾權限後再繼續。");
                 }
                 if (attempt < maxFileAttempts) {
                   const retryDelayMs = 1500 * attempt;
