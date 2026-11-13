@@ -1275,7 +1275,7 @@ export function initLibraryUI(options = {}) {
       case "tracks":renderTracks();break;
       case "albums":renderAlbums();break;
       case "album-detail":renderAlbumDetail();break;
-      case "playlists":renderPlaylists();break;
+      case "playlists":if(state.selectedPlaylistId)renderPlaylistDetail();else renderPlaylists();break;
       case "folders":if(state.selectedFolder)renderFolderDetail();else renderFolders();break;
       case "shows":renderShows();break;
       case "show-detail":renderShowDetail();break;
@@ -2245,8 +2245,9 @@ export function initLibraryUI(options = {}) {
     if(target==="now-playing"&&!state.currentItem){message("請先從曲庫選擇音訊。");return;}
     const returningFromNowPlaying=state.view==="now-playing"&&target!=="now-playing";
     if(target!=="now-playing")state.lastLibraryView=target;
-    if(target==="folders")state.selectedFolder=null;
-    if(target==="playlists")state.selectedPlaylistId="";
+    const restoringLibraryDetail=state.view==="now-playing"&&target===state.lastLibraryView;
+    if(target==="folders"&&!restoringLibraryDetail)state.selectedFolder=null;
+    if(target==="playlists"&&!restoringLibraryDetail)state.selectedPlaylistId="";
     state.view=target;
     if(target!=="now-playing"&&!returningFromNowPlaying)state.search="";
     if(returningFromNowPlaying){render();return;}
