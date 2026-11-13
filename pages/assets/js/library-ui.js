@@ -1065,12 +1065,13 @@ export function initLibraryUI(options = {}) {
     const itemType = state.currentItem?.itemType || "track";
     const rowHeight=window.matchMedia("(max-width:760px)").matches?QUEUE_ROW_HEIGHT_MOBILE:QUEUE_ROW_HEIGHT_DESKTOP;
     const viewportHeight=Math.max(180,list.clientHeight||400);
-    let scrollTop=previousScrollTop;
+    const maxScrollTop=Math.max(0,total*rowHeight-viewportHeight);
+    let scrollTop=Math.min(previousScrollTop,maxScrollTop);
     if(options.focusCurrent&&state.queueIndex>=0&&state.queueIndex<total){
       const visibleCurrent=order?order.indexOf(state.queueIndex):state.queueIndex;
-      if(visibleCurrent>=0)scrollTop=Math.max(0,visibleCurrent*rowHeight-(viewportHeight-rowHeight)/2);
+      if(visibleCurrent>=0)scrollTop=Math.min(maxScrollTop,Math.max(0,visibleCurrent*rowHeight-(viewportHeight-rowHeight)/2));
     }
-    const firstVisible=Math.max(0,Math.floor(scrollTop/rowHeight));
+    const firstVisible=Math.min(total-1,Math.max(0,Math.floor(scrollTop/rowHeight)));
     const start=Math.max(0,firstVisible-QUEUE_OVERSCAN);
     const visibleCount=Math.ceil(viewportHeight/rowHeight)+QUEUE_OVERSCAN*2;
     const end=Math.min(total,start+visibleCount);
@@ -1638,7 +1639,7 @@ export function initLibraryUI(options = {}) {
   function refreshSearchResults(input) {
     if(!input)return;
     const nextSearch=input.value;
-    if(state.view==="tracks"&&nextSearch!==state.search)state.trackPage=0;
+    if(state.view==="tracks")state.trackPage=0;
     state.search=nextSearch;
     const start=input.selectionStart,end=input.selectionEnd;
     render();
