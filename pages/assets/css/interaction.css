@@ -1121,3 +1121,14 @@ body.desktop-sidebar-collapsed .player-queue-panel{right:90px;width:min(420px,ca
 @media(prefers-reduced-motion:reduce){
   #site-sidebar .nav button .nav-icon svg{transition:none!important}
 }
+
+
+/* Large-library browsing and virtualized playback queue. */
+.library-pagination{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;margin:20px 0 30px;padding:12px;border:1px solid rgba(206,184,239,.1);border-radius:12px;background:rgba(255,255,255,.025);color:#a99fb7;font-size:10px}
+.library-pagination .secondary{min-width:78px;padding:8px 11px}
+.library-pagination .secondary:disabled{opacity:.35;cursor:not-allowed}
+.library-pagination-single{color:#82798f}
+.player-queue-virtual-row{display:block;height:58px;min-height:58px;overflow:hidden}
+.player-queue-virtual-row .player-queue-item{height:58px;min-height:58px;max-height:58px;overflow:hidden}
+.player-queue-virtual-spacer{display:block;width:1px;min-height:0;max-height:none;padding:0;margin:0;border:0;pointer-events:none}
+@media(max-width:760px){.player-queue-virtual-row{height:54px;min-height:54px}.player-queue-virtual-row .player-queue-item{height:54px;min-height:54px;max-height:54px}}

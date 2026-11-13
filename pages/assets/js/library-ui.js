@@ -19,7 +19,7 @@ export function initLibraryUI(options = {}) {
   let mediaSessionArtworkObjectUrl = "";
   let mediaSessionArtworkObjectUrlKey = "";
   const state = {
-    view:"music",lastLibraryView:"music",tracks:[],folders:[],shows:[],episodes:[],loaded:false,loadedAt:0,busy:false,
+    view:"music",lastLibraryView:"music",tracks:[],folders:[],shows:[],episodes:[],loaded:false,loadedAt:0,busy:false,trackPage:0,
     selectedShowId:"",selectedAlbum:null,search:"",searchComposing:false,items:[],itemType:"track",reportPeriod:"week",reportType:"episode",
     errors:[],currentItem:null,queue:[],queueIndex:-1,session:null,tickAt:0,speed:1,
     lastProgressSave:0,restorePositionMs:0,playRequestId:0,artworkUrls:new Set(),
@@ -29,6 +29,11 @@ export function initLibraryUI(options = {}) {
     lyricsScrollPause:new WeakMap()
   };
   const PLAY_MODES=["sequential","repeat-one","repeat-all"];
+  const TRACKS_PAGE_SIZE=200;
+  const QUEUE_ROW_HEIGHT_DESKTOP=58;
+  const QUEUE_ROW_HEIGHT_MOBILE=54;
+  const QUEUE_OVERSCAN=8;
+  let queueRenderFrame=0;
   const esc = value => String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const duration = value => {
     const n=Math.max(0,Math.floor(Number(value||0)/1000)),h=Math.floor(n/3600),m=Math.floor(n%3600/60),s=n%60;
@@ -606,15 +611,15 @@ export function initLibraryUI(options = {}) {
     return '<div class="library-toolbar"><input id="library-search" class="library-search" type="search" placeholder="'+esc(placeholder)+'" value="'+esc(state.search)+'">'+
       '<span class="library-muted">'+state.tracks.length.toLocaleString()+' 首音樂 · '+state.shows.length.toLocaleString()+' 個節目 · '+state.episodes.length.toLocaleString()+' 集單集</span></div>';
   }
-  function trackRows(rows,type="track") {
-    state.items=rows;state.itemType=type;
+  function trackRows(rows,type="track",queueRows=rows,indexOffset=0) {
+    state.items=queueRows;state.itemType=type;
     if(!rows.length)return '<div class="library-empty"><div class="library-empty-mark">♫</div><h3>目前沒有項目</h3><p>完成索引後，內容就會出現在這裡。</p></div>';
     return '<div class="media-list">'+rows.map((raw,i)=>{
-      const item=playable(raw,type);
+      const item=playable(raw,type),itemIndex=indexOffset+i;
       return '<article class="media-row">'+cover(item.artworkHash,item.title)+
         '<div class="media-copy"><strong title="'+esc(item.title)+'">'+esc(item.title)+'</strong><span>'+esc(item.subtitle||item.path)+'</span>'+
-        (type==="track"&&item.album?'<button class="album-link" type="button" data-action="open-track-album" data-index="'+i+'" title="開啟專輯">'+esc(item.album)+'</button>':"")+
-        '</div><span class="media-duration">'+duration(item.durationMs)+'</span><button class="play-button" data-action="play" data-index="'+i+'" aria-label="播放">▶</button></article>';
+        (type==="track"&&item.album?'<button class="album-link" type="button" data-action="open-track-album" data-index="'+itemIndex+'" title="開啟專輯">'+esc(item.album)+'</button>':"")+
+        '</div><span class="media-duration">'+duration(item.durationMs)+'</span><button class="play-button" data-action="play" data-index="'+itemIndex+'" aria-label="播放">▶</button></article>';
     }).join("")+'</div>';
   }
   function renderHome() {
@@ -629,7 +634,19 @@ export function initLibraryUI(options = {}) {
   function renderTracks() {
     const q=state.search.toLocaleLowerCase();
     const rows=state.tracks.filter(t=>!q||[t.title,t.album,t.albumArtist,t.file?.path,...(t.artists||[]),...(t.genres||[])].join(" ").toLocaleLowerCase().includes(q));
-    root.innerHTML=searchBar("搜尋曲名、歌手、專輯或路徑")+sectionHead("ALL TRACKS","所有歌曲",'<span class="library-muted">'+rows.length+' 首</span>')+trackRows(rows.slice(0,500),"track");
+    const pageCount=Math.max(1,Math.ceil(rows.length/TRACKS_PAGE_SIZE));
+    state.trackPage=Math.max(0,Math.min(pageCount-1,Number(state.trackPage)||0));
+    const page=state.trackPage,start=page*TRACKS_PAGE_SIZE;
+    const visibleRows=rows.slice(start,start+TRACKS_PAGE_SIZE);
+    const pageControls=rows.length>TRACKS_PAGE_SIZE
+      ?'<nav class="library-pagination" aria-label="歌曲分頁">'+
+        '<button class="secondary" type="button" data-action="tracks-page" data-page="'+(page-1)+'"'+(page===0?' disabled':'')+'>上一頁</button>'+
+        '<span>第 '+(page+1)+' / '+pageCount+' 頁 · '+(start+1)+'–'+Math.min(start+visibleRows.length,rows.length)+' / '+rows.length.toLocaleString()+' 首</span>'+
+        '<button class="secondary" type="button" data-action="tracks-page" data-page="'+(page+1)+'"'+(page>=pageCount-1?' disabled':'')+'>下一頁</button></nav>'
+      :'<div class="library-pagination library-pagination-single">完整曲庫 · '+rows.length.toLocaleString()+' 首</div>';
+    root.innerHTML=searchBar("搜尋曲名、歌手、專輯或路徑")+
+      sectionHead("ALL TRACKS","所有歌曲",'<span class="library-muted">'+rows.length.toLocaleString()+' 首 · 每頁 '+TRACKS_PAGE_SIZE+' 首</span>')+
+      trackRows(visibleRows,"track",rows,start)+pageControls;
     loadCovers();
   }
   function albumArtistDisplay(tracks) {
@@ -1000,24 +1017,36 @@ export function initLibraryUI(options = {}) {
     animateLibraryContent();
   }
 
-  function renderPlayerQueue() {
+  function renderPlayerQueue(options={}) {
     const list = $("#player-queue-list");
     const summary = $("#player-queue-summary");
     const count = $("#player-queue-count");
     const toggle = $("#player-queue-toggle");
     if (!list) return;
 
+    if(list.dataset.virtualScrollBound!=="true"){
+      list.addEventListener("scroll",()=>{
+        if(queueRenderFrame)return;
+        queueRenderFrame=window.requestAnimationFrame(()=>{
+          queueRenderFrame=0;
+          renderPlayerQueue({preserveScroll:true});
+        });
+      },{passive:true});
+      list.dataset.virtualScrollBound="true";
+    }
+
     const queue = Array.isArray(state.queue) ? state.queue : [];
     const total = queue.length;
-    if (count) count.textContent = String(total);
+    const previousScrollTop=Number(list.scrollTop)||0;
+    if (count) count.textContent = total.toLocaleString();
     if (toggle) {
-      toggle.setAttribute("aria-label", total ? "播放列表，" + total + " 首" : "播放列表，尚無待播項目");
-      toggle.title = total ? "播放列表 · " + total + " 首" : "播放列表";
+      toggle.setAttribute("aria-label", total ? "播放列表，" + total.toLocaleString() + " 首" : "播放列表，尚無待播項目");
+      toggle.title = total ? "播放列表 · " + total.toLocaleString() + " 首" : "播放列表";
       toggle.classList.toggle("has-queue", total > 0);
     }
     if (summary) {
       summary.textContent = total
-        ? total + " 首 · " + (state.shuffleEnabled ? "隨機播放順序" : "目前播放順序")
+        ? total.toLocaleString() + " 首 · " + (state.shuffleEnabled ? "隨機播放順序" : "目前播放順序") + " · 虛擬列表"
         : "尚未建立播放佇列";
     }
 
@@ -1032,45 +1061,72 @@ export function initLibraryUI(options = {}) {
 
     const order = state.shuffleEnabled && state.shuffleOrder.length === total
       ? state.shuffleOrder
-      : queue.map((_, index) => index);
+      : null;
     const itemType = state.currentItem?.itemType || "track";
+    const rowHeight=window.matchMedia("(max-width:760px)").matches?QUEUE_ROW_HEIGHT_MOBILE:QUEUE_ROW_HEIGHT_DESKTOP;
+    const viewportHeight=Math.max(180,list.clientHeight||400);
+    let scrollTop=previousScrollTop;
+    if(options.focusCurrent&&state.queueIndex>=0&&state.queueIndex<total){
+      const visibleCurrent=order?order.indexOf(state.queueIndex):state.queueIndex;
+      if(visibleCurrent>=0)scrollTop=Math.max(0,visibleCurrent*rowHeight-(viewportHeight-rowHeight)/2);
+    }
+    const firstVisible=Math.max(0,Math.floor(scrollTop/rowHeight));
+    const start=Math.max(0,firstVisible-QUEUE_OVERSCAN);
+    const visibleCount=Math.ceil(viewportHeight/rowHeight)+QUEUE_OVERSCAN*2;
+    const end=Math.min(total,start+visibleCount);
+    const spacer=(height)=>{
+      const node=document.createElement("div");
+      node.className="player-queue-virtual-spacer";
+      node.setAttribute("aria-hidden","true");
+      node.style.height=Math.max(0,height)+"px";
+      return node;
+    };
+    if(start>0)list.append(spacer(start*rowHeight));
 
-    order.forEach((queueIndex, visibleIndex) => {
-      const raw = queue[queueIndex];
-      if (!raw) return;
-      const item = playable(raw, itemType);
-      const current = queueIndex === state.queueIndex;
-      const row = document.createElement("button");
-      row.type = "button";
-      row.className = "player-queue-item" + (current ? " is-current" : "");
-      row.dataset.queueIndex = String(queueIndex);
-      if (current) row.setAttribute("aria-current", "true");
-      const listItem = document.createElement("div");
-      listItem.setAttribute("role", "listitem");
+    for(let visibleIndex=start;visibleIndex<end;visibleIndex+=1){
+      const queueIndex=order?order[visibleIndex]:visibleIndex;
+      const raw=queue[queueIndex];
+      if(!raw)continue;
+      const item=playable(raw,itemType);
+      const current=queueIndex===state.queueIndex;
+      const row=document.createElement("button");
+      row.type="button";
+      row.className="player-queue-item"+(current?" is-current":"");
+      row.dataset.queueIndex=String(queueIndex);
+      row.setAttribute("aria-label",(visibleIndex+1)+" · "+item.title+(current?" · 正在播放":" · 待播"));
+      if(current)row.setAttribute("aria-current","true");
 
-      const number = document.createElement("span");
-      number.className = "player-queue-number";
-      number.textContent = String(visibleIndex + 1).padStart(2, "0");
+      const listItem=document.createElement("div");
+      listItem.className="player-queue-virtual-row";
+      listItem.setAttribute("role","listitem");
+      listItem.setAttribute("aria-posinset",String(visibleIndex+1));
+      listItem.setAttribute("aria-setsize",String(total));
+      listItem.style.height=rowHeight+"px";
 
-      const copy = document.createElement("span");
-      copy.className = "player-queue-copy";
-      const title = document.createElement("strong");
-      title.className = "player-queue-title";
-      title.textContent = item.title;
-      const subtitle = document.createElement("small");
-      subtitle.className = "player-queue-subtitle";
-      subtitle.textContent = item.subtitle || (item.itemType === "episode" ? "Podcast 單集" : "音樂曲目");
-      copy.append(title, subtitle);
+      const number=document.createElement("span");
+      number.className="player-queue-number";
+      number.textContent=String(visibleIndex+1).padStart(2,"0");
 
-      const status = document.createElement("span");
-      status.className = "player-queue-status";
-      status.textContent = current ? "正在播放" : "待播";
-      row.append(number, copy, status);
+      const copy=document.createElement("span");
+      copy.className="player-queue-copy";
+      const title=document.createElement("strong");
+      title.className="player-queue-title";
+      title.textContent=item.title;
+      const subtitle=document.createElement("small");
+      subtitle.className="player-queue-subtitle";
+      subtitle.textContent=item.subtitle||(item.itemType==="episode"?"Podcast 單集":"音樂曲目");
+      copy.append(title,subtitle);
+
+      const status=document.createElement("span");
+      status.className="player-queue-status";
+      status.textContent=current?"正在播放":"待播";
+      row.append(number,copy,status);
       listItem.append(row);
       list.append(listItem);
-    });
+    }
+    if(end<total)list.append(spacer((total-end)*rowHeight));
+    list.scrollTop=scrollTop;
   }
-
   function setDock(item) {
     syncMediaSessionMetadata(item);
     renderPlayerQueue();
@@ -1540,6 +1596,15 @@ export function initLibraryUI(options = {}) {
       if(action==="open-track-album"){openAlbumFromTrack(state.items[i]);return;}
       if(action==="back-albums"){state.view="albums";renderAlbums();animateLibraryContent();return;}
       if(action==="back-shows"){state.view="shows";state.selectedShowId="";renderShows();animateLibraryContent();return;}
+      if(action==="tracks-page"){
+        const nextPage=Number(b.dataset.page);
+        if(!Number.isInteger(nextPage))return;
+        state.trackPage=Math.max(0,nextPage);
+        renderTracks();
+        animateLibraryContent();
+        root.querySelector(".library-pagination")?.scrollIntoView({block:"nearest",behavior:"smooth"});
+        return;
+      }
       if(action==="play"){
         const item=state.items[i];
         if(state.itemType==="continue"){
@@ -1572,7 +1637,9 @@ export function initLibraryUI(options = {}) {
   root.addEventListener("click",handleClick);
   function refreshSearchResults(input) {
     if(!input)return;
-    state.search=input.value;
+    const nextSearch=input.value;
+    if(state.view==="tracks"&&nextSearch!==state.search)state.trackPage=0;
+    state.search=nextSearch;
     const start=input.selectionStart,end=input.selectionEnd;
     render();
     const replacement=$("#library-search");
@@ -1747,7 +1814,7 @@ export function initLibraryUI(options = {}) {
       void panel.offsetWidth;
       panel.classList.add("queue-opening");
       button.setAttribute("aria-expanded", "true");
-      renderPlayerQueue();
+      renderPlayerQueue({focusCurrent:true});
       panel.addEventListener("animationend", event => {
         if (transitionId === queuePanelTransitionId && event.target === panel && event.animationName === "player-queue-enter") {
           panel.classList.remove("queue-opening");
