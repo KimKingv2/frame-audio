@@ -55,6 +55,52 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 .playback-log-line[data-level="warning"]{color:#d8b987}
 .playback-log-line[data-level="error"]{color:#e39a9a}
 .playback-log-placeholder{color:#746c80}
+/* Midnight Violet refresh: borderless controls and warmer charcoal-purple palette. */
+:root{color-scheme:dark;--bg:#121116;--line:rgba(198,169,220,.075);--text:#c0b9b5;--muted:#938b86;--accent:#c5a0df}
+body{background:radial-gradient(ellipse at 78% 8%,rgba(79,48,104,.12),transparent 42%),#121116;color:#c0b9b5}
+button{border:0!important;}
+aside{background:linear-gradient(180deg,#17141d 0%,#141219 100%);border-right-color:rgba(194,157,220,.055)}
+.brand{color:#bcb4b0}.brand b{color:#c7a2e1}.mark{background:linear-gradient(145deg,#c9a6e2,#805a9c);color:#211a2a}
+.label{color:#958c82;letter-spacing:.22em;font-size:10px}
+.nav{gap:7px}
+.nav button{display:flex;align-items:center;gap:14px;min-height:58px;padding:7px 12px;border:0!important;border-radius:15px;background:transparent;color:#b7b0ac;font-size:13px;font-weight:620;transition:background .2s ease,color .2s ease,transform .2s ease}
+.nav button:hover{background:rgba(255,255,255,.035);color:#e0d7d4}
+.nav button.active{color:#d8b5ee;background:linear-gradient(100deg,rgba(117,73,151,.24),rgba(72,42,97,.13));box-shadow:inset -3px 0 #6c329d}
+.nav-icon{display:grid;place-items:center;flex:0 0 48px;width:48px;height:48px;border-radius:15px;background:rgba(93,57,119,.105);color:#c2a0d8;font-size:23px;transition:background .2s ease,color .2s ease}
+.nav button.active .nav-icon{background:rgba(111,64,148,.18);color:#d7aaf2}
+.nav button:hover .nav-icon{background:rgba(111,64,148,.16);color:#d6b7e8}
+.nav-icon svg{width:22px;height:22px}
+.gapline{background:rgba(193,164,214,.07);margin:18px 7px}
+.sidefoot{border-top-color:rgba(193,164,214,.07);color:#89817d}
+main{color:#c0b9b5}
+.top{border-bottom-color:rgba(193,164,214,.07);color:#938b86}
+.top strong{color:#d4ccca}
+.hero{border-color:rgba(183,139,213,.08);background:radial-gradient(ellipse at 78% 50%,rgba(111,69,143,.15),transparent 40%),linear-gradient(115deg,#211d28,#1b1822)}
+.hero h1 span,.eyebrow,.kicker{color:#c49fdf}
+.hero p{color:#aaa19f}
+.primary{border:0!important;border-radius:11px;color:#eadcf2;background:linear-gradient(145deg,#65477f,#4c3562);box-shadow:0 5px 18px rgba(79,49,103,.16)}
+.primary:hover{background:linear-gradient(145deg,#76558f,#5b3f73)}
+.secondary{border:0!important;border-radius:11px;color:#c0b5c4;background:rgba(255,255,255,.055)}
+.secondary:hover{background:rgba(151,111,177,.15);color:#eadcf2}
+.dock{border-top:1px solid rgba(193,164,214,.07);background:linear-gradient(180deg,rgba(27,23,34,.985),rgba(20,18,26,.995))}
+.dock-transport-host .player-transport button,.now-playing-transport-host .player-transport button{border:0!important;background:transparent;color:#d0bddb}
+.dock-transport-host .player-transport button:hover,.now-playing-transport-host .player-transport button:hover{background:rgba(168,125,197,.12);color:#f0e4f5}
+.dock-transport-host .player-transport .player-play,.now-playing-transport-host .player-transport .player-play{border:0!important;border-radius:17px;background:#5a3e78;box-shadow:0 6px 20px rgba(95,60,125,.25);color:#f5edf8}
+.dock-transport-host .player-transport .player-play:hover,.now-playing-transport-host .player-transport .player-play:hover{background:#6b4a8c}
+.dock-transport-host .dock-tool-toggle{border:0!important;background:rgba(93,57,119,.13);color:#d2b9e2}
+.dock-transport-host .dock-tool-toggle[aria-expanded=true]{border:0!important;background:rgba(126,81,158,.26);color:#f0e3f7}
+.dock-favorite-toggle{border:0!important;background:transparent!important;color:#bda8ca}
+.dock-favorite-toggle.is-favorite{color:#d5a9ec}
+.player-queue-panel{border-color:rgba(193,164,214,.09);background:linear-gradient(160deg,rgba(31,26,39,.99),rgba(19,17,25,.995))}
+.player-queue-close{border:0!important;background:rgba(255,255,255,.045)}
+.player-queue-item{border:0!important}.player-queue-item:hover{background:rgba(255,255,255,.055)}
+.player-queue-item.is-current{background:linear-gradient(95deg,rgba(132,91,164,.2),rgba(132,91,164,.06))}
+.now-playing-tools-host .controls .player-utility,.now-playing-tools-host .controls .player-stop{border:0!important;background:rgba(255,255,255,.045);color:#cbbbd2}
+.now-playing-tools-host .controls .player-utility.active{border:0!important;background:rgba(143,99,175,.2);box-shadow:none;color:#ead9f4}
+.now-playing-tools-host #player-speed{border:0!important;background:rgba(255,255,255,.055);color:#d5c7dc}
+.playback-connection-notice,.player-queue-panel{color:#d4cbd3}
+.nav.secondary{padding:7px;border:1px solid rgba(193,164,214,.075);border-radius:15px;background:rgba(255,255,255,.012)}
+@media(max-width:760px){aside{background:#17141d;border-bottom-color:rgba(193,164,214,.06)}.nav{gap:5px}.nav button{min-height:52px;padding:5px 9px}.nav-icon{flex-basis:42px;width:42px;height:42px;border-radius:13px}.dock{background:rgba(23,20,30,.985)}}
 @media(max-width:760px){.playback-connection-notice{left:12px;right:12px;bottom:124px;max-width:none;width:auto}.playback-log-toolbar{align-items:flex-start;flex-direction:column}.playback-log-toolbar>div{width:100%}.playback-log-button{flex:1}}
 </style>
 </head>
