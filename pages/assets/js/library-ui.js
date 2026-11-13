@@ -76,14 +76,13 @@ export function initLibraryUI(options = {}) {
       if(panel)panel.open=true;
     }
   }
-  function hidePlaybackConnectionStatus(requestId=state.playRequestId) {
-    if(requestId!==state.playRequestId)return;
+  function hidePlaybackConnectionStatus() {
     const node=$("#playback-connection-notice");
     if(!node)return;
     window.clearTimeout(playbackNoticeTimer);
     node.classList.remove("is-visible");
     playbackNoticeTimer=window.setTimeout(()=>{
-      if(requestId===state.playRequestId&&!node.classList.contains("is-visible"))node.hidden=true;
+      if(!node.classList.contains("is-visible"))node.hidden=true;
     },260);
   }
   function setPlaybackConnectionStatus(message,type="connecting",requestId=state.playRequestId,hideAfterMs=0) {
@@ -94,7 +93,7 @@ export function initLibraryUI(options = {}) {
     node.textContent=String(message||"");
     node.className="playback-connection-notice is-visible"+(type?" is-"+type:"");
     node.hidden=false;
-    if(hideAfterMs>0)playbackNoticeTimer=window.setTimeout(()=>hidePlaybackConnectionStatus(requestId),hideAfterMs);
+    if(hideAfterMs>0)playbackNoticeTimer=window.setTimeout(hidePlaybackConnectionStatus,hideAfterMs);
   }
   const mediaReadyStateName=value=>["HAVE_NOTHING","HAVE_METADATA","HAVE_CURRENT_DATA","HAVE_FUTURE_DATA","HAVE_ENOUGH_DATA"][Number(value)]||"UNKNOWN";
   const mediaNetworkStateName=value=>["NETWORK_EMPTY","NETWORK_IDLE","NETWORK_LOADING","NETWORK_NO_SOURCE"][Number(value)]||"UNKNOWN";
