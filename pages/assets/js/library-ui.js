@@ -1332,7 +1332,7 @@ export function initLibraryUI(options = {}) {
     if (!total) {
       const empty = document.createElement("div");
       empty.className = "player-queue-empty";
-      empty.textContent = "從歌曲、專輯、歌手、資料夾或 Podcast 節目開始播放，這裡就會顯示待播項目。";
+      empty.textContent = "從歌曲、專輯、資料夾、收藏歌單或 Podcast 節目開始播放，這裡就會顯示待播項目。";
       list.append(empty);
       return;
     }
@@ -2244,8 +2244,8 @@ export function initLibraryUI(options = {}) {
     const target=name==="podcasts"?"shows":name;
     if(target==="now-playing"&&!state.currentItem){message("請先從曲庫選擇音訊。");return;}
     const returningFromNowPlaying=state.view==="now-playing"&&target!=="now-playing";
-    if(target!=="now-playing")state.lastLibraryView=target;
     const restoringLibraryDetail=state.view==="now-playing"&&target===state.lastLibraryView;
+    if(target!=="now-playing")state.lastLibraryView=target;
     if(target==="folders"&&!restoringLibraryDetail)state.selectedFolder=null;
     if(target==="playlists"&&!restoringLibraryDetail)state.selectedPlaylistId="";
     state.view=target;
