@@ -65,59 +65,136 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     return window.matchMedia ? window.matchMedia("(max-width: 760px)").matches : false;
   }
 
-  const DESKTOP_SIDEBAR_STORAGE_KEY = "frame-audio-desktop-sidebar-collapsed";
+  const MOBILE_SIDEBAR_CLOSE_FALLBACK_MS = 420;
+  let mobileSidebarCloseTimer = 0;
+  let lastSidebarViewportIsMobile = isMobileSidebarViewport();
 
-  function readDesktopSidebarCollapsed() {
-    try {
-      return localStorage.getItem(DESKTOP_SIDEBAR_STORAGE_KEY) === "1";
-    } catch {
-      return false;
-    }
-  }
-
-  function setSideNavigationExpanded(expanded, restoreFocus = false, persistDesktop = false) {
+  function updateSideNavigationControls(expanded, isMobile) {
     const sidebar = $("#site-sidebar");
     const trigger = $("#side-nav-toggle");
     const scrim = $("#mobile-nav-scrim");
-    const isMobile = isMobileSidebarViewport();
-    const wasMobileExpanded = document.body.classList.contains("mobile-sidebar-expanded");
-    const isExpanded = Boolean(expanded);
-
-    if (isMobile) {
-      document.body.classList.remove("desktop-sidebar-collapsed");
-      document.body.classList.toggle("mobile-sidebar-expanded", isExpanded);
-    } else {
-      document.body.classList.remove("mobile-sidebar-expanded");
-      document.body.classList.toggle("desktop-sidebar-collapsed", !isExpanded);
-      if (persistDesktop) {
-        try {
-          localStorage.setItem(DESKTOP_SIDEBAR_STORAGE_KEY, isExpanded ? "0" : "1");
-        } catch {}
-      }
-    }
 
     if (trigger) {
-      trigger.setAttribute("aria-expanded", String(isExpanded));
-      trigger.setAttribute("aria-label", isExpanded ? "收合導覽欄" : "展開導覽欄");
-      trigger.setAttribute("title", isExpanded ? "收合導覽" : "展開導覽");
+      trigger.setAttribute("aria-expanded", String(expanded));
+      trigger.setAttribute("aria-label", expanded
+        ? (isMobile ? "收合導覽欄" : "導覽欄固定展開")
+        : "展開導覽欄");
+      trigger.setAttribute("title", expanded
+        ? (isMobile ? "收合導覽" : "桌面版固定展開")
+        : "展開導覽");
       const icon = trigger.querySelector(".side-nav-toggle-icon");
-      if (icon) icon.textContent = isExpanded ? (isMobile ? "×" : "‹") : "☰";
+      if (icon) icon.textContent = expanded ? "×" : "☰";
     }
-    if (scrim) scrim.setAttribute("aria-hidden", String(!(isMobile && isExpanded)));
-    if (sidebar) sidebar.setAttribute("aria-label", isExpanded ? "已展開的主要導覽" : "主要導覽");
 
-    if (isMobile && isExpanded) {
-      requestAnimationFrame(() => sidebar?.querySelector(".nav button")?.focus({ preventScroll: true }));
-    } else if (restoreFocus && wasMobileExpanded) {
-      trigger?.focus({ preventScroll: true });
+    if (scrim) {
+      scrim.setAttribute("aria-hidden", String(!(isMobile && expanded)));
+    }
+    if (sidebar) {
+      sidebar.setAttribute("aria-label", expanded ? "已展開的主要導覽" : "主要導覽");
+      sidebar.setAttribute("aria-hidden", String(!expanded));
+      sidebar.inert = !expanded;
     }
   }
 
+  function finishMobileSidebarClose(restoreFocus = false) {
+    window.clearTimeout(mobileSidebarCloseTimer);
+    mobileSidebarCloseTimer = 0;
+    document.body.classList.remove("mobile-sidebar-expanded", "mobile-sidebar-closing");
+
+    const sidebar = $("#site-sidebar");
+    const trigger = $("#side-nav-toggle");
+    const scrim = $("#mobile-nav-scrim");
+    if (sidebar) {
+      sidebar.setAttribute("aria-hidden", "true");
+      sidebar.inert = true;
+      sidebar.setAttribute("aria-label", "主要導覽");
+    }
+    if (scrim) scrim.setAttribute("aria-hidden", "true");
+    if (trigger) {
+      trigger.setAttribute("aria-expanded", "false");
+      trigger.setAttribute("aria-label", "展開導覽欄");
+      trigger.setAttribute("title", "展開導覽");
+      const icon = trigger.querySelector(".side-nav-toggle-icon");
+      if (icon) icon.textContent = "☰";
+      if (restoreFocus) trigger.focus({ preventScroll: true });
+    }
+  }
+
+  function setSideNavigationExpanded(expanded, restoreFocus = false) {
+    const sidebar = $("#site-sidebar");
+    const isMobile = isMobileSidebarViewport();
+
+    // Desktop navigation is deliberately fixed open. The collapse control is
+    // available only on phones, so stale desktop preferences are ignored.
+    if (!isMobile) {
+      window.clearTimeout(mobileSidebarCloseTimer);
+      mobileSidebarCloseTimer = 0;
+      document.body.classList.remove(
+        "mobile-sidebar-expanded",
+        "mobile-sidebar-closing",
+        "desktop-sidebar-collapsed"
+      );
+      updateSideNavigationControls(true, false);
+      return;
+    }
+
+    const wasExpanded = document.body.classList.contains("mobile-sidebar-expanded");
+    const isClosing = document.body.classList.contains("mobile-sidebar-closing");
+
+    if (expanded) {
+      window.clearTimeout(mobileSidebarCloseTimer);
+      mobileSidebarCloseTimer = 0;
+      document.body.classList.remove("mobile-sidebar-closing");
+      document.body.classList.add("mobile-sidebar-expanded");
+      updateSideNavigationControls(true, true);
+      requestAnimationFrame(() => {
+        sidebar?.querySelector(".nav button")?.focus({ preventScroll: true });
+      });
+      return;
+    }
+
+    if (wasExpanded || isClosing) {
+      // Keep the panel mounted until its exit animation finishes. This avoids
+      // the previous abrupt display:none jump during close.
+      document.body.classList.add("mobile-sidebar-closing");
+      updateSideNavigationControls(false, false);
+      if (restoreFocus) $("#side-nav-toggle")?.focus({ preventScroll: true });
+
+      window.clearTimeout(mobileSidebarCloseTimer);
+      mobileSidebarCloseTimer = window.setTimeout(
+        () => finishMobileSidebarClose(false),
+        MOBILE_SIDEBAR_CLOSE_FALLBACK_MS
+      );
+      return;
+    }
+
+    finishMobileSidebarClose(restoreFocus);
+  }
+
+  // The panel's animationend event completes the close immediately; the
+  // timeout above is only a fallback for browsers that omit the event.
+  $("#site-sidebar")?.addEventListener("animationend", event => {
+    if (
+      event.target === $("#site-sidebar") &&
+      event.animationName === "mobile-sidebar-panel-exit" &&
+      document.body.classList.contains("mobile-sidebar-closing")
+    ) {
+      finishMobileSidebarClose(false);
+    }
+  });
+
   function syncSideNavigationViewport() {
-    if (isMobileSidebarViewport()) {
+    lastSidebarViewportIsMobile = isMobileSidebarViewport();
+    setSideNavigationExpanded(false);
+  }
+
+  function handleSidebarViewportResize() {
+    const isMobile = isMobileSidebarViewport();
+    if (isMobile !== lastSidebarViewportIsMobile) {
+      lastSidebarViewportIsMobile = isMobile;
       setSideNavigationExpanded(false);
-    } else {
-      setSideNavigationExpanded(!readDesktopSidebarCollapsed());
+    } else if (!isMobile) {
+      setSideNavigationExpanded(true);
     }
   }
 
@@ -1780,10 +1857,10 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   }
 
   $("#side-nav-toggle")?.addEventListener("click", () => {
-    const expanded = isMobileSidebarViewport()
-      ? document.body.classList.contains("mobile-sidebar-expanded")
-      : !document.body.classList.contains("desktop-sidebar-collapsed");
-    setSideNavigationExpanded(!expanded, true, !isMobileSidebarViewport());
+    if (!isMobileSidebarViewport()) return;
+    const expanded = document.body.classList.contains("mobile-sidebar-expanded")
+      && !document.body.classList.contains("mobile-sidebar-closing");
+    setSideNavigationExpanded(!expanded, true);
   });
   $("#mobile-nav-scrim")?.addEventListener("click", () => setSideNavigationExpanded(false, true));
   document.addEventListener("keydown", event => {
@@ -1791,9 +1868,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       setSideNavigationExpanded(false, true);
     }
   });
-  window.addEventListener("resize", () => {
-    setSideNavigationExpanded(false);
-  });
+  window.addEventListener("resize", handleSidebarViewportResize);
   syncSideNavigationViewport();
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => showView(button.dataset.view));
