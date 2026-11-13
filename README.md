@@ -20,7 +20,7 @@ FRAME Audio 是以 VPS Alist 為音訊來源的私人音訊平台，包含 **Mus
 - D1 以新增／更新方式寫入；部分掃描、失敗掃描與路徑修復不會清空整個曲庫。
 - R2 封面以 SHA-256 去重保存。
 - 修復路徑時，先成功建立新索引，再將舊路徑的收聽事件及續播資料移轉到新索引。
-- 四個互斥來源：VPS Alist、OpenList Worker、K40 Alist（由 Pages Functions 使用 Pages Variables／Secrets）及區域網路 OpenList（瀏覽器直接以帳號密碼登入）。只有上次保存的活動來源會連線或測試；其他來源不會被探測。
+- 四個互斥來源：VPS Alist、OpenList Worker、Mobile Device Alist（由 Pages Functions 使用 Pages Variables／Secrets）及區域網路 OpenList（瀏覽器直接以帳號密碼登入）。只有上次保存的活動來源會連線或測試；其他來源不會被探測。
 
 ## Cloudflare 資料表
 
@@ -30,7 +30,7 @@ FRAME Audio 是以 VPS Alist 為音訊來源的私人音訊平台，包含 **Mus
 | `0002_podcasts.sql` | Podcast 節目與單集 |
 | `0003_listening.sql` | 播放進度、Podcast 播放速度、收聽事件 |
 
-前三個 migration 建立曲庫、Podcast 與收聽資料。第四個檔案 `0004_connection_settings.sql` 已退役並改為 no-op，不需要執行；VPS／Worker／K40 憑證不再寫入 D1。現有 D1 資料與 R2 封面應保留。
+前三個 migration 建立曲庫、Podcast 與收聽資料。第四個檔案 `0004_connection_settings.sql` 已退役並改為 no-op，不需要執行；VPS／Worker／Mobile Device 憑證不再寫入 D1。現有 D1 資料與 R2 封面應保留。
 
 ## 掃描規則
 

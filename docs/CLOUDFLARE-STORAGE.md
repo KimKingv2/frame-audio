@@ -10,9 +10,9 @@ FRAME Audio uses Pages Functions as its same-origin API, D1 for catalogue / scan
 - Shared KV namespace: `media-platform-auth-cache`; binding variable: `MEDIA_AUTH_TOKEN_CACHE` (short-lived upstream JWT cache shared by media apps)
 - Secrets: `ALIST_VPS_USERNAME`, `ALIST_VPS_PASSWORD`; Text: `ALIST_VPS_API_BASE_URL`
 - Secrets: `OPENLIST_WORKER_USERNAME`, `OPENLIST_WORKER_PASSWORD`; Text: `OPENLIST_WORKER_API_BASE_URL`
-- Secrets: `ALIST_K40_USERNAME`, `ALIST_K40_PASSWORD`; Text: `ALIST_K40_API_BASE_URL`
+- Secrets: `ALIST_MOBILE_DEVICE_USERNAME`, `ALIST_MOBILE_DEVICE_PASSWORD`; Text: `ALIST_MOBILE_DEVICE_API_BASE_URL`
 
-VPS / Worker / K40 service-account credentials are read only by Pages Functions. Functions obtain upstream JWTs through each provider login API. JWTs are cached in the optional `MEDIA_AUTH_TOKEN_CACHE` KV binding with an expiry TTL and in isolate memory; they are never sent to the browser or stored in D1/R2. Without KV, the application falls back to isolate-memory caching and re-authenticates after a cold start. The existing `FRAME_AUDIO_API_ADMIN_TOKEN` remains a separate application-level gate; do not replace it with an Alist Token or combine the values.
+VPS / Worker / Mobile Device service-account credentials are read only by Pages Functions. Functions obtain upstream JWTs through each provider login API. JWTs are cached in the optional `MEDIA_AUTH_TOKEN_CACHE` KV binding with an expiry TTL and in isolate memory; they are never sent to the browser or stored in D1/R2. Without KV, the application falls back to isolate-memory caching and re-authenticates after a cold start. The existing `FRAME_AUDIO_API_ADMIN_TOKEN` remains a separate application-level gate; do not replace it with an Alist Token or combine the values.
 
 ## Environment settings
 
@@ -26,12 +26,12 @@ Open **Workers & Pages → frame-audio → Settings → Variables and Secrets**.
 | `OPENLIST_WORKER_API_BASE_URL` | Text | Your OpenList Worker API base URL |
 | `OPENLIST_WORKER_USERNAME` | Secret | Dedicated OpenList Worker username |
 | `OPENLIST_WORKER_PASSWORD` | Secret | Dedicated OpenList Worker password |
-| `ALIST_K40_API_BASE_URL` | Text | K40 Alist HTTPS API base URL |
-| `ALIST_K40_USERNAME` | Secret | Dedicated K40 Alist username |
-| `ALIST_K40_PASSWORD` | Secret | Dedicated K40 Alist password |
+| `ALIST_MOBILE_DEVICE_API_BASE_URL` | Text | `https://nas.kimkingv2.top` |
+| `ALIST_MOBILE_DEVICE_USERNAME` | Secret | Dedicated Mobile Device Alist username |
+| `ALIST_MOBILE_DEVICE_PASSWORD` | Secret | Dedicated Mobile Device Alist password |
 | `FRAME_AUDIO_API_ADMIN_TOKEN` | Secret | Existing FRAME Audio internal API admin Secret |
 
-The new username/password Secrets take priority and enable automatic server-side login and renewal. During migration, existing `ALIST_VPS_API_TOKEN`, `OPENLIST_WORKER_API_TOKEN`, `ALIST_K40_API_TOKEN` and legacy aliases remain supported as fallback. Do not remove old Token Secrets until each source has passed Preview tests. Never paste Secrets into the website, GitHub, URLs or chat. The site shows only whether a profile is configured and never reveals credentials or JWTs.
+The new username/password Secrets take priority and enable automatic server-side login and renewal. During migration, existing `ALIST_VPS_API_TOKEN`, `OPENLIST_WORKER_API_TOKEN`, `ALIST_MOBILE_DEVICE_API_TOKEN` and legacy aliases remain supported as fallback. Do not remove old Token Secrets until each source has passed Preview tests. Never paste Secrets into the website, GitHub, URLs or chat. The site shows only whether a profile is configured and never reveals credentials or JWTs.
 
 Keep using the existing D1 and R2 resources. Under **Settings → Bindings → KV namespace bindings**, create or select the shared Preview namespace `media-platform-auth-cache` and bind it with variable name `MEDIA_AUTH_TOKEN_CACHE` in every media application's Preview project. This Preview namespace may be shared by trusted Preview media apps, but must remain separate from Production. The application still works without KV using per-isolate memory cache, but cold starts will perform a new login. To reuse a JWT across separate media applications, they must use the same namespace, identical provider identity/base URL/username cache-key derivation, the `media-platform:provider-auth:v1` key prefix, and matching `Client-Id: media-platform-server-{provider}` on both login and API requests. Add the matching Production credentials and a separate Production KV binding only after Preview has passed testing. After adding or changing environment values or bindings, redeploy the matching branch.
 

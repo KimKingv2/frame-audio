@@ -28,7 +28,7 @@
   <section class="hero">
     <div class="eyebrow">FOUR PROVIDERS · SIDE-BY-SIDE</div>
     <h1>四來源連線速度比較</h1>
-    <div class="sub">VPS Alist、OpenList Worker、K40 Alist、區域網路 OpenList。可勾選 2～4 個來源，以相同音訊路徑依序測試。</div>
+    <div class="sub">VPS Alist、OpenList Worker、Mobile Device Alist、區域網路 OpenList。可勾選 2～4 個來源，以相同音訊路徑依序測試。</div>
   </section>
 
   <section class="card">
@@ -46,9 +46,9 @@
         <div class="source-head"><span class="source-title"><input type="checkbox" value="worker" class="provider-choice"><span>OpenList Worker</span></span><span class="tag" id="status-worker">讀取設定中</span></div>
         <div class="status" id="detail-worker">Cloudflare Pages Variable + Secret</div>
       </label>
-      <label class="source" id="card-k40">
-        <div class="source-head"><span class="source-title"><input type="checkbox" value="k40" class="provider-choice"><span>K40 Alist</span></span><span class="tag" id="status-k40">讀取設定中</span></div>
-        <div class="status" id="detail-k40">Cloudflare Pages Variable + Secret</div>
+      <label class="source" id="card-mobile-device">
+        <div class="source-head"><span class="source-title"><input type="checkbox" value="mobile-device" class="provider-choice"><span>Mobile Device Alist</span></span><span class="tag" id="status-mobile-device">讀取設定中</span></div>
+        <div class="status" id="detail-mobile-device">Cloudflare Pages Variable + Secret</div>
       </label>
       <label class="source" id="card-local">
         <div class="source-head"><span class="source-title"><input type="checkbox" value="local" class="provider-choice"><span>區域網路 OpenList</span></span><span class="tag" id="status-local">讀取設定中</span></div>
@@ -100,14 +100,14 @@ import {
   getOpenListFileInfo,
   openListNetworkFetchOptions,
   loginOpenList
-} from "./assets/js/openlist-client.js?v=20261112-four-source-compare1";
+} from "./assets/js/openlist-client.js?v=20261113-mobile-device-source1";
 
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
   const PROVIDER_KEY = "frame-audio-active-openlist-provider";
   const LOCAL_KEY = "frame-audio-local-openlist-profile-v1";
-  const LABELS = { vps:"VPS Alist", worker:"OpenList Worker", k40:"K40 Alist", local:"區域網路 OpenList" };
+  const LABELS = { vps:"VPS Alist", worker:"OpenList Worker", "mobile-device":"Mobile Device Alist", local:"區域網路 OpenList" };
   const state = { active:"vps", profiles:{}, local:{baseUrl:""}, loading:true, running:false };
   const RESULT_COLUMNS = ["a","b","c","d"];
   const RESULT_ROWS = ["list","info","upstream","range-head","range-data","total"];
@@ -160,7 +160,7 @@ import {
       $("load-status").textContent="無法讀取 Pages 來源設定狀態："+(error.message||error)+"。沒有連接任何節點。";
       $("load-status").className="status err";
     }
-    for(const id of ["vps","worker","k40"]) {
+    for(const id of ["vps","worker","mobile-device"]) {
       const p=state.profiles[id]||{};
       const ready=Boolean(p.configured);
       setTag("status-"+id,ready?"已配置":"未配置",ready?"":"warn");

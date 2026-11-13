@@ -19,9 +19,9 @@ export function validOpenListPath(value) {
 }
 
 export async function postOpenList(env, endpoint, body, timeoutMs = 20000, provider = "vps") {
-  const source = ["vps", "worker", "k40"].includes(String(provider || "")) ? String(provider) : "";
+  const source = ["vps", "worker", "mobile-device"].includes(String(provider || "")) ? String(provider) : "";
   if (!source) return { response: error("未指定有效的活動伺服器來源。", 400) };
-  const label = source === "worker" ? "OpenList Worker" : source === "k40" ? "K40 Alist" : "VPS Alist";
+  const label = source === "worker" ? "OpenList Worker" : source === "mobile-device" ? "Mobile Device Alist" : "VPS Alist";
   const startedAt = performance.now();
   let profileMs = 0;
   let upstreamMs = 0;

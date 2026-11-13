@@ -1,7 +1,7 @@
-import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo, configureOpenListConnection, normalizeOpenListUrl, loginOpenList } from "./openlist-client.js?v=20261112-four-source-login1";
-import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261112-four-source-login1";
-import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js?v=20261112-four-source-login1";
-import { initLibraryUI } from "./library-ui.js?v=20261112-four-source-login1";
+import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo, configureOpenListConnection, normalizeOpenListUrl, loginOpenList } from "./openlist-client.js?v=20261113-mobile-device-source1";
+import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261113-mobile-device-source1";
+import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js?v=20261113-mobile-device-source1";
+import { initLibraryUI } from "./library-ui.js?v=20261113-mobile-device-source1";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
 (() => {
@@ -21,11 +21,11 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   const browseButton = $("#browse-root");
   const CONNECTION_PROVIDER_STORAGE_KEY = "frame-audio-active-openlist-provider";
   const LOCAL_OPENLIST_STORAGE_KEY = "frame-audio-local-openlist-profile-v1";
-  const PROVIDER_LABELS = { vps: "VPS Alist", worker: "OpenList Worker", k40: "K40 Alist", local: "區域網路 OpenList" };
+  const PROVIDER_LABELS = { vps: "VPS Alist", worker: "OpenList Worker", "mobile-device": "Mobile Device Alist", local: "區域網路 OpenList" };
   let serverProfiles = {
     vps: { baseUrl: "", hasToken: false, configured: false },
     worker: { baseUrl: "", hasToken: false, configured: false },
-    k40: { baseUrl: "", hasToken: false, configured: false }
+    "mobile-device": { baseUrl: "", hasToken: false, configured: false }
   };
   let localProfile = { baseUrl: "" };
   let localSessionToken = "";
@@ -299,11 +299,11 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   function selectedProviderFromStorage() {
     try {
       const value = localStorage.getItem(CONNECTION_PROVIDER_STORAGE_KEY);
-      return ["vps", "worker", "k40", "local"].includes(value) ? value : "vps";
+      return ["vps", "worker", "mobile-device", "local"].includes(value) ? value : "vps";
     } catch { return "vps"; }
   }
   function applyActiveOpenListProvider(provider, persist = false) {
-    activeProvider = ["vps", "worker", "k40", "local"].includes(provider) ? provider : "vps";
+    activeProvider = ["vps", "worker", "mobile-device", "local"].includes(provider) ? provider : "vps";
     const profile = activeProvider === "local" ? localProfile : (serverProfiles[activeProvider] || {});
     const baseUrl = activeProvider === "local" ? String(profile.baseUrl || "") : window.location.origin;
     activeBaseUrl = baseUrl || window.location.origin;
@@ -327,7 +327,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   function fillConnectionSettingsForm() {
     const vps = serverProfiles.vps || {};
     const worker = serverProfiles.worker || {};
-    const k40 = serverProfiles.k40 || {};
+    const mobileDevice = serverProfiles["mobile-device"] || {};
     const setValue = (id, value) => { const node = $("#" + id); if (node) node.value = String(value || ""); };
     setValue("local-openlist-base-url", localProfile.baseUrl);
     setValue("local-openlist-username", "");
@@ -342,15 +342,15 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     };
     renderServerStatus("vps-openlist-env-status", "VPS Alist", vps);
     renderServerStatus("worker-openlist-env-status", "OpenList Worker", worker);
-    renderServerStatus("k40-openlist-env-status", "K40 Alist", k40);
+    renderServerStatus("mobile-device-openlist-env-status", "Mobile Device Alist", mobileDevice);
     const status = $("#provider-settings-status");
     if (status) {
       status.textContent = "VPS Alist：" + (vps.configured ? "已就緒" : "未設定完整") +
         "；OpenList Worker：" + (worker.configured ? "已就緒" : "未設定完整") +
-        "；K40 Alist：" + (k40.configured ? "已就緒" : "未設定完整") +
+        "；Mobile Device Alist：" + (mobileDevice.configured ? "已就緒" : "未設定完整") +
         "；區域網路 OpenList：" + (localProfile.baseUrl ? "已保存地址，需重新登入" : "尚未設定") +
         "。三個伺服器端來源由 Pages Functions 自動登入並管理 Token；帳號密碼不會傳到瀏覽器。區域網路帳號密碼與 JWT 只保留在目前頁面記憶體。";
-      status.className = "statusbox" + ((vps.configured || worker.configured || k40.configured) ? " ok" : "");
+      status.className = "statusbox" + ((vps.configured || worker.configured || mobileDevice.configured) ? " ok" : "");
     }
     const active = $("#active-openlist-provider");
     if (active) active.value = activeProvider;
@@ -366,14 +366,14 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       serverProfiles = {
         vps: data.profiles?.vps || { baseUrl: "", hasToken: false, configured: false },
         worker: data.profiles?.worker || { baseUrl: "", hasToken: false, configured: false },
-        k40: data.profiles?.k40 || { baseUrl: "", hasToken: false, configured: false }
+        "mobile-device": data.profiles?.["mobile-device"] || { baseUrl: "", hasToken: false, configured: false }
       };
     } catch (cause) {
       console.warn("[FRAME Audio] Could not load Cloudflare OpenList environment profiles", cause);
       serverProfiles = {
         vps: { baseUrl: "", hasToken: false, configured: false },
         worker: { baseUrl: "", hasToken: false, configured: false },
-        k40: { baseUrl: "", hasToken: false, configured: false }
+        "mobile-device": { baseUrl: "", hasToken: false, configured: false }
       };
       const status = $("#provider-settings-status");
       if (status) {
@@ -411,12 +411,12 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         fillConnectionSettingsForm();
         await testConnection();
       } else {
-        if (!["vps", "worker", "k40"].includes(targetProvider)) throw new Error("請選擇有效的音訊來源。");
+        if (!["vps", "worker", "mobile-device"].includes(targetProvider)) throw new Error("請選擇有效的音訊來源。");
         if (!serverProfiles[targetProvider]?.configured) {
           const names = {
             vps: "ALIST_VPS_API_BASE_URL + ALIST_VPS_USERNAME / ALIST_VPS_PASSWORD",
             worker: "OPENLIST_WORKER_API_BASE_URL + OPENLIST_WORKER_USERNAME / OPENLIST_WORKER_PASSWORD",
-            k40: "ALIST_K40_API_BASE_URL + ALIST_K40_USERNAME / ALIST_K40_PASSWORD"
+            "mobile-device": "ALIST_MOBILE_DEVICE_API_BASE_URL + ALIST_MOBILE_DEVICE_USERNAME / ALIST_MOBILE_DEVICE_PASSWORD"
           }[targetProvider];
           throw new Error((PROVIDER_LABELS[targetProvider] || targetProvider) + " 尚未就緒。請在 Cloudflare Pages Preview 設定 " + names + "，然後重新部署。");
         }

@@ -154,7 +154,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
         <select id="active-openlist-provider">
           <option value="vps">VPS Alist（伺服器端）</option>
           <option value="worker">OpenList Worker（伺服器端）</option>
-          <option value="k40">K40 Alist（伺服器端）</option>
+          <option value="mobile-device">Mobile Device Alist（伺服器端）</option>
           <option value="local">區域網路 OpenList（裝置直連）</option>
         </select>
         <div class="hint">下拉選單只選擇候選來源；按下「保存設定並切換來源」後才會成為活動來源。只有活動來源會連線、測試或取得下載連結，其餘來源不會被探測。</div>
@@ -173,10 +173,10 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
           <div class="hint">Pages Functions 使用專用帳號登入，快取及更新 Token；帳號密碼不會傳到瀏覽器。</div>
         </section>
         <section class="provider-card">
-          <div class="provider-card-heading"><strong>K40 Alist</strong><span>SERVER PROXY</span></div>
-          <div class="hint" id="k40-openlist-env-status">正在讀取 Cloudflare Pages 設定……</div>
-          <div class="hint">網址 Variable：<code>ALIST_K40_API_BASE_URL</code><br>帳號 Secrets：<code>ALIST_K40_USERNAME</code>、<code>ALIST_K40_PASSWORD</code></div>
-          <div class="hint">Pages Functions 只在 K40 Alist 成為活動來源時使用專用帳號登入並呼叫它。K40 地址必須是 Pages Functions 可連接的 HTTPS 地址。</div>
+          <div class="provider-card-heading"><strong>Mobile Device Alist</strong><span>SERVER PROXY</span></div>
+          <div class="hint" id="mobile-device-openlist-env-status">正在讀取 Cloudflare Pages 設定……</div>
+          <div class="hint">網址 Variable：<code>ALIST_MOBILE_DEVICE_API_BASE_URL</code><br>帳號 Secrets：<code>ALIST_MOBILE_DEVICE_USERNAME</code>、<code>ALIST_MOBILE_DEVICE_PASSWORD</code></div>
+          <div class="hint">Pages Functions 只在 Mobile Device Alist 成為活動來源時使用專用帳號登入並呼叫它。Mobile Device 地址必須是 Pages Functions 可連接的 HTTPS 地址。</div>
         </section>
         <section class="provider-card provider-card-local">
           <div class="provider-card-heading"><strong>區域網路 OpenList</strong><span>DEVICE DIRECT</span></div>
@@ -191,7 +191,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
     </section>
     <div class="field">
       <label>Cloudflare 私有儲存</label>
-      <div class="hint">Cloudflare Access 保護管理 API。VPS Alist、OpenList Worker、K40 Alist 的網址及專用帳號 Secrets 由 Pages 提供；Pages Functions 在伺服器端自動取得及更新 JWT。區域網路 OpenList 使用帳號密碼直接登入，JWT 僅在目前頁面記憶體中保存。</div>
+      <div class="hint">Cloudflare Access 保護管理 API。VPS Alist、OpenList Worker、Mobile Device Alist 的網址及專用帳號 Secrets 由 Pages 提供；Pages Functions 在伺服器端自動取得及更新 JWT。區域網路 OpenList 使用帳號密碼直接登入，JWT 僅在目前頁面記憶體中保存。</div>
     </div>
     <div class="formgrid">
       <div class="field"><label for="music-root-path">Music 索引根目錄</label><input id="music-root-path" type="text" value="/中國移動雲盤/Kim King/03 Music" spellcheck="false"><div class="hint">Music 掃描只讀取此目錄及其子資料夾；可手動修改，或在下方瀏覽資料夾後選為 Music 根目錄。</div></div>
@@ -240,5 +240,5 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   });
 })();
 </script>
-<script type="module" src="/assets/js/app.js?v=20261113-server-auth1"></script>
+<script type="module" src="/assets/js/app.js?v=20261113-mobile-device-source1"></script>
 </body></html>

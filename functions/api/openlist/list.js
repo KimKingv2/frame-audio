@@ -16,8 +16,8 @@ export async function onRequestPost({ request, env }) {
     return error("OpenList per_page 必須介於 1 到 500。", 400);
   }
 
-  const provider = ["vps", "worker", "k40"].includes(String(body.provider || "")) ? String(body.provider) : "";
-  if (!provider) return error("請明確指定目前活動的 VPS、Worker 或 K40 來源。", 400);
+  const provider = ["vps", "worker", "mobile-device"].includes(String(body.provider || "")) ? String(body.provider) : "";
+  if (!provider) return error("請明確指定目前活動的 VPS、Worker 或 Mobile Device 來源。", 400);
   const result = await postOpenList(env, "list", {
     path: body.path,
     password: "",

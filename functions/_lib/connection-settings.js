@@ -12,11 +12,11 @@ function environmentProfiles(env) {
       username: String(env.OPENLIST_WORKER_USERNAME || "").trim(),
       password: String(env.OPENLIST_WORKER_PASSWORD || "")
     },
-    k40: {
-      baseUrl: String(env.ALIST_K40_API_BASE_URL || "").trim(),
-      token: String(env.ALIST_K40_API_TOKEN || "").trim(),
-      username: String(env.ALIST_K40_USERNAME || "").trim(),
-      password: String(env.ALIST_K40_PASSWORD || "")
+    "mobile-device": {
+      baseUrl: String(env.ALIST_MOBILE_DEVICE_API_BASE_URL || "").trim(),
+      token: String(env.ALIST_MOBILE_DEVICE_API_TOKEN || "").trim(),
+      username: String(env.ALIST_MOBILE_DEVICE_USERNAME || "").trim(),
+      password: String(env.ALIST_MOBILE_DEVICE_PASSWORD || "")
     }
   };
 }
@@ -27,7 +27,7 @@ export async function readConnectionProfiles(env) {
 
 export function publicConnectionProfiles(profiles) {
   const output = {};
-  for (const name of ["vps", "worker", "k40"]) {
+  for (const name of ["vps", "worker", "mobile-device"]) {
     const profile = profiles?.[name] || {};
     const baseUrl = String(profile.baseUrl || "");
     const hasCredentials = Boolean(String(profile.username || "").trim() && String(profile.password || ""));

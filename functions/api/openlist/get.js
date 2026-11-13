@@ -39,8 +39,8 @@ export async function onRequestPost({ request, env }) {
 
   if (!validOpenListPath(body?.path)) return error("OpenList 檔案路徑無效。", 400);
 
-  const provider = ["vps", "worker", "k40"].includes(String(body.provider || "")) ? String(body.provider) : "";
-  if (!provider) return error("請明確指定目前活動的 VPS、Worker 或 K40 來源。", 400);
+  const provider = ["vps", "worker", "mobile-device"].includes(String(body.provider || "")) ? String(body.provider) : "";
+  if (!provider) return error("請明確指定目前活動的 VPS、Worker 或 Mobile Device 來源。", 400);
   let result;
   let transientFailure = false;
   for (let attempt = 1; attempt <= LINK_RETRY_DELAYS_MS.length + 1; attempt += 1) {

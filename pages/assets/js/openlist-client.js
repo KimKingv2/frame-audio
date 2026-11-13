@@ -5,7 +5,7 @@ const DIRECTORY_LIST_RETRY_DELAY_MS = 900;
 let activeConnection = { provider: "vps", baseUrl: "", token: "" };
 
 export function configureOpenListConnection(config = {}) {
-  const provider = ["vps", "worker", "k40", "local"].includes(String(config.provider || "")) ? String(config.provider) : "vps";
+  const provider = ["vps", "worker", "mobile-device", "local"].includes(String(config.provider || "")) ? String(config.provider) : "vps";
   activeConnection = { provider, baseUrl: String(config.baseUrl || "").trim(), token: String(config.token || "").trim() };
   return { provider: activeConnection.provider, baseUrl: activeConnection.baseUrl };
 }
@@ -89,7 +89,7 @@ export function normalizeOpenListUrl(value) {
   return url.origin + url.pathname.replace(/\/+$/, "");
 }
 function sourceLabel(provider) {
-  return provider === "worker" ? "OpenList Worker" : provider === "k40" ? "K40 Alist" : provider === "local" ? "區域網路 OpenList" : "VPS Alist";
+  return provider === "worker" ? "OpenList Worker" : provider === "mobile-device" ? "Mobile Device Alist" : provider === "local" ? "區域網路 OpenList" : "VPS Alist";
 }
 async function directRequest(config, endpoint, payload, timeoutMs) {
   const baseUrl = normalizeOpenListUrl(config.baseUrl);
