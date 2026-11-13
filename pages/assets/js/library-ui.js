@@ -631,7 +631,7 @@ export function initLibraryUI(options = {}) {
     const favorites=saved.find(entry=>entry&&entry.id===FAVORITES_PLAYLIST_ID);
     const custom=saved.filter(entry=>entry&&typeof entry==="object"&&String(entry.id||"")!==FAVORITES_PLAYLIST_ID)
       .map(entry=>({id:String(entry.id||"").slice(0,100),name:String(entry.name||"未命名歌單").trim().slice(0,40)||"未命名歌單",items:cleanRefs(entry)})).filter(entry=>entry.id);
-    state.playlists=[{id:FAVORITES_PLAYLIST_ID,name:"收藏夾",builtIn:true,items:cleanRefs(favorites)},...custom];
+    state.playlists=[{id:FAVORITES_PLAYLIST_ID,name:"我喜歡的音樂",builtIn:true,items:cleanRefs(favorites)},...custom];
   }
   function saveUserPlaylists() {
     try{localStorage.setItem(USER_PLAYLISTS_STORAGE_KEY,JSON.stringify(state.playlists.map(entry=>({id:entry.id,name:entry.name,items:entry.items}))));return true;}
@@ -648,7 +648,20 @@ export function initLibraryUI(options = {}) {
     const exists=playlistContainsItem(playlist,item),shouldAdd=forceAdd===null?!exists:forceAdd===true;
     if(shouldAdd&&!exists)playlist.items.push({id,path});
     if(!shouldAdd&&exists)playlist.items=playlist.items.filter(ref=>!((id&&String(ref.id||"")===id)||(path&&String(ref.path||"")===path)));
-    saveUserPlaylists();return shouldAdd;
+    saveUserPlaylists();syncFavoriteButton(state.currentItem);return shouldAdd;
+  }
+  function syncFavoriteButton(item=state.currentItem){
+    const button=$("#player-favorite-toggle");if(!button)return;
+    const available=!!item&&item.itemType==="track";
+    const favorites=findPlaylist(FAVORITES_PLAYLIST_ID);
+    const included=available&&!!favorites&&playlistContainsItem(favorites,item);
+    const label=!available?(item?.itemType==="episode"?"Podcast 單集不加入音樂收藏":"尚未播放歌曲"):
+      included?"從「我喜歡的音樂」移除":"加入「我喜歡的音樂」";
+    button.disabled=!available;
+    button.classList.toggle("is-favorite",included);
+    button.setAttribute("aria-pressed",String(included));
+    button.setAttribute("aria-label",label);
+    button.title=label;
   }
   function createUserPlaylist(name){
     const clean=String(name||"").trim().slice(0,40);if(!clean)throw new Error("請先輸入歌單名稱。");
@@ -713,7 +726,7 @@ export function initLibraryUI(options = {}) {
       return "Podcast / "+String(item?.showTitle||show?.title||item?.subtitle||"節目");
     }
     if(state.view==="folders"&&state.selectedFolder)return "資料夾 / "+displayFolderName(state.selectedFolder.name||state.selectedFolder.path.split("/").filter(Boolean).pop()||"未命名資料夾");
-    if(state.view==="playlists"&&state.selectedPlaylistId){const playlist=findPlaylist(state.selectedPlaylistId);if(playlist)return playlist.id===FAVORITES_PLAYLIST_ID?"收藏夾":"歌單 / "+playlist.name;}
+    if(state.view==="playlists"&&state.selectedPlaylistId){const playlist=findPlaylist(state.selectedPlaylistId);if(playlist)return playlist.id===FAVORITES_PLAYLIST_ID?"我喜歡的音樂":"歌單 / "+playlist.name;}
     if(state.view==="album-detail"&&state.selectedAlbum){
       const album=state.selectedAlbum;
       return "專輯 / "+String(album.title||"未命名專輯")+(album.artist?"（"+album.artist+"）":"");
@@ -1179,7 +1192,7 @@ export function initLibraryUI(options = {}) {
         '<small>'+playlist.items.length.toLocaleString()+' 首歌曲</small><em>'+(favorites?"預設收藏歌單":"自訂歌單")+'</em></button>';
     }).join("");
     root.innerHTML=sectionHead("YOUR PLAYLISTS","收藏歌單",'<button class="primary" type="button" data-action="open-playlist-creator">＋ 新增歌單</button>')+
-      '<p class="library-description">歌曲列右側的「＋」可以加入或移出歌單。收藏夾固定置頂，你建立的歌單會依建立順序排列。</p>'+
+      '<p class="library-description">歌曲列右側的「＋」可以加入或移出歌單。「我喜歡的音樂」固定置頂，你建立的歌單會依建立順序排列。</p>'+
       '<div class="playlist-grid">'+cards+'</div>';
   }
   function renderPlaylistDetail(){
@@ -1416,6 +1429,7 @@ export function initLibraryUI(options = {}) {
     if(artistSeparator)artistSeparator.hidden=!artist;
     $("#player-type").textContent=item?.itemType==="episode"?"PODCAST":item?"MUSIC":"READY";
     const nowTile=$("#player-now-playing");if(nowTile)nowTile.disabled=!item;
+    syncFavoriteButton(item);
     if($("#lyrics-dialog")?.open)renderLyricsPanel();
     if(state.view==="now-playing")renderNowPlaying();
     const lyricsButton=$("#player-lyrics");
@@ -1903,7 +1917,7 @@ export function initLibraryUI(options = {}) {
       }
       if(action==="play-playlist"){
         const playlist=findPlaylist(state.selectedPlaylistId),list=resolvePlaylistTracks(playlist);
-        if(list.length)await playItem("track",list[0],list,0,{queueLabel:playlist?.id===FAVORITES_PLAYLIST_ID?"收藏夾":"歌單 / "+String(playlist?.name||"播放列表")});
+        if(list.length)await playItem("track",list[0],list,0,{queueLabel:playlist?.id===FAVORITES_PLAYLIST_ID?"我喜歡的音樂":"歌單 / "+String(playlist?.name||"播放列表")});
         return;
       }
       if(action==="reindex-current-lyrics"){
@@ -2152,6 +2166,13 @@ export function initLibraryUI(options = {}) {
   $("#player-lyrics")?.addEventListener("click",()=>{
     if(!state.currentItem){message("請先播放一首歌曲。");return;}
     renderLyricsPanel();openModal($("#lyrics-dialog"));syncLyricsHighlight();
+  });
+  $("#player-favorite-toggle")?.addEventListener("click",()=>{
+    const item=state.currentItem;if(!item||item.itemType!=="track")return;
+    const favorites=findPlaylist(FAVORITES_PLAYLIST_ID);if(!favorites)return;
+    togglePlaylistItem(favorites,item);
+    syncFavoriteButton(item);
+    if(state.view==="playlists"&&state.selectedPlaylistId===FAVORITES_PLAYLIST_ID)renderPlaylistDetail();
   });
   $("#player-now-playing")?.addEventListener("click",()=>{
     if(!state.currentItem){message("請先從曲庫選擇音訊。");return;}

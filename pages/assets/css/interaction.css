@@ -1147,3 +1147,44 @@ body.desktop-sidebar-collapsed .player-queue-panel{right:90px;width:min(420px,ca
 .playlist-picker-copy{display:grid;gap:4px;min-width:0;flex:1}.playlist-picker-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}.playlist-picker-copy small{color:#93899f;font-size:9px}.playlist-picker-check{color:#d8c0f2;font-size:16px}
 .playlist-create-inline{display:flex;align-items:end;gap:10px;padding-top:14px;border-top:1px solid rgba(206,184,239,.1)}.playlist-create-inline .field{min-width:0;flex:1}.playlist-create-inline .primary{white-space:nowrap;min-height:39px}#playlist-dialog-status{margin:12px 0 0}
 @media(max-width:520px){.playlist-create-inline{align-items:stretch;flex-direction:column}.playlist-create-inline .primary{width:100%}}
+
+
+/* Favourite toggle beside the current track in the dock. */
+.dock-current-group{
+  grid-column:1;grid-row:1;display:flex;align-items:center;gap:10px;
+  width:100%;max-width:760px;min-width:0;
+}
+.dock-current-group .now{
+  flex:1 1 auto;width:auto;max-width:none;min-width:0;
+}
+.dock-favorite-toggle{
+  display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;min-width:38px;
+  padding:0;border:1px solid rgba(206,184,239,.16);border-radius:12px;
+  color:#b9a9c9;background:rgba(255,255,255,.035);cursor:pointer;
+  transition:color .18s ease,background .18s ease,border-color .18s ease,transform .18s ease;
+  touch-action:manipulation;
+}
+.dock-favorite-toggle svg{display:block;width:19px;height:19px;overflow:visible}
+.dock-favorite-toggle svg path{
+  fill:transparent;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;
+  transition:fill .18s ease,stroke .18s ease;
+}
+.dock-favorite-toggle:hover:not(:disabled){color:#f0c0dc;border-color:rgba(230,158,197,.35);background:rgba(230,158,197,.09)}
+.dock-favorite-toggle.is-favorite{color:#e9a4c7;border-color:rgba(230,158,197,.3);background:rgba(230,158,197,.1)}
+.dock-favorite-toggle.is-favorite svg path{fill:currentColor}
+.dock-favorite-toggle:active:not(:disabled){transform:scale(.92)}
+.dock-favorite-toggle:disabled{opacity:.3;cursor:not-allowed}
+@media(max-width:900px) and (min-width:761px){
+  .dock-current-group{gap:7px}
+  .dock-favorite-toggle{flex-basis:35px;width:35px;height:35px;min-width:35px}
+}
+@media(max-width:760px){
+  .dock-current-group{gap:7px}
+  .dock-favorite-toggle{flex-basis:34px;width:34px;height:34px;min-width:34px;border-radius:11px}
+  .dock-favorite-toggle svg{width:18px;height:18px}
+}
+@media(max-width:390px){
+  .dock-current-group{gap:5px}
+  .dock-favorite-toggle{flex-basis:31px;width:31px;height:31px;min-width:31px;border-radius:10px}
+}
+@media(prefers-reduced-motion:reduce){.dock-favorite-toggle,.dock-favorite-toggle svg path{transition:none!important}}
