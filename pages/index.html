@@ -28,7 +28,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 </style>
 <link rel="stylesheet" href="/assets/css/metadata.css">
 <link rel="stylesheet" href="/assets/css/library.css?v=20261112-refresh-rate-polish1">
-<link rel="stylesheet" href="/assets/css/interaction.css?v=20261113-mobile-nav-motion1">
+<link rel="stylesheet" href="/assets/css/interaction.css?v=20261113-distinct-nav-icons1">
 </head>
 <body>
 <button class="mobile-nav-scrim" id="mobile-nav-scrim" type="button" aria-label="關閉導覽選單" aria-hidden="true" tabindex="-1"></button>
@@ -41,20 +41,20 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   <div class="label">LIBRARY</div>
   <nav class="nav" aria-label="媒體庫">
     <button class="active" data-view="music" type="button" title="Music" aria-label="Music"><span class="nav-icon" aria-hidden="true">♫</span><span class="nav-label">Music</span></button>
-    <button data-view="podcasts" type="button" title="Podcasts" aria-label="Podcasts"><span class="nav-icon" aria-hidden="true">◖</span><span class="nav-label">Podcasts</span></button>
+    <button data-view="podcasts" type="button" title="Podcasts" aria-label="Podcasts"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><rect x="9" y="3.5" width="6" height="11" rx="3" stroke="currentColor" stroke-width="1.7"/><path d="M6.5 11.5v.8a5.5 5.5 0 0 0 11 0v-.8M12 17.8V21m-3 0h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M4.6 8.5a8 8 0 0 0 0 7M19.4 8.5a8 8 0 0 1 0 7" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" opacity=".7"/></svg></span><span class="nav-label">Podcasts</span></button>
   </nav>
   <div class="gapline"></div>
   <div class="label">MUSIC</div>
   <nav class="nav secondary" aria-label="音樂分類">
-    <button data-view="tracks" type="button" title="所有歌曲" aria-label="所有歌曲"><span class="nav-icon" aria-hidden="true">≡</span><span class="nav-label">所有歌曲</span></button>
-    <button data-view="albums" type="button" title="專輯" aria-label="專輯"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">專輯</span></button>
-    <button data-view="artists" type="button" title="歌手" aria-label="歌手"><span class="nav-icon" aria-hidden="true">♙</span><span class="nav-label">歌手</span></button>
-    <button data-view="folders" type="button" title="資料夾歌單" aria-label="資料夾歌單"><span class="nav-icon" aria-hidden="true">▱</span><span class="nav-label">資料夾歌單</span></button>
+    <button data-view="tracks" type="button" title="所有歌曲" aria-label="所有歌曲"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><path d="M10 5.5h10M10 11.8h10M10 18.1h7" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"/><path d="M5.5 5.2v9.7a2 2 0 1 1-1.5-1.9V7l5-1v7.9a2 2 0 1 1-1.5-1.9V4.7l-2 .5Z" fill="currentColor" opacity=".88"/></svg></span><span class="nav-label">所有歌曲</span></button>
+    <button data-view="albums" type="button" title="專輯" aria-label="專輯"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><path d="M4 4.5h11.5v15H4z" stroke="currentColor" stroke-width="1.65" stroke-linejoin="round"/><path d="M7 7.5h5.5M7 10h3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><circle cx="16.8" cy="12" r="4.2" fill="#191622" stroke="currentColor" stroke-width="1.65"/><circle cx="16.8" cy="12" r="1.15" fill="currentColor"/><path d="M16.8 7.8a4.2 4.2 0 0 1 4.2 4.2" stroke="currentColor" stroke-width=".9" opacity=".55"/></svg></span><span class="nav-label">專輯</span></button>
+    <button data-view="artists" type="button" title="歌手" aria-label="歌手"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><circle cx="12" cy="8" r="3.35" stroke="currentColor" stroke-width="1.7"/><path d="M4.3 20c.75-3.55 3.35-5.45 7.7-5.45s6.95 1.9 7.7 5.45" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M8.2 16.1c1.05.7 2.3 1.05 3.8 1.05s2.75-.35 3.8-1.05" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity=".55"/></svg></span><span class="nav-label">歌手</span></button>
+    <button data-view="folders" type="button" title="資料夾歌單" aria-label="資料夾歌單"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><path d="M3.5 7.6A2.1 2.1 0 0 1 5.6 5.5h4l2 2.1h6.8a2.1 2.1 0 0 1 2.1 2.1v8.7a1.9 1.9 0 0 1-1.9 1.9H5.4a1.9 1.9 0 0 1-1.9-1.9V7.6Z" stroke="currentColor" stroke-width="1.65" stroke-linejoin="round"/><path d="M13.5 10.2v5.55a1.65 1.65 0 1 1-1.25-1.6v-3.3l4-1v4.55a1.65 1.65 0 1 1-1.25-1.6v-3.25l-1.5.65Z" fill="currentColor" opacity=".88"/></svg></span><span class="nav-label">資料夾歌單</span></button>
   </nav>
   <div class="gapline"></div>
   <div class="label">PODCASTS</div>
   <nav class="nav secondary" aria-label="Podcast 分類">
-    <button data-view="shows" type="button" title="所有節目" aria-label="所有節目"><span class="nav-icon" aria-hidden="true">▣</span><span class="nav-label">所有節目</span></button>
+    <button data-view="shows" type="button" title="所有節目" aria-label="所有節目"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><rect x="3.5" y="4.5" width="17" height="15" rx="3" stroke="currentColor" stroke-width="1.65"/><path d="M7.2 11.8v1.4M9.6 9.1v6.8M12 7.4v10.2M14.4 9.6v5.8M16.8 11v3" stroke="currentColor" stroke-width="1.55" stroke-linecap="round"/><path d="M6.5 7.4h.01M17.5 16.7h.01" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" opacity=".65"/></svg></span><span class="nav-label">所有節目</span></button>
     <button data-view="continue" type="button" title="繼續收聽" aria-label="繼續收聽"><span class="nav-icon" aria-hidden="true">◷</span><span class="nav-label">繼續收聽</span></button>
   </nav>
   <div class="gapline"></div>
