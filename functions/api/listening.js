@@ -1,7 +1,7 @@
 import { error, json, requireAdmin, readJson, isObject } from "../_lib/api.js";
 
 const ITEM_TYPES = new Set(["track", "episode"]);
-const VIEWS = new Set(["progress", "continue", "report"]);
+const VIEWS = new Set(["progress", "continue", "recent", "report"]);
 
 function validId(value) {
   return typeof value === "string" && value.length > 0 && value.length <= 128 &&
@@ -32,7 +32,7 @@ export async function onRequest({ request, env }) {
     const url = new URL(request.url);
     const view = url.searchParams.get("view") || "progress";
     const itemType = url.searchParams.get("itemType") || "episode";
-    if (!VIEWS.has(view)) return error("view 必須是 progress、continue 或 report。");
+    if (!VIEWS.has(view)) return error("view 必須是 progress、continue、recent 或 report。");
     if (!ITEM_TYPES.has(itemType)) return error("itemType 必須是 track 或 episode。");
 
     try {
@@ -44,6 +44,15 @@ export async function onRequest({ request, env }) {
           "FROM listening_progress WHERE item_type=? AND item_id=?"
         ).bind(itemType, itemId).first();
         return json({ ok: true, item: row || null });
+      }
+
+      if (view === "recent") {
+        const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit") || 8)));
+        const rows = await env.DB.prepare(
+          "SELECT item_type,item_id,path,title,subtitle,artwork_hash,position_ms,duration_ms,playback_rate,updated_at " +
+          "FROM listening_progress WHERE item_type=? ORDER BY updated_at DESC LIMIT ?"
+        ).bind(itemType, limit).all();
+        return json({ ok: true, itemType, items: rows.results || [] });
       }
 
       if (view === "continue") {
