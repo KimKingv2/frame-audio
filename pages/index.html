@@ -1156,6 +1156,47 @@ header.top .topright > button#open-settings:active{
   }
 }
 
+
+
+/* The track pager stays light and frameless, in line with the rest of the library. */
+.library-pagination{
+  margin:24px 0 34px!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  gap:16px!important;
+  color:#817a80!important;
+}
+.library-pagination .secondary{
+  min-width:0!important;
+  padding:8px 10px!important;
+  border:0!important;
+  border-radius:8px!important;
+  background:transparent!important;
+  color:#a79ba9!important;
+  box-shadow:none!important;
+}
+.library-pagination .secondary:hover:not(:disabled){
+  background:rgba(145,111,161,.11)!important;
+  color:#d0bfd8!important;
+}
+.library-pagination .secondary:disabled{
+  opacity:.24!important;
+  background:transparent!important;
+  cursor:default!important;
+}
+.library-pagination > span{
+  color:#817a80!important;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:.015em;
+}
+@media(max-width:520px){
+  .library-pagination{gap:7px!important;margin:20px 0 28px!important;font-size:9px!important}
+  .library-pagination .secondary{padding:8px 7px!important;font-size:10px!important}
+}
+
 </style>
 </head>
 <body>
@@ -1394,5 +1435,5 @@ header.top .topright > button#open-settings:active{
   });
 })();
 </script>
-<script type="module" src="/assets/js/app.js?v=20261113-local-session2"></script>
+<script type="module" src="/assets/js/app.js?v=20261113-track-pages-500"></script>
 </body></html>

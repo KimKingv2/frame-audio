@@ -33,7 +33,7 @@ export function initLibraryUI(options = {}) {
     lyricsScrollPause:new WeakMap()
   };
   const PLAY_MODES=["sequential","repeat-one","repeat-all"];
-  const TRACKS_PAGE_SIZE=200;
+  const TRACKS_PAGE_SIZE=500;
   const QUEUE_ROW_HEIGHT_DESKTOP=58;
   const QUEUE_ROW_HEIGHT_MOBILE=54;
   const QUEUE_OVERSCAN=8;
@@ -596,19 +596,65 @@ export function initLibraryUI(options = {}) {
     return '<div class="media-cover '+extra+'"><span>'+letter+'</span>'+
       (/^[a-f0-9]{64}$/i.test(String(hash||""))?'<img data-art-hash="'+hash+'" alt="" loading="lazy">':"")+'</div>';
   }
-  function loadCovers() {
-    revokeCovers();
-    root.querySelectorAll("img[data-art-hash]").forEach(async img=>{
-      const hash=img.dataset.artHash;if(!/^[a-f0-9]{64}$/i.test(hash))return;
-      try{
-        const res=await fetch("/api/artwork/"+hash,{credentials:"same-origin"});
+  let artworkObserver=null;
+  const artworkLoadQueue=[];
+  const artworkControllers=new Set();
+  let artworkLoadsInFlight=0;
+  let artworkLoadGeneration=0;
+  const ARTWORK_FETCH_CONCURRENCY=6;
+  function pumpArtworkLoadQueue(){
+    while(artworkLoadsInFlight<ARTWORK_FETCH_CONCURRENCY&&artworkLoadQueue.length){
+      const task=artworkLoadQueue.shift(),img=task?.img,generation=task?.generation;
+      if(!img?.isConnected||generation!==artworkLoadGeneration)continue;
+      const hash=img.dataset.artHash;
+      if(!/^[a-f0-9]{64}$/i.test(String(hash||"")))continue;
+      const controller=new AbortController();
+      artworkControllers.add(controller);
+      artworkLoadsInFlight++;
+      void fetch("/api/artwork/"+hash,{credentials:"same-origin",signal:controller.signal}).then(async res=>{
         if(!res.ok)return;
-        const url=URL.createObjectURL(await res.blob());state.artworkUrls.add(url);
-        img.src=url;img.parentElement?.classList.add("has-artwork");
-      }catch{}
-    });
+        const blob=await res.blob(),url=URL.createObjectURL(blob);
+        if(generation!==artworkLoadGeneration||!img.isConnected){URL.revokeObjectURL(url);return;}
+        state.artworkUrls.add(url);
+        img.src=url;
+        img.parentElement?.classList.add("has-artwork");
+      }).catch(()=>{}).finally(()=>{
+        artworkControllers.delete(controller);
+        artworkLoadsInFlight=Math.max(0,artworkLoadsInFlight-1);
+        pumpArtworkLoadQueue();
+      });
+    }
   }
-  function revokeCovers(){for(const url of state.artworkUrls)URL.revokeObjectURL(url);state.artworkUrls.clear();}
+  function loadCovers(){
+    revokeCovers();
+    const generation=artworkLoadGeneration;
+    const images=[...root.querySelectorAll("img[data-art-hash]")];
+    if(!images.length)return;
+    if("IntersectionObserver" in window){
+      const observer=new IntersectionObserver(entries=>{
+        for(const entry of entries){
+          if(!entry.isIntersecting)continue;
+          observer.unobserve(entry.target);
+          if(entry.target.isConnected)artworkLoadQueue.push({img:entry.target,generation});
+        }
+        pumpArtworkLoadQueue();
+      },{root:null,rootMargin:"360px 0px",threshold:0});
+      artworkObserver=observer;
+      images.forEach(img=>observer.observe(img));
+      return;
+    }
+    images.forEach(img=>artworkLoadQueue.push({img,generation}));
+    pumpArtworkLoadQueue();
+  }
+  function revokeCovers(){
+    artworkLoadGeneration++;
+    artworkObserver?.disconnect();
+    artworkObserver=null;
+    artworkLoadQueue.length=0;
+    for(const controller of artworkControllers)controller.abort();
+    for(const url of state.artworkUrls)URL.revokeObjectURL(url);
+    state.artworkUrls.clear();
+  }
   const pathOf=item=>item.file?.path||item.path||"";
   const fileNameOf=item=>String(pathOf(item)||"").split("/").pop()||"";
   function compareTrackFileNames(a,b){
