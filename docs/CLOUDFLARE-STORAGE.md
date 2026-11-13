@@ -7,12 +7,12 @@ FRAME Audio uses Pages Functions as its same-origin API, D1 for catalogue / scan
 - D1 database: `frame-audio-catalog`, binding `DB`
 - R2 bucket: `frame-audio-artwork`, binding `ARTWORKS`
 - Secret: `FRAME_AUDIO_API_ADMIN_TOKEN` (FRAME Audio internal API admin gate)
-- KV namespace binding: `FRAME_AUDIO_TOKEN_CACHE` (Preview; short-lived upstream JWT cache)
+- Shared KV namespace: `media-platform-auth-cache`; binding variable: `MEDIA_AUTH_TOKEN_CACHE` (short-lived upstream JWT cache shared by media apps)
 - Secrets: `ALIST_VPS_USERNAME`, `ALIST_VPS_PASSWORD`; Text: `ALIST_VPS_API_BASE_URL`
 - Secrets: `OPENLIST_WORKER_USERNAME`, `OPENLIST_WORKER_PASSWORD`; Text: `OPENLIST_WORKER_API_BASE_URL`
 - Secrets: `ALIST_K40_USERNAME`, `ALIST_K40_PASSWORD`; Text: `ALIST_K40_API_BASE_URL`
 
-VPS / Worker / K40 service-account credentials are read only by Pages Functions. Functions obtain upstream JWTs through each provider login API. JWTs are cached in the optional `FRAME_AUDIO_TOKEN_CACHE` KV binding with an expiry TTL and in isolate memory; they are never sent to the browser or stored in D1/R2. Without KV, the application falls back to isolate-memory caching and re-authenticates after a cold start. The existing `FRAME_AUDIO_API_ADMIN_TOKEN` remains a separate application-level gate; do not replace it with an Alist Token or combine the values.
+VPS / Worker / K40 service-account credentials are read only by Pages Functions. Functions obtain upstream JWTs through each provider login API. JWTs are cached in the optional `MEDIA_AUTH_TOKEN_CACHE` KV binding with an expiry TTL and in isolate memory; they are never sent to the browser or stored in D1/R2. Without KV, the application falls back to isolate-memory caching and re-authenticates after a cold start. The existing `FRAME_AUDIO_API_ADMIN_TOKEN` remains a separate application-level gate; do not replace it with an Alist Token or combine the values.
 
 ## Environment settings
 
@@ -33,7 +33,7 @@ Open **Workers & Pages → frame-audio → Settings → Variables and Secrets**.
 
 The new username/password Secrets take priority and enable automatic server-side login and renewal. During migration, existing `ALIST_VPS_API_TOKEN`, `OPENLIST_WORKER_API_TOKEN`, `ALIST_K40_API_TOKEN` and legacy aliases remain supported as fallback. Do not remove old Token Secrets until each source has passed Preview tests. Never paste Secrets into the website, GitHub, URLs or chat. The site shows only whether a profile is configured and never reveals credentials or JWTs.
 
-Keep using the existing D1 and R2 resources. Under **Settings → Bindings → KV namespace bindings**, create or select a dedicated Preview namespace and bind it with variable name `FRAME_AUDIO_TOKEN_CACHE`. Do not share this cache namespace with Production. The application still works without KV using per-isolate memory cache, but cold starts will perform a new login. Add the matching Production credentials and a separate Production KV binding only after Preview has passed testing. After adding or changing environment values or bindings, redeploy the matching branch.
+Keep using the existing D1 and R2 resources. Under **Settings → Bindings → KV namespace bindings**, create or select a dedicated Preview namespace and bind it with variable name `MEDIA_AUTH_TOKEN_CACHE`. Do not share this cache namespace with Production. The application still works without KV using per-isolate memory cache, but cold starts will perform a new login. To reuse a JWT across separate media applications, they must use the same namespace, identical provider identity/base URL/username cache-key derivation, the `media-platform:provider-auth:v1` key prefix, and matching `Client-Id: media-platform-server-{provider}` on both login and API requests. Add the matching Production credentials and a separate Production KV binding only after Preview has passed testing. After adding or changing environment values or bindings, redeploy the matching branch.
 
 ## D1 migrations
 

@@ -16,14 +16,14 @@ FRAME Audio has four possible sources that share one D1 catalogue and R2 artwork
 - An unconfigured active server provider is reported unavailable; the app does not silently fall back to a different provider.
 - The settings endpoint reads environment bindings and returns endpoint configuration plus a credential-present flag; it does not contact any Alist/OpenList node.
 - Server sources prefer dedicated username/password Secrets and automatically call `/api/auth/login`; legacy static Token Secrets remain a migration fallback until each provider passes testing.
-- Provider JWTs are cached in the optional `FRAME_AUDIO_TOKEN_CACHE` KV binding with an expiry TTL, plus per-isolate memory. No credentials or JWTs are returned to browser JavaScript.
+- Provider JWTs are cached in the shared `MEDIA_AUTH_TOKEN_CACHE` KV binding with an expiry TTL, plus per-isolate memory. The generic cache prefix is `media-platform:provider-auth:v1`; separate media applications can reuse cached logins only when provider identity, base URL, username, key derivation and `Client-Id: media-platform-server-{provider}` all match. No credentials or JWTs are returned to browser JavaScript.
 - The diagnostic page lists all four providers without probing them. Users can select any 2–4 providers, including all four; only after the explicit Start test button is pressed are those selected providers temporarily activated for this diagnostic run, one at a time. The saved app-wide active provider is not changed. Unselected providers receive no API requests.
 - VPS, Worker and K40 requests include the explicit active provider ID. Unknown IDs are rejected rather than defaulting to VPS.
 - Outside an explicitly started comparison, no inactive source receives list/get/login/range requests or next-track prefetch requests. During a comparison, only the 2–4 explicitly selected providers are contacted, in sequence; all remaining providers are untouched.
 
 ## Cloudflare Preview / Production values
 
-Configure each Pages environment separately. For the Preview migration, create a KV namespace and bind it as `FRAME_AUDIO_TOKEN_CACHE`. Add the service-account Secrets below, and keep legacy Token Secrets until every provider passes testing. Add these K40 values:
+Configure each Pages environment separately. For the Preview migration, create or select the shared KV namespace `media-platform-auth-cache` and bind it as `MEDIA_AUTH_TOKEN_CACHE`. Keep a separate namespace for Production. Add the service-account Secrets below, and keep legacy Token Secrets until every provider passes testing. Add these K40 values:
 
 | Name | Type |
 |---|---|

@@ -2,8 +2,8 @@ const hotTokens = new Map();
 const pendingLogins = new Map();
 
 const LOGIN_TIMEOUT_MS = 15000;
-const CACHE_PREFIX = "frame-audio:provider-auth:v1";
-const CLIENT_ID_PREFIX = "frame-audio-server";
+const CACHE_PREFIX = "media-platform:provider-auth:v1";
+const CLIENT_ID_PREFIX = "media-platform-server";
 
 function decodeJwtExpiry(token) {
   const parts = String(token || "").split(".");
@@ -48,7 +48,7 @@ async function readCachedToken(env, key) {
   if (usableRecord(hot)) return hot;
   if (hot) hotTokens.delete(key);
 
-  const binding = env?.FRAME_AUDIO_TOKEN_CACHE;
+  const binding = env?.MEDIA_AUTH_TOKEN_CACHE;
   if (!binding || typeof binding.get !== "function") return null;
 
   try {
@@ -69,7 +69,7 @@ async function readCachedToken(env, key) {
 
 async function writeCachedToken(env, key, record) {
   hotTokens.set(key, record);
-  const binding = env?.FRAME_AUDIO_TOKEN_CACHE;
+  const binding = env?.MEDIA_AUTH_TOKEN_CACHE;
   if (!binding || typeof binding.put !== "function") return;
 
   const ttl = Math.max(60, Math.ceil((record.expiresAt - Date.now()) / 1000));
@@ -85,7 +85,7 @@ async function writeCachedToken(env, key, record) {
 
 async function removeCachedToken(env, key) {
   hotTokens.delete(key);
-  const binding = env?.FRAME_AUDIO_TOKEN_CACHE;
+  const binding = env?.MEDIA_AUTH_TOKEN_CACHE;
   if (!binding || typeof binding.delete !== "function") return;
   try {
     await binding.delete(key);

@@ -70,7 +70,7 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000, provi
         headers: {
           "Authorization": token,
           "Content-Type": "application/json",
-          "Client-Id": "frame-audio-server-" + source
+          "Client-Id": "media-platform-server-" + source
         },
         body: JSON.stringify(body),
         signal: controller.signal

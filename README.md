@@ -62,7 +62,7 @@ FRAME Audio 是以 VPS Alist 為音訊來源的私人音訊平台，包含 **Mus
 - Build command：留空
 - Build output directory：`pages`
 
-正式環境與 Preview 環境各自保留 `DB`、`ARTWORKS` bindings。上游自動登入先在 Preview 部署：設定 KV binding `FRAME_AUDIO_TOKEN_CACHE`、`FRAME_AUDIO_API_ADMIN_TOKEN` 及三個來源各自的帳密 Secrets／`*_API_BASE_URL` Variables；全部測試通過後才遷移 Production。Access 必須保護 `frame-audio.pages.dev` 與 `*.frame-audio.pages.dev`。詳細步驟見 [docs/CLOUDFLARE-STORAGE.md](docs/CLOUDFLARE-STORAGE.md)。
+正式環境與 Preview 環境各自保留 `DB`、`ARTWORKS` bindings。上游自動登入先在 Preview 部署：設定共用 KV namespace `media-platform-auth-cache`（binding `MEDIA_AUTH_TOKEN_CACHE`）、`FRAME_AUDIO_API_ADMIN_TOKEN` 及三個來源各自的帳密 Secrets／`*_API_BASE_URL` Variables；其他媒體專案可綁定同一 namespace，並遵循相同 Token 快取鍵與 `Client-Id` 規格。全部測試通過後才遷移 Production。Access 必須保護 `frame-audio.pages.dev` 與 `*.frame-audio.pages.dev`。詳細步驟見 [docs/CLOUDFLARE-STORAGE.md](docs/CLOUDFLARE-STORAGE.md)。
 
 新增或修改環境變數及 Secret 後，必須觸發一次新的 Pages 部署，新的設定才會注入該部署。請確認 Secret 設定在正確的環境（Production 或 Preview），再重新部署對應分支。
 
