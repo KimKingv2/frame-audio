@@ -1819,7 +1819,14 @@ export function initLibraryUI(options = {}) {
     console.error("[FRAME Audio] "+activePlaybackProviderLabel+" HTML5 Audio MediaError code:",code);
   });
   audio.addEventListener("play",()=>{
-    startSession();saveProgress(true);savePlaybackPosition(true);$("#player-toggle").textContent="Ⅱ";
+    startSession();saveProgress(true);savePlaybackPosition(true);
+    if(state.currentItem?.itemType==="track"){
+      const id=String(state.currentItem.id||state.currentItem.item_id||""),path=pathOf(state.currentItem);
+      state.recentTracks=[state.currentItem,...state.recentTracks.filter(item=>
+        !(id&&String(item.id||item.item_id||"")===id)&&!(path&&pathOf(item)===path)
+      )].slice(0,8);
+    }
+    $("#player-toggle").textContent="Ⅱ";
     document.body.classList.add("is-audio-playing");
     // Re-publish after the media element starts and the browser can activate
     // this tab's media session (important for iOS Lock Screen artwork).
@@ -2011,7 +2018,7 @@ export function initLibraryUI(options = {}) {
     if(cue&&Number.isFinite(cue.time)){audio.currentTime=cue.time;syncLyricsHighlight({forceScroll:true});}
   });
 
-  window.setInterval(()=>{if(!state.currentItem||audio.paused)return;accountTime();persistSession(false);saveProgress(false);savePlaybackPosition(true);savePlaybackQueueState();timeline();},15000);
+  window.setInterval(()=>{if(!state.currentItem||audio.paused)return;accountTime();persistSession(false);saveProgress(false);savePlaybackPosition(true);timeline();},15000);
   window.addEventListener("pagehide",()=>{accountTime();persistSession(false);saveProgress(true);savePlaybackPosition(true);savePlaybackQueueState();});
   async function showView(name){
     const target=name==="podcasts"?"shows":name;
