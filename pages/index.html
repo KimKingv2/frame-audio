@@ -186,9 +186,9 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
       <div class="field">
         <label for="active-openlist-provider">目前使用的音訊來源</label>
         <select id="active-openlist-provider">
+          <option value="mobile-device">Mobile Device Alist（伺服器端，預設）</option>
           <option value="vps">VPS Alist（伺服器端）</option>
           <option value="worker">OpenList Worker（伺服器端）</option>
-          <option value="mobile-device">Mobile Device Alist（伺服器端）</option>
           <option value="local">區域網路 OpenList（裝置直連）</option>
         </select>
         <div class="hint">下拉選單只選擇候選來源；按下「保存設定並切換來源」後才會成為活動來源。只有活動來源會連線、測試或取得下載連結，其餘來源不會被探測。</div>
@@ -274,5 +274,5 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   });
 })();
 </script>
-<script type="module" src="/assets/js/app.js?v=20261113-playback-connect-status1"></script>
+<script type="module" src="/assets/js/app.js?v=20261113-default-mobile-device1"></script>
 </body></html>

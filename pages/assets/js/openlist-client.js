@@ -2,10 +2,10 @@ const DEFAULT_TIMEOUT_MS = 180000;
 const DIRECTORY_LIST_TIMEOUT_MS = 45000;
 const DIRECTORY_LIST_MAX_ATTEMPTS = 2;
 const DIRECTORY_LIST_RETRY_DELAY_MS = 900;
-let activeConnection = { provider: "vps", baseUrl: "", token: "" };
+let activeConnection = { provider: "mobile-device", baseUrl: "", token: "" };
 
 export function configureOpenListConnection(config = {}) {
-  const provider = ["vps", "worker", "mobile-device", "local"].includes(String(config.provider || "")) ? String(config.provider) : "vps";
+  const provider = ["vps", "worker", "mobile-device", "local"].includes(String(config.provider || "")) ? String(config.provider) : "mobile-device";
   activeConnection = { provider, baseUrl: String(config.baseUrl || "").trim(), token: String(config.token || "").trim() };
   return { provider: activeConnection.provider, baseUrl: activeConnection.baseUrl };
 }
