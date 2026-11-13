@@ -776,32 +776,7 @@ body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-icon:not(:has
 
 /* Final interaction corrections: Music glyph, dock hover, and dark-violet seek rail. */
 
-/* The Music symbol is a text glyph, not an SVG. Cancel inherited gradient-text
-   clipping so it never turns white on the active tab. */
-#site-sidebar .nav button[data-view="music"] .nav-icon,
-body.mobile-sidebar-expanded #site-sidebar .nav button[data-view="music"] .nav-icon,
-#site-sidebar .nav button[data-view="music"]:hover .nav-icon,
-#site-sidebar .nav button[data-view="music"].active .nav-icon,
-body.mobile-sidebar-expanded #site-sidebar .nav button[data-view="music"]:hover .nav-icon,
-body.mobile-sidebar-expanded #site-sidebar .nav button[data-view="music"].active .nav-icon{
-  color:#80658f!important;
-  -webkit-text-fill-color:#80658f!important;
-  background:transparent!important;
-  background-image:none!important;
-  background-clip:border-box!important;
-  -webkit-background-clip:border-box!important;
-  border:0!important;
-  box-shadow:none!important;
-  filter:none!important;
-}
-#site-sidebar .nav button[data-view="music"]:hover .nav-icon,
-#site-sidebar .nav button[data-view="music"].active .nav-icon,
-body.mobile-sidebar-expanded #site-sidebar .nav button[data-view="music"]:hover .nav-icon,
-body.mobile-sidebar-expanded #site-sidebar .nav button[data-view="music"].active .nav-icon{
-  color:#9679a7!important;
-  -webkit-text-fill-color:#9679a7!important;
-}
-
+/* Music now uses the same inline SVG icon system as every other nav item. */
 /* Dock controls should not flash a hover tile. Keep each control's base surface
    and glyph color while the pointer is over it. */
 .dock button:not(.player-play):hover:not(:disabled),
@@ -903,6 +878,93 @@ body.mobile-sidebar-expanded #site-sidebar .nav button[data-view="music"].active
   text-shadow:0 0 18px rgba(181,145,211,.12)!important;
 }
 
+
+
+/* Consistent Music icon geometry: inherit the shared SVG color, border,
+   hover transition and drop-shadow from the other navigation icons. */
+#site-sidebar .nav button[data-view="music"] .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button[data-view="music"] .nav-icon{
+  color:#a98cbe!important;
+  -webkit-text-fill-color:currentColor!important;
+  border:1px solid rgba(193,166,215,.13)!important;
+  border-radius:13px!important;
+  background:transparent!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.025),0 0 7px rgba(177,139,210,.045)!important;
+  animation:frame-nav-outline-breathe 5.6s ease-in-out infinite alternate!important;
+  filter:none!important;
+}
+#site-sidebar .nav button[data-view="music"] .nav-icon svg,
+body.mobile-sidebar-expanded #site-sidebar .nav button[data-view="music"] .nav-icon svg{
+  display:block;width:20px;height:20px;overflow:visible;flex:0 0 auto;
+  color:currentColor;shape-rendering:geometricPrecision;
+  filter:drop-shadow(0 0 4px rgba(192,158,221,.10));
+  transition:transform .24s cubic-bezier(.2,.8,.2,1),filter .24s ease;
+}
+#site-sidebar .nav button[data-view="music"]:hover .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button[data-view="music"]:hover .nav-icon{
+  border-color:rgba(205,180,226,.23)!important;
+  color:#e9dcf2!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.035),0 0 10px rgba(184,147,215,.10)!important;
+  filter:brightness(1.08)!important;
+}
+#site-sidebar .nav button[data-view="music"]:hover .nav-icon svg,
+body.mobile-sidebar-expanded #site-sidebar .nav button[data-view="music"]:hover .nav-icon svg{
+  transform:translateY(-1px) scale(1.045);
+  filter:drop-shadow(0 2px 5px rgba(196,164,237,.18));
+}
+#site-sidebar .nav button[data-view="music"].active .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button[data-view="music"].active .nav-icon{
+  border-color:rgba(211,183,232,.24)!important;
+  color:#f0e5f7!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.04),0 0 12px rgba(185,145,218,.12)!important;
+}
+
+/* Flatten and darken the seek rail. The thumb is a single solid purple-black
+   disc with a distinct black outer shadow, without metallic highlights. */
+.now-playing-tools-host #player-seek::-webkit-slider-runnable-track,
+#player-detail-controls.now-playing-tools-host #player-seek::-webkit-slider-runnable-track{
+  height:3px!important;
+  border:0!important;
+  border-radius:5px!important;
+  background:linear-gradient(90deg,#17101f 0%,#21162d 44%,#281a35 62%,#191121 100%)!important;
+  box-shadow:none!important;
+}
+.now-playing-tools-host #player-seek::-moz-range-track,
+#player-detail-controls.now-playing-tools-host #player-seek::-moz-range-track{
+  height:3px!important;
+  border:0!important;
+  border-radius:5px!important;
+  background:linear-gradient(90deg,#17101f 0%,#21162d 44%,#281a35 62%,#191121 100%)!important;
+  box-shadow:none!important;
+}
+.now-playing-tools-host #player-seek::-moz-range-progress,
+#player-detail-controls.now-playing-tools-host #player-seek::-moz-range-progress{
+  height:3px!important;
+  background:transparent!important;
+  border:0!important;
+}
+.now-playing-tools-host #player-seek::-webkit-slider-thumb,
+#player-detail-controls.now-playing-tools-host #player-seek::-webkit-slider-thumb{
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  width:11px!important;
+  height:11px!important;
+  margin-top:-4px!important;
+  border:1px solid #34233f!important;
+  border-radius:50%!important;
+  background:#211429!important;
+  box-shadow:0 0 0 2px rgba(0,0,0,.92),0 2px 6px rgba(0,0,0,.98)!important;
+}
+.now-playing-tools-host #player-seek::-moz-range-thumb,
+#player-detail-controls.now-playing-tools-host #player-seek::-moz-range-thumb{
+  width:11px!important;
+  height:11px!important;
+  border:1px solid #34233f!important;
+  border-radius:50%!important;
+  background:#211429!important;
+  box-shadow:0 0 0 2px rgba(0,0,0,.92),0 2px 6px rgba(0,0,0,.98)!important;
+}
+
 </style>
 </head>
 <body>
@@ -915,7 +977,7 @@ body.mobile-sidebar-expanded #site-sidebar .nav button[data-view="music"].active
   </div>
   <div class="label">LIBRARY</div>
   <nav class="nav" aria-label="媒體庫">
-    <button class="active" data-view="music" type="button" title="Music" aria-label="Music"><span class="nav-icon" aria-hidden="true">♫</span><span class="nav-label">Music</span></button>
+    <button class="active" data-view="music" type="button" title="Music" aria-label="Music"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><path d="M9 18V5l12-2v13" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 18a3 2.5 0 1 1-6 0 3 2.5 0 0 1 6 0Zm12-2a3 2.5 0 1 1-6 0 3 2.5 0 0 1 6 0Z" fill="currentColor"/></svg></span><span class="nav-label">Music</span></button>
     <button data-view="podcasts" type="button" title="Podcasts" aria-label="Podcasts"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><rect x="9" y="3.5" width="6" height="11" rx="3" stroke="currentColor" stroke-width="1.7"/><path d="M6.5 11.5v.8a5.5 5.5 0 0 0 11 0v-.8M12 17.8V21m-3 0h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M4.6 8.5a8 8 0 0 0 0 7M19.4 8.5a8 8 0 0 1 0 7" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" opacity=".7"/></svg></span><span class="nav-label">Podcasts</span></button>
   </nav>
   <div class="gapline"></div>
