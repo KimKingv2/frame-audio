@@ -21,14 +21,17 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   const browseButton = $("#browse-root");
   const CONNECTION_PROVIDER_STORAGE_KEY = "frame-audio-active-openlist-provider";
   const LOCAL_OPENLIST_STORAGE_KEY = "frame-audio-local-openlist-profile-v1";
+  const LOCAL_OPENLIST_SESSION_STORAGE_KEY = "frame-audio-local-openlist-session-v1";
+  const DEFAULT_LOCAL_OPENLIST_BASE_URL = "http://127.0.0.1:5244";
   const PROVIDER_LABELS = { vps: "VPS Alist", worker: "OpenList Worker", "mobile-device": "Mobile Device Alist", local: "區域網路 OpenList" };
   let serverProfiles = {
     vps: { baseUrl: "", hasToken: false, configured: false },
     worker: { baseUrl: "", hasToken: false, configured: false },
     "mobile-device": { baseUrl: "", hasToken: false, configured: false }
   };
-  let localProfile = { baseUrl: "" };
+  let localProfile = { baseUrl: DEFAULT_LOCAL_OPENLIST_BASE_URL, username: "" };
   let localSessionToken = "";
+  let localSessionPersisted = false;
   let activeProvider = "mobile-device";
   let activeConnection = { provider: "mobile-device", baseUrl: window.location.origin, token: "" };
   let activeBaseUrl = window.location.origin;
@@ -45,6 +48,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   // component encounters an initialization problem.
   $("#test-connection")?.addEventListener("click", testConnection);
   $("#save-switch-openlist")?.addEventListener("click", saveAndSwitchOpenList);
+  $("#logout-local-openlist")?.addEventListener("click", logoutLocalOpenList);
   $("#test-storage")?.addEventListener("click", testCloudflareStorage);
   browseButton?.addEventListener("click", () => loadDirectory(pathInput.value.trim() || "/"));
 
@@ -281,20 +285,78 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     appendScanLog((prefix ? prefix + "｜" : "") + (event.message || String(event)), event.level || "info");
   }
 
-  // Keep only the LAN address. Username/password and login JWT are never persisted.
+  // Keep the LAN URL and username on this device. Never persist the password.
+  // The bearer token is limited to this tab's sessionStorage so a page refresh
+  // can reuse it without leaving a long-lived token in localStorage.
   try { localStorage.removeItem("frame-audio-credentials-v1"); } catch {}
   function readLocalOpenListProfile() {
     try {
       const saved = JSON.parse(localStorage.getItem(LOCAL_OPENLIST_STORAGE_KEY) || "{}");
-      const profile = { baseUrl: String(saved.baseUrl || "") };
+      const profile = {
+        baseUrl: String(saved.baseUrl || DEFAULT_LOCAL_OPENLIST_BASE_URL),
+        username: String(saved.username || "").trim()
+      };
       localStorage.setItem(LOCAL_OPENLIST_STORAGE_KEY, JSON.stringify(profile));
       return profile;
-    } catch { return { baseUrl: "" }; }
+    } catch {
+      return { baseUrl: DEFAULT_LOCAL_OPENLIST_BASE_URL, username: "" };
+    }
   }
   function writeLocalOpenListProfile(profile) {
     localStorage.setItem(LOCAL_OPENLIST_STORAGE_KEY, JSON.stringify({
-      baseUrl: String(profile.baseUrl || "")
+      baseUrl: String(profile.baseUrl || DEFAULT_LOCAL_OPENLIST_BASE_URL),
+      username: String(profile.username || "").trim()
     }));
+  }
+  function restoreLocalOpenListSession() {
+    localSessionToken = "";
+    localSessionPersisted = false;
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(LOCAL_OPENLIST_SESSION_STORAGE_KEY) || "null");
+      if (!saved?.token || !saved?.baseUrl) return false;
+      const savedBaseUrl = normalizeOpenListUrl(String(saved.baseUrl));
+      const profileBaseUrl = normalizeOpenListUrl(localProfile.baseUrl || DEFAULT_LOCAL_OPENLIST_BASE_URL);
+      if (savedBaseUrl !== profileBaseUrl) {
+        sessionStorage.removeItem(LOCAL_OPENLIST_SESSION_STORAGE_KEY);
+        return false;
+      }
+      localSessionToken = String(saved.token);
+      localSessionPersisted = true;
+      return true;
+    } catch {
+      try { sessionStorage.removeItem(LOCAL_OPENLIST_SESSION_STORAGE_KEY); } catch {}
+      return false;
+    }
+  }
+  function persistLocalOpenListSession(token, baseUrl) {
+    localSessionPersisted = false;
+    try {
+      sessionStorage.setItem(LOCAL_OPENLIST_SESSION_STORAGE_KEY, JSON.stringify({
+        token: String(token || ""),
+        baseUrl: String(baseUrl || DEFAULT_LOCAL_OPENLIST_BASE_URL)
+      }));
+      localSessionPersisted = true;
+    } catch {}
+    return localSessionPersisted;
+  }
+  function clearLocalOpenListSession() {
+    try { sessionStorage.removeItem(LOCAL_OPENLIST_SESSION_STORAGE_KEY); } catch {}
+    localSessionToken = "";
+    localSessionPersisted = false;
+  }
+  function updateLocalOpenListSessionUI() {
+    const button = $("#logout-local-openlist");
+    const status = $("#local-openlist-session-status");
+    const loggedIn = Boolean(localSessionToken);
+    if (button) button.disabled = !loggedIn;
+    if (status) {
+      status.textContent = loggedIn
+        ? (localSessionPersisted
+          ? "已登入 · 本分頁重新整理後會保留"
+          : "已登入 · 瀏覽器未允許暫存登入狀態")
+        : "尚未登入";
+      status.className = "hint" + (loggedIn ? " local-openlist-session-active" : "");
+    }
   }
   function selectedProviderFromStorage() {
     try {
@@ -305,7 +367,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   function applyActiveOpenListProvider(provider, persist = false) {
     activeProvider = ["vps", "worker", "mobile-device", "local"].includes(provider) ? provider : "mobile-device";
     const profile = activeProvider === "local" ? localProfile : (serverProfiles[activeProvider] || {});
-    const baseUrl = activeProvider === "local" ? String(profile.baseUrl || "") : window.location.origin;
+    const baseUrl = activeProvider === "local" ? String(profile.baseUrl || DEFAULT_LOCAL_OPENLIST_BASE_URL) : window.location.origin;
     activeBaseUrl = baseUrl || window.location.origin;
     activeConnection = {
       provider: activeProvider,
@@ -319,7 +381,11 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     const label = $("#connection-label");
     const openButton = $("#open-settings");
     if (openButton) openButton.textContent = "連線設定 · " + name;
-    if (label) label.textContent = activeProvider === "local" && !localSessionToken ? name + " 等待登入" : name + " 尚未測試";
+    connected = activeProvider === "local" && Boolean(localSessionToken);
+    if (label) label.textContent = activeProvider === "local"
+      ? (localSessionToken ? name + " 已恢復登入" : name + " 等待登入")
+      : name + " 尚未測試";
+    updateLocalOpenListSessionUI();
     if (persist) {
       try { localStorage.setItem(CONNECTION_PROVIDER_STORAGE_KEY, activeProvider); } catch {}
     }
@@ -329,9 +395,10 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     const worker = serverProfiles.worker || {};
     const mobileDevice = serverProfiles["mobile-device"] || {};
     const setValue = (id, value) => { const node = $("#" + id); if (node) node.value = String(value || ""); };
-    setValue("local-openlist-base-url", localProfile.baseUrl);
-    setValue("local-openlist-username", "");
+    setValue("local-openlist-base-url", localProfile.baseUrl || DEFAULT_LOCAL_OPENLIST_BASE_URL);
+    setValue("local-openlist-username", localProfile.username || "");
     setValue("local-openlist-password", "");
+    updateLocalOpenListSessionUI();
     const renderServerStatus = (id, label, profile) => {
       const node = $("#" + id);
       if (!node) return;
@@ -348,8 +415,8 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       status.textContent = "VPS Alist：" + (vps.configured ? "已就緒" : "未設定完整") +
         "；OpenList Worker：" + (worker.configured ? "已就緒" : "未設定完整") +
         "；Mobile Device Alist：" + (mobileDevice.configured ? "已就緒" : "未設定完整") +
-        "；區域網路 OpenList：" + (localProfile.baseUrl ? "已保存地址，需重新登入" : "尚未設定") +
-        "。三個伺服器端來源由 Pages Functions 自動登入並管理 Token；帳號密碼不會傳到瀏覽器。區域網路帳號密碼與 JWT 只保留在目前頁面記憶體。";
+        "；區域網路 OpenList：" + (localSessionToken ? "本分頁已登入" : "地址及帳號已在本機保存") +
+        "。區域網路地址與帳號保存在此裝置；登入 Token 僅保存在目前分頁，密碼不保存。";
       status.className = "statusbox" + ((vps.configured || worker.configured || mobileDevice.configured) ? " ok" : "");
     }
     const active = $("#active-openlist-provider");
@@ -358,6 +425,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
 
   async function loadConnectionSettings() {
     localProfile = readLocalOpenListProfile();
+    restoreLocalOpenListSession();
     try {
       const response = await fetch("/api/settings/connections", { credentials: "same-origin" });
       let data = {};
@@ -388,6 +456,29 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     applyActiveOpenListProvider(activeProvider, false);
   }
 
+  function logoutLocalOpenList() {
+    if (!localSessionToken) {
+      updateLocalOpenListSessionUI();
+      return;
+    }
+    clearLocalOpenListSession();
+    if (activeProvider === "local") {
+      connected = false;
+      applyActiveOpenListProvider("local");
+      browser.hidden = true;
+      listBox.replaceChildren();
+      $("#connection-label").textContent = "區域網路 OpenList 等待登入";
+      $("#connection-dot").style.background = "#8b8294";
+      setResult("已登出區域網路 OpenList。網址與帳號仍保存在此裝置；下次使用時輸入密碼即可重新登入。");
+    }
+    updateLocalOpenListSessionUI();
+    const status = $("#provider-settings-status");
+    if (status) {
+      status.textContent = "已登出區域網路 OpenList；本機保存的網址與帳號沒有刪除。";
+      status.className = "statusbox";
+    }
+  }
+
   async function saveAndSwitchOpenList() {
     const button = $("#save-switch-openlist");
     const status = $("#provider-settings-status");
@@ -396,16 +487,17 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     try {
       if (targetProvider === "local") {
         const localBaseInput = String($("#local-openlist-base-url")?.value || "").trim();
-        const candidateBaseUrl = localBaseInput ? normalizeOpenListUrl(localBaseInput) : "";
-        const username = String($("#local-openlist-username")?.value || "").trim();
+        const candidateBaseUrl = localBaseInput ? normalizeOpenListUrl(localBaseInput) : DEFAULT_LOCAL_OPENLIST_BASE_URL;
+        const username = String($("#local-openlist-username")?.value || localProfile.username || "").trim();
         const password = String($("#local-openlist-password")?.value || "");
-        if (!candidateBaseUrl) throw new Error("請先填寫區域網路 OpenList 地址。");
         if (!username || !password) throw new Error("請輸入區域網路 OpenList 帳號與密碼。");
         setResult("正在登入目前選取的區域網路 OpenList……");
         const token = await loginOpenList({ baseUrl: candidateBaseUrl, username, password });
-        localProfile = { baseUrl: candidateBaseUrl };
+        localProfile = { baseUrl: candidateBaseUrl, username };
         writeLocalOpenListProfile(localProfile);
         localSessionToken = token;
+        persistLocalOpenListSession(token, candidateBaseUrl);
+        updateLocalOpenListSessionUI();
         $("#local-openlist-password").value = "";
         applyActiveOpenListProvider("local", true);
         fillConnectionSettingsForm();
@@ -420,7 +512,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
           }[targetProvider];
           throw new Error((PROVIDER_LABELS[targetProvider] || targetProvider) + " 尚未就緒。請在 Cloudflare Pages Preview 設定 " + names + "，然後重新部署。");
         }
-        localSessionToken = "";
+        // Keep the LAN session for this tab when switching to another provider.
         $("#local-openlist-password").value = "";
         applyActiveOpenListProvider(targetProvider, true);
         fillConnectionSettingsForm();
@@ -1985,7 +2077,9 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     if (activeProvider === "local") {
       // Chrome's loopback-network permission must be requested from a user gesture.
       // Never probe the phone's local OpenList automatically on page load.
-      setResult("已恢復上次保存的活動來源：區域網路 OpenList。地址已保留；帳號密碼不會保存，請登入後連線。");
+      setResult(localSessionToken
+        ? "已恢復區域網路 OpenList 的本分頁登入狀態。重新整理無需重新登入；首次連線仍會在你操作播放或手動測試時進行。"
+        : "已恢復上次保存的活動來源：區域網路 OpenList。網址與帳號已保留，請輸入密碼登入。");
       await Promise.allSettled([testCloudflareStorage()]);
     } else {
       await Promise.allSettled([testConnection(), testCloudflareStorage()]);
