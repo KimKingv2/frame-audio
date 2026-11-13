@@ -4,6 +4,8 @@ import { parseSynchronizedLyrics } from "./player-effects.js?v=20261111-sylt-ms1
 const PERIODS = [["week","近 7 日"],["month","近 30 日"],["year","近 365 日"],["all","全部時間"]];
 const PLAYBACK_QUEUE_STORAGE_KEY = "frame-audio-playback-queue-v1";
 const PLAYBACK_POSITION_STORAGE_KEY = "frame-audio-playback-position-v1";
+const USER_PLAYLISTS_STORAGE_KEY = "frame-audio-user-playlists-v1";
+const FAVORITES_PLAYLIST_ID = "favorites";
 
 export function initLibraryUI(options = {}) {
   const root = document.querySelector("#library-content");
@@ -21,7 +23,7 @@ export function initLibraryUI(options = {}) {
   let mediaSessionArtworkObjectUrl = "";
   let mediaSessionArtworkObjectUrlKey = "";
   const state = {
-    view:"music",lastLibraryView:"music",tracks:[],folders:[],shows:[],episodes:[],recentTracks:[],loaded:false,loadedAt:0,busy:false,trackPage:0,
+    view:"music",lastLibraryView:"music",tracks:[],folders:[],shows:[],episodes:[],recentTracks:[],playlists:[],selectedFolder:null,selectedPlaylistId:"",playlistDialogItem:null,loaded:false,loadedAt:0,busy:false,trackPage:0,
     selectedShowId:"",selectedAlbum:null,search:"",searchComposing:false,items:[],itemType:"track",reportPeriod:"week",reportType:"episode",
     errors:[],currentItem:null,queue:[],queueIndex:-1,queueLabel:"播放列表",session:null,tickAt:0,speed:1,
     lastProgressSave:0,restorePositionMs:0,playRequestId:0,artworkUrls:new Set(),
@@ -391,7 +393,7 @@ export function initLibraryUI(options = {}) {
     if(!item){
       page.innerHTML='<div class="now-playing-empty"><button class="secondary" data-action="back-now-playing">⌄ 收起播放器</button><h2>尚未播放音訊</h2><p>從 Music 或 Podcast 選擇內容後，這裡會顯示目前歌曲與同步歌詞。</p></div>';
       const dockTransport=document.querySelector(".dock-transport-host"),dock=document.querySelector(".dock");
-      if(transport&&dockTransport)dockTransport.append(transport);
+      if(transport&&dockTransport)restoreDockTransportToDock(transport,dockTransport);
       if(detailControls&&dock)dock.append(detailControls);
       return;
     }
@@ -414,6 +416,7 @@ export function initLibraryUI(options = {}) {
     const transportHost=page.querySelector(".now-playing-transport-host");
     const controlsHost=page.querySelector(".now-playing-tools-host");
     if(transport&&transportHost){
+      if(transportStartsInDock)reserveDockTransportSlot(transport);
       transportHost.append(transport);
       if(transportStartsInDock)animatePlayerControlMove(transport,"enter");
     }
@@ -622,11 +625,95 @@ export function initLibraryUI(options = {}) {
     const raw=String(value||"").trim();
     return raw.replace(/^\d{2}\s+/u,"").trim()||raw;
   }
+  function loadUserPlaylists() {
+    let saved=[];try{const parsed=JSON.parse(localStorage.getItem(USER_PLAYLISTS_STORAGE_KEY)||"[]");if(Array.isArray(parsed))saved=parsed;}catch{}
+    const cleanRefs=entry=>Array.isArray(entry?.items)?entry.items.map(ref=>({id:String(ref?.id||""),path:String(ref?.path||"")})).filter(ref=>ref.id||ref.path):[];
+    const favorites=saved.find(entry=>entry&&entry.id===FAVORITES_PLAYLIST_ID);
+    const custom=saved.filter(entry=>entry&&typeof entry==="object"&&String(entry.id||"")!==FAVORITES_PLAYLIST_ID)
+      .map(entry=>({id:String(entry.id||"").slice(0,100),name:String(entry.name||"未命名歌單").trim().slice(0,40)||"未命名歌單",items:cleanRefs(entry)})).filter(entry=>entry.id);
+    state.playlists=[{id:FAVORITES_PLAYLIST_ID,name:"收藏夾",builtIn:true,items:cleanRefs(favorites)},...custom];
+  }
+  function saveUserPlaylists() {
+    try{localStorage.setItem(USER_PLAYLISTS_STORAGE_KEY,JSON.stringify(state.playlists.map(entry=>({id:entry.id,name:entry.name,items:entry.items}))));return true;}
+    catch{message("歌單無法保存，可能是此瀏覽器的本機儲存空間已滿。","error");return false;}
+  }
+  function findPlaylist(id){return state.playlists.find(entry=>entry.id===String(id||""))||null;}
+  function playlistContainsItem(playlist,item){
+    const [id,path]=playbackItemRef(item);
+    return playlist.items.some(ref=>(id&&String(ref.id||"")===id)||(path&&String(ref.path||"")===path));
+  }
+  function togglePlaylistItem(playlist,item,forceAdd=null){
+    if(!playlist||!item)return false;
+    const [id,path]=playbackItemRef(item);if(!id&&!path)return false;
+    const exists=playlistContainsItem(playlist,item),shouldAdd=forceAdd===null?!exists:forceAdd===true;
+    if(shouldAdd&&!exists)playlist.items.push({id,path});
+    if(!shouldAdd&&exists)playlist.items=playlist.items.filter(ref=>!((id&&String(ref.id||"")===id)||(path&&String(ref.path||"")===path)));
+    saveUserPlaylists();return shouldAdd;
+  }
+  function createUserPlaylist(name){
+    const clean=String(name||"").trim().slice(0,40);if(!clean)throw new Error("請先輸入歌單名稱。");
+    if(state.playlists.some(entry=>entry.name.toLocaleLowerCase()===clean.toLocaleLowerCase()))throw new Error("已經有同名歌單，請換一個名稱。");
+    const id="playlist-"+(window.crypto?.randomUUID?.()||Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,9));
+    const playlist={id,name:clean,items:[]};state.playlists.push(playlist);saveUserPlaylists();return playlist;
+  }
+  function resolvePlaylistTracks(playlist){
+    if(!playlist)return [];
+    const byId=new Map(state.tracks.map(item=>[String(item.id||""),item]).filter(([id])=>id));
+    const byPath=new Map(state.tracks.map(item=>[String(pathOf(item)||""),item]).filter(([path])=>path));
+    const result=[],seen=new Set();
+    for(const ref of playlist.items){const item=(ref.id&&byId.get(String(ref.id)))||(ref.path&&byPath.get(String(ref.path)));if(!item)continue;
+      const key=String(item.id||pathOf(item));if(seen.has(key))continue;seen.add(key);result.push(item);}
+    return result;
+  }
+  function openPlaylistDialog(item=null){
+    const dialog=$("#playlist-picker-dialog");if(!dialog){message("歌單視窗尚未載入，請重新整理頁面。","error");return;}
+    state.playlistDialogItem=item||null;
+    const title=$("#playlist-picker-title"),track=$("#playlist-picker-track"),list=$("#playlist-picker-list"),input=$("#playlist-new-name"),status=$("#playlist-dialog-status");
+    if(title)title.textContent=item?"加入收藏歌單":"建立新歌單";
+    if(track){track.hidden=!item;track.textContent=item?"加入歌曲："+String(item.title||pathOf(item).split("/").pop()||"未命名音訊"):"";}
+    if(list)list.hidden=!item;if(input)input.value="";
+    if(status)status.textContent=item?"選擇一個歌單即可加入或移除這首歌曲。":"建立後，歌單會出現在「收藏歌單」列表中。";
+    renderPlaylistPicker();openModal(dialog);window.setTimeout(()=>input?.focus(),40);
+  }
+  function renderPlaylistPicker(){
+    const list=$("#playlist-picker-list");if(!list)return;if(!state.playlistDialogItem){list.replaceChildren();return;}
+    list.innerHTML=state.playlists.map(playlist=>{
+      const included=playlistContainsItem(playlist,state.playlistDialogItem);
+      return '<button type="button" class="playlist-picker-option" data-action="toggle-playlist-membership" data-playlist-id="'+esc(playlist.id)+'" aria-pressed="'+String(included)+'">'+
+        '<span class="playlist-picker-icon">'+(playlist.id===FAVORITES_PLAYLIST_ID?"♡":"♫")+'</span>'+
+        '<span class="playlist-picker-copy"><strong>'+esc(playlist.name)+'</strong><small>'+playlist.items.length.toLocaleString()+' 首'+(included?" · 已加入，點擊可移除":" · 點擊加入")+'</small></span>'+
+        '<span class="playlist-picker-check">'+(included?"✓":"＋")+'</span></button>';
+    }).join("");
+  }
+  function folderTracks(folder){
+    const trimSlash=value=>String(value||"").replace(new RegExp("/+$"),"");
+    const directory=trimSlash(folder?.path);if(!directory)return [];
+    return state.tracks.filter(track=>{const path=trimSlash(pathOf(track));return path===directory||path.startsWith(directory+"/");})
+      .sort((a,b)=>String(pathOf(a)||"").localeCompare(String(pathOf(b)||""),"zh-Hant"));
+  }
+  function syncActiveNavigation(){
+    let active=state.view;
+    if(state.view==="now-playing")active=state.currentItem?.itemType==="episode"?"podcasts":"music";
+    else if(["shows","show-detail","continue"].includes(state.view))active="podcasts";
+    else if(state.view==="music"&&state.currentItem?.itemType==="episode")active="podcasts";
+    else if(state.view==="album-detail")active="albums";
+    document.querySelectorAll("#site-sidebar [data-view]").forEach(button=>button.classList.toggle("active",button.dataset.view===active));
+  }
+  function reserveDockTransportSlot(transport){
+    const host=transport?.parentElement;if(!host?.classList.contains("dock-transport-host")||host.querySelector(".dock-transport-placeholder"))return;
+    const placeholder=document.createElement("div");placeholder.className="dock-transport-placeholder";placeholder.setAttribute("aria-hidden","true");host.insertBefore(placeholder,transport);
+  }
+  function restoreDockTransportToDock(transport,host){
+    if(!transport||!host)return;const placeholder=host.querySelector(".dock-transport-placeholder");
+    if(placeholder)placeholder.replaceWith(transport);else host.append(transport);
+  }
   function defaultQueueLabel(type,item) {
     if(type==="episode"){
       const show=state.shows.find(entry=>String(entry.id)===String(item?.showId||""));
       return "Podcast / "+String(item?.showTitle||show?.title||item?.subtitle||"節目");
     }
+    if(state.view==="folders"&&state.selectedFolder)return "資料夾 / "+displayFolderName(state.selectedFolder.name||state.selectedFolder.path.split("/").filter(Boolean).pop()||"未命名資料夾");
+    if(state.view==="playlists"&&state.selectedPlaylistId){const playlist=findPlaylist(state.selectedPlaylistId);if(playlist)return playlist.id===FAVORITES_PLAYLIST_ID?"收藏夾":"歌單 / "+playlist.name;}
     if(state.view==="album-detail"&&state.selectedAlbum){
       const album=state.selectedAlbum;
       return "專輯 / "+String(album.title||"未命名專輯")+(album.artist?"（"+album.artist+"）":"");
@@ -755,15 +842,18 @@ export function initLibraryUI(options = {}) {
     return '<div class="library-toolbar"><input id="library-search" class="library-search" type="search" placeholder="'+esc(placeholder)+'" value="'+esc(state.search)+'">'+
       '<span class="library-muted">'+state.tracks.length.toLocaleString()+' 首音樂 · '+state.shows.length.toLocaleString()+' 個節目 · '+state.episodes.length.toLocaleString()+' 集單集</span></div>';
   }
-  function trackRows(rows,type="track",queueRows=rows,indexOffset=0) {
+  function trackRows(rows,type="track",queueRows=rows,indexOffset=0,rowOptions={}) {
     state.items=queueRows;state.itemType=type;
     if(!rows.length)return '<div class="library-empty"><div class="library-empty-mark">♫</div><h3>目前沒有項目</h3><p>完成索引後，內容就會出現在這裡。</p></div>';
     return '<div class="media-list">'+rows.map((raw,i)=>{
       const item=playable(raw,type),itemIndex=indexOffset+i;
-      return '<article class="media-row">'+cover(item.artworkHash,item.title)+
+      const rowAction=type==="track"?' data-action="play" data-index="'+itemIndex+'"':"";
+      const add=type==="track"?'<button class="playlist-add-button" type="button" data-action="open-playlist-picker" data-index="'+itemIndex+'" aria-label="加入收藏歌單" title="加入收藏歌單">＋</button>':"";
+      const remove=rowOptions.removeFromPlaylist?'<button class="playlist-remove-button" type="button" data-action="remove-from-playlist" data-index="'+itemIndex+'" aria-label="從歌單移除" title="從這份歌單移除">−</button>':"";
+      return '<article class="media-row"'+rowAction+'>'+cover(item.artworkHash,item.title)+
         '<div class="media-copy"><strong title="'+esc(item.title)+'">'+esc(item.title)+'</strong><span>'+esc(item.subtitle||item.path)+'</span>'+
         (type==="track"&&item.album?'<button class="album-link" type="button" data-action="open-track-album" data-index="'+itemIndex+'" title="開啟專輯">'+esc(item.album)+'</button>':"")+
-        '</div><span class="media-duration">'+duration(item.durationMs)+'</span><button class="play-button" data-action="play" data-index="'+itemIndex+'" aria-label="播放">▶</button></article>';
+        '</div><span class="media-duration">'+duration(item.durationMs)+'</span><div class="media-row-actions">'+add+remove+'<button class="play-button" type="button" data-action="play" data-index="'+itemIndex+'" aria-label="播放" title="播放">▶</button></div></article>';
     }).join("")+'</div>';
   }
   function renderHome() {
@@ -1065,9 +1155,45 @@ export function initLibraryUI(options = {}) {
       emptyTitle+'</h3><p>'+emptyText+(rootPath?'<br>'+esc(rootPath):"")+'</p></div>';
     root.innerHTML=searchBar("搜尋根目錄資料夾")+sectionHead("MUSIC FOLDERS","資料夾歌單",countLabel)+
       (folders.length?'<div class="folder-grid">'+folders.slice(0,500).map((folder,index)=>
-        '<button class="folder-card" data-action="play-group" data-index="'+index+'"><span>▰</span><strong>'+
+        '<button class="folder-card" data-action="open-folder" data-index="'+index+'"><span>▰</span><strong>'+
         esc(displayFolderName(folder.name))+'</strong><small>'+Number(folder.recursiveTrackCount??folder.directTrackCount??0)+
         ' 首歌曲</small><em>'+esc(folder.path)+'</em></button>').join("")+'</div>':empty);
+  }
+  function renderFolderDetail(){
+    const folder=state.selectedFolder;if(!folder){renderFolders();return;}
+    const tracks=folderTracks(folder);state.items=tracks;state.itemType="track";
+    const name=displayFolderName(folder.name||folder.path.split("/").filter(Boolean).pop()||"未命名資料夾");
+    const play=tracks.length?'<button class="primary" type="button" data-action="play-folder">▶ 播放全部</button>':"";
+    root.innerHTML='<button class="back-link" type="button" data-action="back-folders">← 返回資料夾歌單</button>'+
+      sectionHead("FOLDER CONTENTS",name,'<span class="library-muted">'+tracks.length.toLocaleString()+' 首歌曲</span>')+
+      '<div class="playlist-detail-toolbar">'+play+'<span class="library-muted">包含此資料夾內的子資料夾歌曲</span></div>'+
+      (tracks.length?trackRows(tracks,"track",tracks):'<div class="library-empty"><div class="library-empty-mark">▰</div><h3>這個資料夾目前沒有已索引歌曲</h3><p>完成音樂索引後，這裡就會列出目前資料夾內的所有曲目。</p></div>');
+    loadCovers();
+  }
+  function renderPlaylists(){
+    state.items=state.playlists;state.itemType="playlist";
+    const cards=state.playlists.map(playlist=>{
+      const favorites=playlist.id===FAVORITES_PLAYLIST_ID;
+      return '<button class="playlist-card'+(favorites?" playlist-card-favorites":"")+'" type="button" data-action="open-playlist" data-playlist-id="'+esc(playlist.id)+'">'+
+        '<span class="playlist-card-icon">'+(favorites?"♡":"♫")+'</span><strong>'+esc(playlist.name)+'</strong>'+
+        '<small>'+playlist.items.length.toLocaleString()+' 首歌曲</small><em>'+(favorites?"預設收藏歌單":"自訂歌單")+'</em></button>';
+    }).join("");
+    root.innerHTML=sectionHead("YOUR PLAYLISTS","收藏歌單",'<button class="primary" type="button" data-action="open-playlist-creator">＋ 新增歌單</button>')+
+      '<p class="library-description">歌曲列右側的「＋」可以加入或移出歌單。收藏夾固定置頂，你建立的歌單會依建立順序排列。</p>'+
+      '<div class="playlist-grid">'+cards+'</div>';
+  }
+  function renderPlaylistDetail(){
+    const playlist=findPlaylist(state.selectedPlaylistId);if(!playlist){state.selectedPlaylistId="";renderPlaylists();return;}
+    const tracks=resolvePlaylistTracks(playlist);state.items=tracks;state.itemType="track";
+    const favorites=playlist.id===FAVORITES_PLAYLIST_ID;
+    const actions='<button class="primary" type="button" data-action="play-playlist"'+(tracks.length?"":" disabled")+'>▶ 播放全部</button>'+
+      (favorites?"":'<button class="secondary" type="button" data-action="delete-playlist" data-playlist-id="'+esc(playlist.id)+'">刪除歌單</button>');
+    root.innerHTML='<button class="back-link" type="button" data-action="back-playlists">← 返回收藏歌單</button>'+
+      sectionHead(favorites?"FAVORITES":"CUSTOM PLAYLIST",playlist.name,'<span class="library-muted">'+tracks.length.toLocaleString()+' 首歌曲</span>')+
+      '<div class="playlist-detail-toolbar">'+actions+'<span class="library-muted">點擊歌曲即可切換播放，佇列會使用這份歌單的完整曲目</span></div>'+
+      (tracks.length?trackRows(tracks,"track",tracks,0,{removeFromPlaylist:true}):
+        '<div class="library-empty"><div class="library-empty-mark">'+(favorites?"♡":"♫")+'</div><h3>這份歌單還是空的</h3><p>前往「所有歌曲」或資料夾目錄，點擊歌曲右側的「＋」，就能加入這份歌單。</p></div>');
+    loadCovers();
   }
   function showCards(shows) {
     if(!shows.length)return '<div class="library-empty"><div class="library-empty-mark">▤</div><h3>還沒有 Podcast 節目</h3><p>完成 Podcast 掃描後，節目會出現在這裡。</p></div>';
@@ -1131,7 +1257,7 @@ export function initLibraryUI(options = {}) {
       const dockTransport=document.querySelector(".dock-transport-host");
       const dock=document.querySelector(".dock");
       if(transport&&dockTransport){
-        dockTransport.append(transport);
+        restoreDockTransportToDock(transport,dockTransport);
         animatePlayerControlMove(transport,"return");
       }
       if(detailControls&&dock)dock.append(detailControls);
@@ -1139,6 +1265,7 @@ export function initLibraryUI(options = {}) {
       document.body.classList.toggle("is-podcast-view",["shows","show-detail","continue"].includes(state.view));
       document.body.classList.remove("is-now-playing");
       $("#player-now-playing")?.setAttribute("aria-label","展開正在播放頁面");
+      syncActiveNavigation();
       root.classList.remove("view-enter");
       return;
     }
@@ -1148,8 +1275,8 @@ export function initLibraryUI(options = {}) {
       case "tracks":renderTracks();break;
       case "albums":renderAlbums();break;
       case "album-detail":renderAlbumDetail();break;
-      case "artists":renderArtists();break;
-      case "folders":renderFolders();break;
+      case "playlists":renderPlaylists();break;
+      case "folders":if(state.selectedFolder)renderFolderDetail();else renderFolders();break;
       case "shows":renderShows();break;
       case "show-detail":renderShowDetail();break;
       case "continue":void renderContinue().catch(e=>message(e.message,"error"));break;
@@ -1158,6 +1285,7 @@ export function initLibraryUI(options = {}) {
       case "now-playing":renderNowPlaying();break;
       default:renderHome();
     }
+    syncActiveNavigation();
     document.body.classList.toggle("is-podcast-view",["shows","show-detail","continue"].includes(state.view));
     document.body.classList.toggle("is-now-playing",state.view==="now-playing");
     $("#player-now-playing")?.setAttribute("aria-label",state.view==="now-playing"?"收起正在播放頁面":"展開正在播放頁面");
@@ -1598,6 +1726,7 @@ export function initLibraryUI(options = {}) {
       if(!isCurrentRequest())return;
 
       state.currentItem=item;
+       syncActiveNavigation();
       if(playOptions.preserveQueue){
         state.queueIndex=index;
         if(state.shuffleOrder.length!==state.queue.length)rebuildShuffleOrder(index);
@@ -1730,6 +1859,53 @@ export function initLibraryUI(options = {}) {
     try{
       if(action==="navigate"){showView(b.dataset.view);return;}
       if(action==="back-now-playing"){closeNowPlaying();return;}
+      if(action==="open-playlist-creator"){openPlaylistDialog();return;}
+      if(action==="open-playlist-picker"){const item=state.items[i];if(item)openPlaylistDialog(item);return;}
+      if(action==="close-playlist-dialog"){const dialog=$("#playlist-picker-dialog");if(dialog?.open)dialog.close();return;}
+      if(action==="toggle-playlist-membership"){
+        const playlist=findPlaylist(b.dataset.playlistId),item=state.playlistDialogItem;if(!playlist||!item)return;
+        const added=togglePlaylistItem(playlist,item);renderPlaylistPicker();
+        const status=$("#playlist-dialog-status");if(status)status.textContent=added?"已加入「"+playlist.name+"」。":"已從「"+playlist.name+"」移除。";return;
+      }
+      if(action==="save-playlist"){
+        try{
+          const playlist=createUserPlaylist($("#playlist-new-name")?.value||"");
+          if(state.playlistDialogItem)togglePlaylistItem(playlist,state.playlistDialogItem,true);
+          const dialog=$("#playlist-picker-dialog");if(dialog?.open)dialog.close();state.playlistDialogItem=null;
+          if(state.view==="playlists"&&!state.selectedPlaylistId)renderPlaylists();
+          message("已建立歌單「"+playlist.name+"」。","success");
+        }catch(error){const status=$("#playlist-dialog-status");if(status)status.textContent=error.message||"建立歌單失敗。";}
+        return;
+      }
+      if(action==="open-playlist"){
+        const playlist=findPlaylist(b.dataset.playlistId);if(!playlist)return;
+        state.selectedPlaylistId=playlist.id;renderPlaylistDetail();animateLibraryContent();return;
+      }
+      if(action==="back-playlists"){state.selectedPlaylistId="";renderPlaylists();animateLibraryContent();return;}
+      if(action==="delete-playlist"){
+        const playlist=findPlaylist(b.dataset.playlistId);if(!playlist||playlist.id===FAVORITES_PLAYLIST_ID)return;
+        if(!window.confirm("確定刪除「"+playlist.name+"」？只會刪除這份歌單，不會刪除原始音訊。"))return;
+        state.playlists=state.playlists.filter(entry=>entry.id!==playlist.id);state.selectedPlaylistId="";
+        saveUserPlaylists();renderPlaylists();animateLibraryContent();return;
+      }
+      if(action==="remove-from-playlist"){
+        const playlist=findPlaylist(state.selectedPlaylistId),item=state.items[i];if(!playlist||!item)return;
+        togglePlaylistItem(playlist,item,false);renderPlaylistDetail();return;
+      }
+      if(action==="back-folders"){state.selectedFolder=null;renderFolders();animateLibraryContent();return;}
+      if(action==="open-folder"){
+        const folder=state.items[i];if(!folder)return;state.selectedFolder=folder;renderFolderDetail();animateLibraryContent();return;
+      }
+      if(action==="play-folder"){
+        const folder=state.selectedFolder,list=folderTracks(folder);
+        if(list.length)await playItem("track",list[0],list,0,{queueLabel:"資料夾 / "+displayFolderName(folder?.name||folder?.path?.split("/").filter(Boolean).pop()||"未命名資料夾")});
+        return;
+      }
+      if(action==="play-playlist"){
+        const playlist=findPlaylist(state.selectedPlaylistId),list=resolvePlaylistTracks(playlist);
+        if(list.length)await playItem("track",list[0],list,0,{queueLabel:playlist?.id===FAVORITES_PLAYLIST_ID?"收藏夾":"歌單 / "+String(playlist?.name||"播放列表")});
+        return;
+      }
       if(action==="reindex-current-lyrics"){
         const item=state.currentItem,button=b,status=$("#now-playing-reindex-status");
         if(!item||item.itemType!=="track"||typeof options.reindexMusic!=="function")return;
@@ -1803,6 +1979,8 @@ export function initLibraryUI(options = {}) {
     }catch(e){message(e.message||"操作失敗。","error");}
   }
   root.addEventListener("click",handleClick);
+  $("#playlist-picker-dialog")?.addEventListener("click",handleClick);
+  $("#playlist-new-name")?.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();$("#playlist-create-submit")?.click();}});
   function refreshSearchResults(input) {
     if(!input)return;
     const nextSearch=input.value;
@@ -2067,12 +2245,15 @@ export function initLibraryUI(options = {}) {
     if(target==="now-playing"&&!state.currentItem){message("請先從曲庫選擇音訊。");return;}
     const returningFromNowPlaying=state.view==="now-playing"&&target!=="now-playing";
     if(target!=="now-playing")state.lastLibraryView=target;
+    if(target==="folders")state.selectedFolder=null;
+    if(target==="playlists")state.selectedPlaylistId="";
     state.view=target;
     if(target!=="now-playing"&&!returningFromNowPlaying)state.search="";
     if(returningFromNowPlaying){render();return;}
     if(!state.loaded)await load(true);else render();
   }
   async function refresh(){state.loaded=false;await load(true);}
+  loadUserPlaylists();
   loadPlayerPreferences();updatePlayerModeButton();updateShuffleButton();
   setDock(null);void showView("music");
   return {showView,refresh,load};

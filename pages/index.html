@@ -27,8 +27,8 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 @media(max-width:520px){.scan-log-toolbar{align-items:flex-start;flex-direction:column}.scan-log-toolbar>div{width:100%}.scan-log-button{flex:1}}
 </style>
 <link rel="stylesheet" href="/assets/css/metadata.css">
-<link rel="stylesheet" href="/assets/css/library.css?v=20261112-refresh-rate-polish1">
-<link rel="stylesheet" href="/assets/css/interaction.css?v=20261113-distinct-nav-icons1">
+<link rel="stylesheet" href="/assets/css/library.css?v=20261113-playlists-folders1">
+<link rel="stylesheet" href="/assets/css/interaction.css?v=20261113-player-dock-stability1">
 <style>
 .playback-connection-notice{position:fixed;z-index:120;right:clamp(14px,3vw,30px);bottom:102px;display:flex;align-items:center;gap:9px;max-width:min(440px,calc(100vw - 28px));padding:9px 13px;border:1px solid #b99ae84a;border-radius:10px;background:#211e2bf5;box-shadow:0 10px 32px #0008;color:#e4dced;font-size:11px;line-height:1.55;opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity .22s ease,transform .22s ease}
 .playback-connection-notice[hidden]{display:none}
@@ -76,7 +76,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   <nav class="nav secondary" aria-label="音樂分類">
     <button data-view="tracks" type="button" title="所有歌曲" aria-label="所有歌曲"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><path d="M10 5.5h10M10 11.8h10M10 18.1h7" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"/><path d="M5.5 5.2v9.7a2 2 0 1 1-1.5-1.9V7l5-1v7.9a2 2 0 1 1-1.5-1.9V4.7l-2 .5Z" fill="currentColor" opacity=".88"/></svg></span><span class="nav-label">所有歌曲</span></button>
     <button data-view="albums" type="button" title="專輯" aria-label="專輯"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><path d="M4 4.5h11.5v15H4z" stroke="currentColor" stroke-width="1.65" stroke-linejoin="round"/><path d="M7 7.5h5.5M7 10h3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><circle cx="16.8" cy="12" r="4.2" fill="#191622" stroke="currentColor" stroke-width="1.65"/><circle cx="16.8" cy="12" r="1.15" fill="currentColor"/><path d="M16.8 7.8a4.2 4.2 0 0 1 4.2 4.2" stroke="currentColor" stroke-width=".9" opacity=".55"/></svg></span><span class="nav-label">專輯</span></button>
-    <button data-view="artists" type="button" title="歌手" aria-label="歌手"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><circle cx="12" cy="8" r="3.35" stroke="currentColor" stroke-width="1.7"/><path d="M4.3 20c.75-3.55 3.35-5.45 7.7-5.45s6.95 1.9 7.7 5.45" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M8.2 16.1c1.05.7 2.3 1.05 3.8 1.05s2.75-.35 3.8-1.05" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity=".55"/></svg></span><span class="nav-label">歌手</span></button>
+    <button data-view="playlists" type="button" title="收藏歌單" aria-label="收藏歌單"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><path d="M12 20s-7.5-4.6-7.5-10.1A4.15 4.15 0 0 1 12 7.5a4.15 4.15 0 0 1 7.5 2.4C19.5 15.4 12 20 12 20Z" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.2 12.3h7.6M12 8.5v7.6" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" opacity=".55"/></svg></span><span class="nav-label">收藏歌單</span></button>
     <button data-view="folders" type="button" title="資料夾歌單" aria-label="資料夾歌單"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><path d="M3.5 7.6A2.1 2.1 0 0 1 5.6 5.5h4l2 2.1h6.8a2.1 2.1 0 0 1 2.1 2.1v8.7a1.9 1.9 0 0 1-1.9 1.9H5.4a1.9 1.9 0 0 1-1.9-1.9V7.6Z" stroke="currentColor" stroke-width="1.65" stroke-linejoin="round"/><path d="M13.5 10.2v5.55a1.65 1.65 0 1 1-1.25-1.6v-3.3l4-1v4.55a1.65 1.65 0 1 1-1.25-1.6v-3.25l-1.5.65Z" fill="currentColor" opacity=".88"/></svg></span><span class="nav-label">資料夾歌單</span></button>
   </nav>
   <div class="gapline"></div>
@@ -179,6 +179,21 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   </div>
 </dialog>
 
+<dialog id="playlist-picker-dialog" class="feature-dialog playlist-picker-dialog" aria-labelledby="playlist-picker-title">
+   <div class="dialog-head">
+     <div><span class="kicker">YOUR PLAYLISTS</span><h2 id="playlist-picker-title">加入收藏歌單</h2></div>
+     <button class="close" type="button" data-action="close-playlist-dialog" aria-label="關閉">×</button>
+   </div>
+   <div class="dialog-body">
+     <p class="hint" id="playlist-picker-track" hidden></p>
+     <div class="playlist-picker-list" id="playlist-picker-list"></div>
+     <div class="playlist-create-inline">
+       <div class="field"><label for="playlist-new-name">建立自訂歌單</label><input id="playlist-new-name" type="text" maxlength="40" placeholder="輸入歌單名稱"></div>
+       <button class="primary" id="playlist-create-submit" type="button" data-action="save-playlist">建立歌單</button>
+     </div>
+     <p class="hint" id="playlist-dialog-status" role="status">選擇一個歌單即可加入歌曲。</p>
+   </div>
+ </dialog>
 <dialog id="connection-dialog">
   <div class="dialog-head"><h2>OpenList 來源管理</h2><button class="close" id="close-settings" aria-label="關閉">×</button></div>
   <div class="dialog-body">
@@ -274,5 +289,5 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   });
 })();
 </script>
-<script type="module" src="/assets/js/app.js?v=20261113-queue-source-label1"></script>
+<script type="module" src="/assets/js/app.js?v=20261113-playlists-folders1"></script>
 </body></html>

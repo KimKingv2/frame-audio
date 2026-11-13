@@ -1,7 +1,7 @@
 import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo, configureOpenListConnection, normalizeOpenListUrl, loginOpenList } from "./openlist-client.js?v=20261113-default-mobile-device1";
 import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261113-mobile-device-source1";
 import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js?v=20261113-mobile-device-source1";
-import { initLibraryUI } from "./library-ui.js?v=20261113-queue-source-label1";
+import { initLibraryUI } from "./library-ui.js?v=20261113-playlists-folders1";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
 (() => {
@@ -53,7 +53,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     podcasts: ["Podcasts", "YOUR PODCAST LIBRARY", "好內容，<span>慢慢聽。</span>", "集中管理喜愛的節目，從上次停止的位置繼續收聽。", "PODCAST LIBRARY", "你的節目收藏", "▤", "Podcast 尚未連接", "接入節目資料後，節目封面、單集、收聽進度與播放速度控制就會出現在這裡。"],
     tracks: ["Music", "TRACKS", "音樂，<span>隨時入場。</span>", "整理你的收藏，讓每一次播放都回到自己的音樂世界。", "TRACKS", "所有歌曲", "♫", "歌曲索引尚未發布", "歌曲索引發布後，這裡會顯示完整曲庫。"],
     albums: ["Music", "ALBUMS", "音樂，<span>隨時入場。</span>", "整理你的收藏，讓每一次播放都回到自己的音樂世界。", "ALBUMS", "專輯", "▣", "專輯索引尚未發布", "專輯索引發布後，這裡會依照專輯資訊整理收藏。"],
-    artists: ["Music", "ARTISTS", "音樂，<span>隨時入場。</span>", "整理你的收藏，讓每一次播放都回到自己的音樂世界。", "ARTISTS", "歌手", "♙", "歌手索引尚未發布", "歌手索引發布後，這裡會整理歌曲與專輯關聯。"],
+    playlists: ["Music", "PLAYLISTS", "音樂，<span>隨時入場。</span>", "收藏喜愛的歌曲，建立自己的播放清單。", "PLAYLISTS", "收藏歌單", "♡", "還沒有自訂歌單", "收藏夾會固定置頂，你可以建立自己的歌單並從歌曲目錄加入曲目。"],
     folders: ["Music", "FOLDER PLAYLISTS", "音樂，<span>隨時入場。</span>", "整理你的收藏，讓每一次播放都回到自己的音樂世界。", "FOLDER PLAYLISTS", "資料夾歌單", "▰", "資料夾索引尚未發布", "索引器會保留 OpenList 原始目錄樹。每個資料夾都能成為播放清單，並可選擇包含子資料夾。"],
     shows: ["Podcasts", "SHOWS", "好內容，<span>慢慢聽。</span>", "集中管理喜愛的節目，從上次停止的位置繼續收聽。", "SHOWS", "所有節目", "▥", "節目索引尚未發布", "節目索引發布後，這裡會顯示你的 Podcast 節目與單集。"],
     continue: ["Podcasts", "CONTINUE LISTENING", "好內容，<span>慢慢聽。</span>", "集中管理喜愛的節目，從上次停止的位置繼續收聽。", "CONTINUE LISTENING", "繼續收聽", "◷", "目前沒有收聽紀錄", "Podcast 播放進度會獨立保存，之後可以從上次停止的位置繼續。"],

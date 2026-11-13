@@ -1100,7 +1100,7 @@ body.desktop-sidebar-collapsed .player-queue-panel{right:90px;width:min(420px,ca
 #site-sidebar .nav button[data-view="podcasts"] .nav-icon svg,
 #site-sidebar .nav button[data-view="tracks"] .nav-icon svg,
 #site-sidebar .nav button[data-view="albums"] .nav-icon svg,
-#site-sidebar .nav button[data-view="artists"] .nav-icon svg,
+#site-sidebar .nav button[data-view="playlists"] .nav-icon svg,
 #site-sidebar .nav button[data-view="folders"] .nav-icon svg,
 #site-sidebar .nav button[data-view="shows"] .nav-icon svg{
   transition:transform .24s cubic-bezier(.2,.8,.2,1),filter .24s ease;
@@ -1132,3 +1132,18 @@ body.desktop-sidebar-collapsed .player-queue-panel{right:90px;width:min(420px,ca
 .player-queue-virtual-row .player-queue-item{height:58px;min-height:58px;max-height:58px;overflow:hidden}
 .player-queue-virtual-spacer{display:block;width:1px;min-height:0;max-height:none;padding:0;margin:0;border:0;pointer-events:none}
 @media(max-width:760px){.player-queue-virtual-row{height:54px;min-height:54px}.player-queue-virtual-row .player-queue-item{height:54px;min-height:54px;max-height:54px}}
+
+
+/* Preserve dock control alignment while the transport is rendered in Now Playing. */
+.dock-transport-placeholder{display:block;flex:0 0 142px;width:142px;height:48px;min-width:142px;visibility:hidden;pointer-events:none}
+@media(max-width:760px){.dock-transport-placeholder{flex-basis:128px;width:128px;min-width:128px;height:46px}}
+@media(max-width:390px){.dock-transport-placeholder{flex-basis:112px;width:112px;min-width:112px;height:42px}}
+/* Playlist destination picker. */
+.playlist-picker-dialog{width:min(480px,calc(100vw - 28px));max-height:min(82vh,700px)}
+.playlist-picker-list{display:grid;gap:7px;max-height:min(38vh,320px);overflow:auto;margin:0 0 16px}
+.playlist-picker-option{display:flex;align-items:center;gap:11px;width:100%;min-height:58px;padding:9px 11px;border:1px solid rgba(206,184,239,.13);border-radius:11px;color:#e9e1f2;background:rgba(255,255,255,.035);text-align:left;cursor:pointer;transition:background .16s ease,border-color .16s ease}
+.playlist-picker-option:hover,.playlist-picker-option[aria-pressed="true"]{border-color:rgba(193,161,233,.36);background:rgba(169,132,219,.13)}
+.playlist-picker-icon{display:grid;place-items:center;flex:0 0 36px;width:36px;height:36px;border:1px solid rgba(206,184,239,.16);border-radius:11px;color:#d7b9f7;background:rgba(169,132,219,.12);font-size:18px}
+.playlist-picker-copy{display:grid;gap:4px;min-width:0;flex:1}.playlist-picker-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}.playlist-picker-copy small{color:#93899f;font-size:9px}.playlist-picker-check{color:#d8c0f2;font-size:16px}
+.playlist-create-inline{display:flex;align-items:end;gap:10px;padding-top:14px;border-top:1px solid rgba(206,184,239,.1)}.playlist-create-inline .field{min-width:0;flex:1}.playlist-create-inline .primary{white-space:nowrap;min-height:39px}#playlist-dialog-status{margin:12px 0 0}
+@media(max-width:520px){.playlist-create-inline{align-items:stretch;flex-direction:column}.playlist-create-inline .primary{width:100%}}
