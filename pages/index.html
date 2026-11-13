@@ -306,6 +306,154 @@ dialog::backdrop{background:rgba(4,3,7,.82)!important}
 @media(prefers-reduced-motion:reduce){
   #site-sidebar .nav-icon,body.mobile-sidebar-expanded #site-sidebar .nav-icon{animation:none!important}
 }
+
+
+/* FRAME Audio · midnight silver-lilac finish.
+   Keep surfaces nearly black; let typography and line work carry the light. */
+#site-sidebar .nav button,
+body.mobile-sidebar-expanded #site-sidebar .nav button{
+  color:#c9b9d5!important;
+  background:transparent!important;
+  transition:background .28s ease,color .28s ease;
+}
+#site-sidebar .nav button .nav-label,
+body.mobile-sidebar-expanded #site-sidebar .nav button .nav-label{
+  color:transparent!important;
+  background-image:linear-gradient(105deg,#b9a8c8 0%,#e7dced 48%,#bba5cf 100%)!important;
+  -webkit-background-clip:text!important;
+  background-clip:text!important;
+  -webkit-text-fill-color:transparent!important;
+  text-shadow:0 0 12px rgba(186,151,211,.075);
+  transition:filter .28s ease,text-shadow .28s ease;
+}
+#site-sidebar .nav button:hover,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover{
+  background:linear-gradient(100deg,rgba(91,65,111,.075),rgba(47,34,58,.018))!important;
+}
+#site-sidebar .nav button:hover .nav-label,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-label{
+  background-image:linear-gradient(105deg,#d3c1e0 0%,#fff5ff 52%,#cbb4df 100%)!important;
+  text-shadow:0 0 15px rgba(197,164,224,.16);
+}
+#site-sidebar .nav button.active,
+body.mobile-sidebar-expanded #site-sidebar .nav button.active{
+  color:#eadcf3!important;
+  background:linear-gradient(100deg,rgba(91,61,111,.12),rgba(51,35,66,.035))!important;
+  box-shadow:inset -1px 0 rgba(176,139,204,.48)!important;
+}
+#site-sidebar .nav button.active .nav-label,
+body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-label{
+  background-image:linear-gradient(100deg,#d8c6e5 0%,#fff5ff 48%,#c3a8d8 100%)!important;
+  text-shadow:0 0 16px rgba(194,158,222,.18);
+}
+#site-sidebar .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav-icon{
+  border:1px solid rgba(193,166,215,.13)!important;
+  border-radius:13px!important;
+  background:transparent!important;
+  color:#c7b3d8!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.025),0 0 7px rgba(177,139,210,.045)!important;
+  animation:frame-nav-outline-breathe 5.6s ease-in-out infinite alternate!important;
+  transition:border-color .3s ease,color .3s ease,box-shadow .3s ease,filter .3s ease;
+}
+#site-sidebar .nav-icon svg{
+  filter:drop-shadow(0 0 4px rgba(192,158,221,.10));
+}
+#site-sidebar .nav-icon:not(:has(svg)),
+body.mobile-sidebar-expanded #site-sidebar .nav-icon:not(:has(svg)){
+  color:transparent!important;
+  background-image:linear-gradient(145deg,#bca7d0 0%,#f0e7f5 52%,#aa91c2 100%)!important;
+  -webkit-background-clip:text!important;
+  background-clip:text!important;
+  -webkit-text-fill-color:transparent!important;
+}
+#site-sidebar .nav button:hover .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-icon{
+  border-color:rgba(205,180,226,.23)!important;
+  color:#e9dcf2!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.035),0 0 10px rgba(184,147,215,.10)!important;
+  filter:brightness(1.08);
+}
+#site-sidebar .nav button.active .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-icon{
+  border-color:rgba(211,183,232,.24)!important;
+  color:#f0e5f7!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.04),0 0 12px rgba(185,145,218,.12)!important;
+}
+#site-sidebar .nav button.active .nav-icon:not(:has(svg)),
+body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-icon:not(:has(svg)){
+  background-image:linear-gradient(145deg,#d5c0e6 0%,#fff7ff 52%,#c1a5d9 100%)!important;
+}
+@keyframes frame-nav-outline-breathe{
+  from{
+    border-color:rgba(193,166,215,.075);
+    box-shadow:inset 0 1px rgba(255,255,255,.015),0 0 3px rgba(177,139,210,.025);
+  }
+  to{
+    border-color:rgba(205,180,226,.17);
+    box-shadow:inset 0 1px rgba(255,255,255,.035),0 0 9px rgba(177,139,210,.075);
+  }
+}
+
+/* Playback detail controls: glass-dark surfaces with luminous gradient glyphs. */
+.now-playing-tools-host .controls .player-utility,
+.now-playing-tools-host .controls .player-stop{
+  border:1px solid rgba(193,166,215,.15)!important;
+  border-radius:13px!important;
+  background-color:transparent!important;
+  background-image:linear-gradient(140deg,#bba6d0 0%,#f0e8f5 54%,#b39bc9 100%)!important;
+  background-clip:text!important;
+  -webkit-background-clip:text!important;
+  color:transparent!important;
+  -webkit-text-fill-color:transparent!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.025),0 0 8px rgba(177,139,210,.045)!important;
+  transition:border-color .25s ease,box-shadow .25s ease,filter .25s ease,transform .2s ease;
+}
+.now-playing-tools-host .controls .player-utility:hover,
+.now-playing-tools-host .controls .player-stop:hover{
+  border-color:rgba(216,194,233,.27)!important;
+  background-color:transparent!important;
+  filter:brightness(1.12);
+  box-shadow:inset 0 1px rgba(255,255,255,.04),0 0 12px rgba(187,151,219,.10)!important;
+}
+.now-playing-tools-host .controls .player-utility.active{
+  border-color:rgba(216,190,238,.30)!important;
+  background-color:transparent!important;
+  background-image:linear-gradient(135deg,#d4bee5 0%,#fff5ff 52%,#c1a5d9 100%)!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.05),0 0 14px rgba(190,151,224,.14)!important;
+  filter:brightness(1.06);
+}
+.now-playing-tools-host .controls .player-stop{
+  background-image:linear-gradient(135deg,#c69eae 0%,#f2dce7 55%,#bd91a8 100%)!important;
+}
+.now-playing-tools-host #player-speed{
+  border:1px solid rgba(193,166,215,.13)!important;
+  border-radius:12px!important;
+  background:linear-gradient(145deg,rgba(24,19,30,.45),rgba(14,13,19,.30))!important;
+  color:#e0d2eb!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.025),0 0 8px rgba(177,139,210,.035)!important;
+}
+.now-playing-tools-host #player-speed:focus-visible{
+  border-color:rgba(216,190,238,.34)!important;
+  outline:1px solid rgba(193,161,224,.4)!important;
+}
+
+/* Give the track title the same pearlescent highlight without brightening the canvas. */
+#player-title,
+.now-playing-track-copy h1{
+  color:transparent!important;
+  background-image:linear-gradient(100deg,#c8b5d8 0%,#f1eaf5 48%,#bca5cf 100%)!important;
+  -webkit-background-clip:text!important;
+  background-clip:text!important;
+  -webkit-text-fill-color:transparent!important;
+  text-shadow:0 0 18px rgba(181,145,211,.12);
+}
+@media(prefers-reduced-motion:reduce){
+  #site-sidebar .nav-icon,
+  body.mobile-sidebar-expanded #site-sidebar .nav-icon{
+    animation:none!important;
+  }
+}
 </style>
 </head>
 <body>
