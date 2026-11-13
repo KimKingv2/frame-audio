@@ -1,7 +1,7 @@
 import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo, configureOpenListConnection, normalizeOpenListUrl, loginOpenList } from "./openlist-client.js?v=20261113-default-mobile-device1";
 import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261113-mobile-device-source1";
 import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js?v=20261113-mobile-device-source1";
-import { initLibraryUI } from "./library-ui.js?v=20261113-playback-connect-status1";
+import { initLibraryUI } from "./library-ui.js?v=20261113-queue-source-label1";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
 (() => {

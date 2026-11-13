@@ -23,7 +23,7 @@ export function initLibraryUI(options = {}) {
   const state = {
     view:"music",lastLibraryView:"music",tracks:[],folders:[],shows:[],episodes:[],recentTracks:[],loaded:false,loadedAt:0,busy:false,trackPage:0,
     selectedShowId:"",selectedAlbum:null,search:"",searchComposing:false,items:[],itemType:"track",reportPeriod:"week",reportType:"episode",
-    errors:[],currentItem:null,queue:[],queueIndex:-1,session:null,tickAt:0,speed:1,
+    errors:[],currentItem:null,queue:[],queueIndex:-1,queueLabel:"播放列表",session:null,tickAt:0,speed:1,
     lastProgressSave:0,restorePositionMs:0,playRequestId:0,artworkUrls:new Set(),
     preloadEntry:null,preloadAudio:null,preloadGeneration:0,restoredPlaybackPending:false,lastLocalPositionSaveAt:0,
     playMode:"sequential",shuffleEnabled:false,shuffleOrder:[],shufflePosition:-1,
@@ -618,11 +618,36 @@ export function initLibraryUI(options = {}) {
   function playbackItemRef(item) {
     return [String(item?.id||item?.item_id||""),String(pathOf(item)||"")];
   }
+  function displayFolderName(value) {
+    const raw=String(value||"").trim();
+    return raw.replace(/^\d{2}\s+/u,"").trim()||raw;
+  }
+  function defaultQueueLabel(type,item) {
+    if(type==="episode"){
+      const show=state.shows.find(entry=>String(entry.id)===String(item?.showId||""));
+      return "Podcast / "+String(item?.showTitle||show?.title||item?.subtitle||"節目");
+    }
+    if(state.view==="album-detail"&&state.selectedAlbum){
+      const album=state.selectedAlbum;
+      return "專輯 / "+String(album.title||"未命名專輯")+(album.artist?"（"+album.artist+"）":"");
+    }
+    if(state.view==="show-detail"){
+      const show=state.shows.find(entry=>String(entry.id)===String(state.selectedShowId));
+      if(show)return "Podcast / "+String(show.title||"節目");
+    }
+    if(state.view==="tracks"){
+      const query=String(state.search||"").trim();
+      return query?"搜尋結果 / "+query:"所有歌曲";
+    }
+    if(state.view==="music")return "最近播放的音樂";
+    return "所有歌曲";
+  }
   function savePlaybackQueueState() {
     if(!state.currentItem||!state.queue.length||state.queueIndex<0||state.queueIndex>=state.queue.length)return;
     const payload={
       version:1,
       itemType:state.currentItem.itemType==="episode"?"episode":"track",
+      queueLabel:String(state.queueLabel||"播放列表").slice(0,240),
       currentItem:playbackItemRef(state.currentItem),
       queue:state.queue.map(playbackItemRef),
       queueIndex:state.queueIndex,
@@ -696,6 +721,7 @@ export function initLibraryUI(options = {}) {
     }
     if(!Number.isInteger(restoredIndex)||restoredIndex<0||restoredIndex>=queue.length)restoredIndex=0;
     state.queue=queue;state.queueIndex=restoredIndex;
+    state.queueLabel=String(saved.queueLabel|| (type==="episode"?"Podcast":"所有歌曲")).slice(0,240);
     state.currentItem=playable(queue[restoredIndex],type);state.session=null;
     state.playMode=PLAY_MODES.includes(saved.playMode)?saved.playMode:state.playMode;
     state.shuffleEnabled=saved.shuffleEnabled===true;
@@ -1040,7 +1066,7 @@ export function initLibraryUI(options = {}) {
     root.innerHTML=searchBar("搜尋根目錄資料夾")+sectionHead("MUSIC FOLDERS","資料夾歌單",countLabel)+
       (folders.length?'<div class="folder-grid">'+folders.slice(0,500).map((folder,index)=>
         '<button class="folder-card" data-action="play-group" data-index="'+index+'"><span>▰</span><strong>'+
-        esc(folder.name)+'</strong><small>'+Number(folder.recursiveTrackCount??folder.directTrackCount??0)+
+        esc(displayFolderName(folder.name))+'</strong><small>'+Number(folder.recursiveTrackCount??folder.directTrackCount??0)+
         ' 首歌曲</small><em>'+esc(folder.path)+'</em></button>').join("")+'</div>':empty);
   }
   function showCards(shows) {
@@ -1165,6 +1191,9 @@ export function initLibraryUI(options = {}) {
       toggle.title = total ? "播放列表 · " + total.toLocaleString() + " 首" : "播放列表";
       toggle.classList.toggle("has-queue", total > 0);
     }
+    const heading=$("#player-queue-heading");
+    const queueLabel=String(state.queueLabel||"播放列表");
+    if(heading){heading.textContent=total?queueLabel:"播放列表";heading.title=total?queueLabel:"播放列表";}
     if (summary) {
       summary.textContent = total
         ? total.toLocaleString() + " 首 · " + (state.shuffleEnabled ? "隨機播放順序" : "目前播放順序") + " · 虛擬列表"
@@ -1576,6 +1605,7 @@ export function initLibraryUI(options = {}) {
       }else{
         state.queue=queue.map(x=>({...x}));
         state.queueIndex=index;
+        state.queueLabel=String(playOptions.queueLabel||defaultQueueLabel(type,item)).slice(0,240);
         rebuildShuffleOrder(index);
       }
       state.session=null;
@@ -1734,25 +1764,37 @@ export function initLibraryUI(options = {}) {
       if(action==="play"){
         const item=state.items[i];
         if(state.itemType==="continue"){
-          const p=item;await playItem("episode",{id:p.item_id,title:p.title,showTitle:p.subtitle,path:p.path,artworkHash:p.artwork_hash,durationMs:p.duration_ms},[item],0);
-        }else await playItem(state.itemType,item,state.items,i);
+          const p=item;
+          await playItem("episode",{id:p.item_id,title:p.title,showTitle:p.subtitle,path:p.path,artworkHash:p.artwork_hash,durationMs:p.duration_ms},[item],0,{
+            queueLabel:"繼續收聽 / "+String(p.subtitle||"Podcast")
+          });
+        }else{
+          await playItem(state.itemType,item,state.items,i,{queueLabel:defaultQueueLabel(state.itemType,item)});
+        }
         return;
       }
       if(action==="play-album"){
-        const list=orderedAlbumTracks(state.selectedAlbum?.tracks||[]);
-        if(list.length)await playItem("track",list[0],list,0);return;
+        const album=state.selectedAlbum;
+        const list=orderedAlbumTracks(album?.tracks||[]);
+        const queueLabel=album?"專輯 / "+String(album.title||"未命名專輯")+(album.artist?"（"+album.artist+"）":""):"專輯";
+        if(list.length)await playItem("track",list[0],list,0,{queueLabel});return;
       }
       if(action==="refresh-album-metadata"){await refreshAlbumMetadata();return;}
       if(action==="play-show"){
         const show=state.shows.find(s=>s.id===state.selectedShowId),list=state.episodes.filter(e=>e.showId===show?.id).map(e=>({...e,showTitle:show.title}));
-        if(list.length)await playItem("episode",list[0],list,0);return;
+        if(list.length)await playItem("episode",list[0],list,0,{queueLabel:"Podcast / "+String(show?.title||"節目")});return;
       }
       if(action==="play-group"){
         const group=state.items[i];if(!group)return;
-        let list=[];
-        if(state.itemType==="artist")list=group[1];
-        else if(state.itemType==="folder")list=state.tracks.filter(t=>t.file?.path===group.path||t.file?.path?.startsWith(group.path.replace(/\/$/,"")+"/"));
-        if(list.length)await playItem("track",list[0],list,0);return;
+        let list=[],queueLabel="音樂";
+        if(state.itemType==="artist"){
+          list=group[1];
+          queueLabel="歌手 / "+String(group[0]||"未知歌手");
+        }else if(state.itemType==="folder"){
+          list=state.tracks.filter(t=>t.file?.path===group.path||t.file?.path?.startsWith(group.path.replace(/\/$/,"")+"/"));
+          queueLabel="資料夾 / "+displayFolderName(group.name||group.path.split("/").filter(Boolean).pop()||"未命名資料夾");
+        }
+        if(list.length)await playItem("track",list[0],list,0,{queueLabel});return;
       }
       if(action==="report-type"){state.reportType=b.dataset.value;await renderReports();return;}
       if(action==="report-period"){state.reportPeriod=b.dataset.value;await renderReports();return;}

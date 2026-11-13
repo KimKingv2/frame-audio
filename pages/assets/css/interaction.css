@@ -810,7 +810,7 @@ body.desktop-sidebar-collapsed .player-queue-panel{right:90px;width:min(420px,ca
 }
 .player-queue-heading-copy{min-width:0}
 .player-queue-heading-copy .kicker{font-size:8px;letter-spacing:.2em}
-.player-queue-heading-copy h2{margin:4px 0 3px;color:#f0e9f8;font-size:17px;font-weight:680}
+.player-queue-heading-copy h2{margin:4px 0 3px;color:#f0e9f8;font-size:17px;font-weight:680;line-height:1.35;overflow-wrap:anywhere}
 .player-queue-heading-copy p{margin:0;color:#93899f;font-size:10px}
 .player-queue-close{
   display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;padding:0;
