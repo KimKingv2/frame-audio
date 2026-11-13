@@ -7,10 +7,12 @@ FRAME Audio uses Pages Functions as its same-origin API, D1 for catalogue / scan
 - D1 database: `frame-audio-catalog`, binding `DB`
 - R2 bucket: `frame-audio-artwork`, binding `ARTWORKS`
 - Secret: `FRAME_AUDIO_API_ADMIN_TOKEN` (FRAME Audio internal API admin gate)
-- Secret: `ALIST_VPS_API_TOKEN`; Text: `ALIST_VPS_API_BASE_URL`
-- Secret: `OPENLIST_WORKER_API_TOKEN`; Text: `OPENLIST_WORKER_API_BASE_URL`
+- KV namespace binding: `FRAME_AUDIO_TOKEN_CACHE` (Preview; short-lived upstream JWT cache)
+- Secrets: `ALIST_VPS_USERNAME`, `ALIST_VPS_PASSWORD`; Text: `ALIST_VPS_API_BASE_URL`
+- Secrets: `OPENLIST_WORKER_USERNAME`, `OPENLIST_WORKER_PASSWORD`; Text: `OPENLIST_WORKER_API_BASE_URL`
+- Secrets: `ALIST_K40_USERNAME`, `ALIST_K40_PASSWORD`; Text: `ALIST_K40_API_BASE_URL`
 
-VPS / Worker settings are fixed in Cloudflare Pages **Variables and Secrets** and read only by Pages Functions. Their Tokens are never sent to the browser and are not stored in D1. The existing `FRAME_AUDIO_API_ADMIN_TOKEN` remains a separate application-level gate; do not replace it with an Alist Token or combine the values.
+VPS / Worker / K40 service-account credentials are read only by Pages Functions. Functions obtain upstream JWTs through each provider login API. JWTs are cached in the optional `FRAME_AUDIO_TOKEN_CACHE` KV binding with an expiry TTL and in isolate memory; they are never sent to the browser or stored in D1/R2. Without KV, the application falls back to isolate-memory caching and re-authenticates after a cold start. The existing `FRAME_AUDIO_API_ADMIN_TOKEN` remains a separate application-level gate; do not replace it with an Alist Token or combine the values.
 
 ## Environment settings
 
@@ -19,14 +21,16 @@ Open **Workers & Pages → frame-audio → Settings → Variables and Secrets**.
 | Name | Type | Value |
 |---|---|---|
 | `ALIST_VPS_API_BASE_URL` | Text | `https://drive.kimkingv2.top` |
-| `ALIST_VPS_API_TOKEN` | Secret | The read-only VPS Alist API Token |
+| `ALIST_VPS_USERNAME` | Secret | Dedicated read-only VPS Alist username |
+| `ALIST_VPS_PASSWORD` | Secret | Dedicated read-only VPS Alist password |
 | `OPENLIST_WORKER_API_BASE_URL` | Text | Your OpenList Worker API base URL |
-| `OPENLIST_WORKER_API_TOKEN` | Secret | The OpenList Worker API Token |
+| `OPENLIST_WORKER_USERNAME` | Secret | Dedicated OpenList Worker username |
+| `OPENLIST_WORKER_PASSWORD` | Secret | Dedicated OpenList Worker password |
 | `FRAME_AUDIO_API_ADMIN_TOKEN` | Secret | Existing FRAME Audio internal API admin Secret |
 
-Legacy VPS aliases `OPENLIST_BASE_URL` / `OPENLIST_API_TOKEN` and Worker aliases `ALIST_WORKER_API_BASE_URL` / `ALIST_WORKER_API_TOKEN` remain supported. Use `OPENLIST_WORKER_API_BASE_URL` and `OPENLIST_WORKER_API_TOKEN` as the primary Worker settings. Never paste Secrets into the website, GitHub, URLs or chat. The site shows only whether a profile is configured and never reveals its Token.
+The new username/password Secrets take priority and enable automatic server-side login and renewal. During migration, existing `ALIST_VPS_API_TOKEN`, `OPENLIST_WORKER_API_TOKEN`, `ALIST_K40_API_TOKEN` and legacy aliases remain supported as fallback. Do not remove old Token Secrets until each source has passed Preview tests. Never paste Secrets into the website, GitHub, URLs or chat. The site shows only whether a profile is configured and never reveals credentials or JWTs.
 
-Keep using the existing D1 and R2 resources. Preview and Production values are independent. After adding or changing environment values, redeploy the matching branch.
+Keep using the existing D1 and R2 resources. Create a dedicated KV namespace for Preview and bind it as `FRAME_AUDIO_TOKEN_CACHE`; do not share this cache namespace with Production. The application still works without KV using per-isolate memory cache, but cold starts will perform a new login. Preview and Production values are independent. After adding or changing environment values or bindings, redeploy the matching branch.
 
 ## D1 migrations
 

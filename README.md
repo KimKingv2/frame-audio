@@ -62,7 +62,7 @@ FRAME Audio 是以 VPS Alist 為音訊來源的私人音訊平台，包含 **Mus
 - Build command：留空
 - Build output directory：`pages`
 
-正式環境與 Preview 環境應各自設定 `DB`、`ARTWORKS` bindings；`FRAME_AUDIO_API_ADMIN_TOKEN`、`ALIST_VPS_API_TOKEN`、`OPENLIST_WORKER_API_TOKEN`、`ALIST_K40_API_TOKEN` Secrets；以及 `ALIST_VPS_API_BASE_URL`、`OPENLIST_WORKER_API_BASE_URL`、`ALIST_K40_API_BASE_URL` Variables。Access 必須保護 `frame-audio.pages.dev` 與 `*.frame-audio.pages.dev`。詳細步驟見 [docs/CLOUDFLARE-STORAGE.md](docs/CLOUDFLARE-STORAGE.md)。
+正式環境與 Preview 環境應各自設定 `DB`、`ARTWORKS` bindings；Preview 遷移時另設定 KV binding `FRAME_AUDIO_TOKEN_CACHE`；`FRAME_AUDIO_API_ADMIN_TOKEN`、`ALIST_VPS_USERNAME`、`ALIST_VPS_PASSWORD`、`OPENLIST_WORKER_USERNAME`、`OPENLIST_WORKER_PASSWORD`、`ALIST_K40_USERNAME`、`ALIST_K40_PASSWORD` Secrets；以及三個來源各自的 `*_API_BASE_URL` Variables。Access 必須保護 `frame-audio.pages.dev` 與 `*.frame-audio.pages.dev`。詳細步驟見 [docs/CLOUDFLARE-STORAGE.md](docs/CLOUDFLARE-STORAGE.md)。
 
 新增或修改環境變數及 Secret 後，必須觸發一次新的 Pages 部署，新的設定才會注入該部署。請確認 Secret 設定在正確的環境（Production 或 Preview），再重新部署對應分支。
 

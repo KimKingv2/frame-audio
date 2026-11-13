@@ -14,29 +14,32 @@ FRAME Audio has four possible sources that share one D1 catalogue and R2 artwork
 - The Test button always tests the saved active provider, never the pending dropdown selection.
 - At startup only the saved active server-side provider may be tested. If LAN is active, the page waits for username/password login from a user gesture.
 - An unconfigured active server provider is reported unavailable; the app does not silently fall back to a different provider.
-- The settings endpoint reads environment bindings and returns endpoint configuration plus `hasToken`; it does not contact any Alist/OpenList node.
+- The settings endpoint reads environment bindings and returns endpoint configuration plus a credential-present flag; it does not contact any Alist/OpenList node.
+- Server sources prefer dedicated username/password Secrets and automatically call `/api/auth/login`; legacy static Token Secrets remain a migration fallback until each provider passes testing.
+- Provider JWTs are cached in the optional `FRAME_AUDIO_TOKEN_CACHE` KV binding with an expiry TTL, plus per-isolate memory. No credentials or JWTs are returned to browser JavaScript.
 - The diagnostic page lists all four providers without probing them. Users can select any 2–4 providers, including all four; only after the explicit Start test button is pressed are those selected providers temporarily activated for this diagnostic run, one at a time. The saved app-wide active provider is not changed. Unselected providers receive no API requests.
 - VPS, Worker and K40 requests include the explicit active provider ID. Unknown IDs are rejected rather than defaulting to VPS.
 - Outside an explicitly started comparison, no inactive source receives list/get/login/range requests or next-track prefetch requests. During a comparison, only the 2–4 explicitly selected providers are contacted, in sequence; all remaining providers are untouched.
 
 ## Cloudflare Preview / Production values
 
-Configure each Pages environment separately. Add these K40 values:
+Configure each Pages environment separately. For the Preview migration, create a KV namespace and bind it as `FRAME_AUDIO_TOKEN_CACHE`. Add the service-account Secrets below, and keep legacy Token Secrets until every provider passes testing. Add these K40 values:
 
 | Name | Type |
 |---|---|
 | `ALIST_K40_API_BASE_URL` | Variable |
-| `ALIST_K40_API_TOKEN` | Secret |
+| `ALIST_K40_USERNAME` | Secret |
+| `ALIST_K40_PASSWORD` | Secret |
 
 Existing settings:
 
-| Source | URL Variable | Token Secret |
-|---|---|---|
-| VPS Alist | `ALIST_VPS_API_BASE_URL` | `ALIST_VPS_API_TOKEN` |
-| OpenList Worker | `OPENLIST_WORKER_API_BASE_URL` | `OPENLIST_WORKER_API_TOKEN` |
-| K40 Alist | `ALIST_K40_API_BASE_URL` | `ALIST_K40_API_TOKEN` |
+| Source | URL Variable | Username Secret | Password Secret |
+|---|---|---|---|
+| VPS Alist | `ALIST_VPS_API_BASE_URL` | `ALIST_VPS_USERNAME` | `ALIST_VPS_PASSWORD` |
+| OpenList Worker | `OPENLIST_WORKER_API_BASE_URL` | `OPENLIST_WORKER_USERNAME` | `OPENLIST_WORKER_PASSWORD` |
+| K40 Alist | `ALIST_K40_API_BASE_URL` | `ALIST_K40_USERNAME` | `ALIST_K40_PASSWORD` |
 
-`FRAME_AUDIO_API_ADMIN_TOKEN` remains a separate Secret for FRAME Audio's own private API gate. Server credentials are read only by Pages Functions and never written to D1 or sent to browser JavaScript. The K40 endpoint must be an HTTPS URL reachable from Cloudflare Pages Functions; a private RFC1918 address on a home LAN is not reachable from Cloudflare without a suitable tunnel or public route.
+`FRAME_AUDIO_API_ADMIN_TOKEN` remains a separate Secret for FRAME Audio's own private API gate. Upstream service credentials are read only by Pages Functions, while short-lived JWTs are cached in KV/memory; neither credentials nor JWTs are sent to browser JavaScript or written to D1/R2. Legacy Token Secrets remain supported only during migration. The K40 endpoint must be an HTTPS URL reachable from Cloudflare Pages Functions; a private RFC1918 address on a home LAN is not reachable from Cloudflare without a suitable tunnel or public route.
 
 ## LAN OpenList username/password login
 

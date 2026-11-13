@@ -69,7 +69,8 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000, provi
         redirect: "manual",
         headers: {
           "Authorization": token,
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "Client-Id": "frame-audio-server-" + source
         },
         body: JSON.stringify(body),
         signal: controller.signal
