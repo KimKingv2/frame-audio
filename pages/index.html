@@ -772,6 +772,127 @@ body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-icon:not(:has
     animation:none!important;
   }
 }
+
+
+/* Final interaction corrections: Music glyph, dock hover, and dark-violet seek rail. */
+
+/* The Music symbol is a text glyph, not an SVG. Cancel inherited gradient-text
+   clipping so it never turns white on the active tab. */
+#site-sidebar .nav button[data-view="music"] .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button[data-view="music"] .nav-icon,
+#site-sidebar .nav button[data-view="music"]:hover .nav-icon,
+#site-sidebar .nav button[data-view="music"].active .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button[data-view="music"]:hover .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button[data-view="music"].active .nav-icon{
+  color:#80658f!important;
+  -webkit-text-fill-color:#80658f!important;
+  background:transparent!important;
+  background-image:none!important;
+  background-clip:border-box!important;
+  -webkit-background-clip:border-box!important;
+  border:0!important;
+  box-shadow:none!important;
+  filter:none!important;
+}
+#site-sidebar .nav button[data-view="music"]:hover .nav-icon,
+#site-sidebar .nav button[data-view="music"].active .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button[data-view="music"]:hover .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button[data-view="music"].active .nav-icon{
+  color:#9679a7!important;
+  -webkit-text-fill-color:#9679a7!important;
+}
+
+/* Dock controls should not flash a hover tile. Keep each control's base surface
+   and glyph color while the pointer is over it. */
+.dock button:not(.player-play):hover:not(:disabled),
+.dock button:not(.player-play):focus:not(:disabled){
+  background:transparent!important;
+  background-image:none!important;
+  color:inherit!important;
+  -webkit-text-fill-color:currentColor!important;
+  box-shadow:none!important;
+  filter:none!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+.dock .dock-tool-toggle:hover:not(:disabled),
+.dock .dock-tool-toggle[aria-expanded="true"]:hover:not(:disabled){
+  background:rgba(77,51,96,.12)!important;
+  color:#b59bc4!important;
+}
+.dock .dock-favorite-toggle:hover:not(:disabled){
+  background:transparent!important;
+  color:#a994b6!important;
+}
+.dock .dock-favorite-toggle.is-favorite:hover:not(:disabled){
+  background:transparent!important;
+  color:#c49bcf!important;
+}
+.dock .player-play:hover:not(:disabled){
+  background:#503a66!important;
+  color:#e0d5e5!important;
+  box-shadow:0 4px 14px rgba(54,34,70,.22)!important;
+  filter:none!important;
+}
+.dock .now-open:hover #player-title{
+  color:inherit!important;
+  background-image:inherit!important;
+  text-shadow:inherit!important;
+}
+
+/* Now Playing seek bar: no filled input backdrop, a darker left-to-right
+   violet rail with restrained silver depth, and a deeper metallic thumb. */
+.now-playing-tools-host #player-seek,
+#player-detail-controls.now-playing-tools-host #player-seek{
+  background:transparent!important;
+  background-color:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+.now-playing-tools-host #player-seek::-webkit-slider-runnable-track,
+#player-detail-controls.now-playing-tools-host #player-seek::-webkit-slider-runnable-track{
+  height:4px!important;
+  border:0!important;
+  border-radius:6px!important;
+  background:linear-gradient(90deg,#201827 0%,#34263f 38%,#40304b 58%,#282033 100%)!important;
+  box-shadow:inset 0 1px rgba(185,163,201,.12),inset 0 -1px rgba(7,5,10,.45)!important;
+}
+.now-playing-tools-host #player-seek::-moz-range-track,
+#player-detail-controls.now-playing-tools-host #player-seek::-moz-range-track{
+  height:4px!important;
+  border:0!important;
+  border-radius:6px!important;
+  background:linear-gradient(90deg,#201827 0%,#34263f 38%,#40304b 58%,#282033 100%)!important;
+  box-shadow:inset 0 1px rgba(185,163,201,.12),inset 0 -1px rgba(7,5,10,.45)!important;
+}
+.now-playing-tools-host #player-seek::-moz-range-progress,
+#player-detail-controls.now-playing-tools-host #player-seek::-moz-range-progress{
+  height:4px!important;
+  background:transparent!important;
+  border:0!important;
+}
+.now-playing-tools-host #player-seek::-webkit-slider-thumb,
+#player-detail-controls.now-playing-tools-host #player-seek::-webkit-slider-thumb{
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  width:12px!important;
+  height:12px!important;
+  margin-top:-4px!important;
+  border:1px solid #74627f!important;
+  border-radius:50%!important;
+  background:radial-gradient(circle at 32% 26%,#685674 0%,#403149 44%,#211828 100%)!important;
+  box-shadow:0 0 0 2px rgba(99,73,117,.13),0 1px 5px rgba(0,0,0,.78)!important;
+}
+.now-playing-tools-host #player-seek::-moz-range-thumb,
+#player-detail-controls.now-playing-tools-host #player-seek::-moz-range-thumb{
+  width:12px!important;
+  height:12px!important;
+  border:1px solid #74627f!important;
+  border-radius:50%!important;
+  background:radial-gradient(circle at 32% 26%,#685674 0%,#403149 44%,#211828 100%)!important;
+  box-shadow:0 0 0 2px rgba(99,73,117,.13),0 1px 5px rgba(0,0,0,.78)!important;
+}
+
 </style>
 </head>
 <body>
