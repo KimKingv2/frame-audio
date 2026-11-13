@@ -16,7 +16,7 @@ VPS / Worker / K40 service-account credentials are read only by Pages Functions.
 
 ## Environment settings
 
-Open **Workers & Pages → frame-audio → Settings → Variables and Secrets**. Set the following independently for Preview and Production:
+Open **Workers & Pages → frame-audio → Settings → Variables and Secrets**. Apply the new automatic-login credentials to **Preview first**. Keep Production unchanged until all three Preview sources pass testing:
 
 | Name | Type | Value |
 |---|---|---|
@@ -26,11 +26,14 @@ Open **Workers & Pages → frame-audio → Settings → Variables and Secrets**.
 | `OPENLIST_WORKER_API_BASE_URL` | Text | Your OpenList Worker API base URL |
 | `OPENLIST_WORKER_USERNAME` | Secret | Dedicated OpenList Worker username |
 | `OPENLIST_WORKER_PASSWORD` | Secret | Dedicated OpenList Worker password |
+| `ALIST_K40_API_BASE_URL` | Text | K40 Alist HTTPS API base URL |
+| `ALIST_K40_USERNAME` | Secret | Dedicated K40 Alist username |
+| `ALIST_K40_PASSWORD` | Secret | Dedicated K40 Alist password |
 | `FRAME_AUDIO_API_ADMIN_TOKEN` | Secret | Existing FRAME Audio internal API admin Secret |
 
 The new username/password Secrets take priority and enable automatic server-side login and renewal. During migration, existing `ALIST_VPS_API_TOKEN`, `OPENLIST_WORKER_API_TOKEN`, `ALIST_K40_API_TOKEN` and legacy aliases remain supported as fallback. Do not remove old Token Secrets until each source has passed Preview tests. Never paste Secrets into the website, GitHub, URLs or chat. The site shows only whether a profile is configured and never reveals credentials or JWTs.
 
-Keep using the existing D1 and R2 resources. Create a dedicated KV namespace for Preview and bind it as `FRAME_AUDIO_TOKEN_CACHE`; do not share this cache namespace with Production. The application still works without KV using per-isolate memory cache, but cold starts will perform a new login. Preview and Production values are independent. After adding or changing environment values or bindings, redeploy the matching branch.
+Keep using the existing D1 and R2 resources. Under **Settings → Bindings → KV namespace bindings**, create or select a dedicated Preview namespace and bind it with variable name `FRAME_AUDIO_TOKEN_CACHE`. Do not share this cache namespace with Production. The application still works without KV using per-isolate memory cache, but cold starts will perform a new login. Add the matching Production credentials and a separate Production KV binding only after Preview has passed testing. After adding or changing environment values or bindings, redeploy the matching branch.
 
 ## D1 migrations
 

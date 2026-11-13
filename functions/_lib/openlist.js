@@ -130,7 +130,7 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000, provi
     } catch {
       bodyMs += performance.now() - bodyStartedAt;
       return {
-        response: error(label + " API 回應不是有效 JSON。", 502),
+        response: error(label + " API 回應不是有效 JSON（HTTP " + upstream.status + "）。", upstream.status === 401 ? 401 : 502),
         upstream,
         payload: null
       };
@@ -139,9 +139,8 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000, provi
   }
 
   let attempt = await requestOnce(auth.token);
-  if (attempt.response) return { ...attempt, timing: timing() };
-
   const authRejected = attempt.upstream?.status === 401 || Number(attempt.payload?.code) === 401;
+  if (attempt.response && !authRejected) return { ...attempt, timing: timing() };
   if (auth.managed && authRejected) {
     try {
       await invalidateProviderToken(env, source, configured.baseUrl, profile);
@@ -155,6 +154,7 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000, provi
       };
     }
   }
+  if (attempt.response) return { ...attempt, timing: timing() };
 
   const upstream = attempt.upstream;
   const payload = attempt.payload;
