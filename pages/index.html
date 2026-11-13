@@ -288,6 +288,61 @@ body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-icon:not(:has(
   -webkit-text-fill-color:currentColor!important;
 }
 
+
+/* Remaining secondary labels across music, podcast, reports and diagnostics. */
+.media-card small,.folder-card em,.show-detail p,.report-switch button,
+.period-switch button,.player-transport select,.player-stop,
+.player-queue-empty,.now-playing-reindex-status,.player-control-separator,
+.now-playing-tools-host .timeline span,.lyrics-dialog .dialog-head p,
+.playback-log-count,.scan-log-count,.entry-size,.browser-empty,
+.library-search::placeholder,.field input::placeholder{
+  color:#aa9abb!important;
+}
+.report-switch button.active,.period-switch button.active,
+.report-row b,.error-table code,.path-edit,.eq-band-value,
+.player-transport select:focus{
+  color:#c1afd1!important;
+}
+.eq-band-label,.eq-footer,.eq-status,.lyrics-empty,.lyrics-plain-line,
+.player-queue-empty,.now-playing-reindex-status{
+  color:#a393b5!important;
+}
+#player-seek::-moz-range-progress,
+.now-playing-tools-host #player-seek::-moz-range-progress{
+  background:transparent!important;border:0!important;
+}
+/* Flat, visible hover feedback for ordinary buttons and icon-only controls. */
+button:hover:not(:disabled){
+  background-color:#211a29!important;
+  color:#d7c5e3!important;
+  -webkit-text-fill-color:currentColor!important;
+  background-clip:border-box!important;
+  -webkit-background-clip:border-box!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+.primary:hover,
+#player-toggle:hover,
+.dock-transport-host .player-transport .player-play:hover,
+.now-playing-transport-host .player-transport .player-play:hover{
+  background-color:#5b426d!important;
+  color:#eee5f2!important;
+}
+#site-sidebar .nav button:hover,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover{
+  background:transparent!important;
+}
+#site-sidebar .nav button:hover .nav-label,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-label{
+  background-clip:text!important;-webkit-background-clip:text!important;
+  -webkit-text-fill-color:transparent!important;
+}
+#site-sidebar .nav button:hover .nav-icon:not(:has(svg)),
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-icon:not(:has(svg)){
+  background-image:none!important;background-clip:border-box!important;
+  -webkit-background-clip:border-box!important;-webkit-text-fill-color:currentColor!important;
+}
+
 </style>
 <link rel="stylesheet" href="/assets/css/metadata.css">
 <link rel="stylesheet" href="/assets/css/library.css?v=20261113-playlists-folders1">
