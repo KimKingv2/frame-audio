@@ -1188,3 +1188,60 @@ body.desktop-sidebar-collapsed .player-queue-panel{right:90px;width:min(420px,ca
   .dock-favorite-toggle{flex-basis:31px;width:31px;height:31px;min-width:31px;border-radius:10px}
 }
 @media(prefers-reduced-motion:reduce){.dock-favorite-toggle,.dock-favorite-toggle svg path{transition:none!important}}
+
+/* FRAME Audio: outline-only Now Playing tools and softly glowing navigation icons. */
+.now-playing-tools-host .controls .player-utility,
+.now-playing-tools-host .controls .player-stop,
+.now-playing-tools-host #player-speed{
+  background:transparent!important;
+  box-shadow:0 0 6px rgba(183,148,225,.045);
+}
+.now-playing-tools-host .controls .player-utility:hover,
+.now-playing-tools-host .controls .player-stop:hover{
+  background:transparent!important;
+  border-color:rgba(218,199,241,.24);
+  box-shadow:0 0 9px rgba(183,148,225,.10);
+}
+.now-playing-tools-host .controls .player-utility.active{
+  background:transparent!important;
+  border-color:rgba(193,161,233,.28);
+  box-shadow:0 0 11px rgba(177,139,224,.13);
+}
+.now-playing-tools-host #player-speed{
+  border-color:rgba(218,199,241,.11);
+}
+#site-sidebar .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav-icon{
+  background:transparent!important;
+  border-color:rgba(206,184,239,.085);
+  box-shadow:0 0 5px rgba(183,148,225,.045);
+  animation:nav-icon-outline-breathe 4.8s ease-in-out infinite alternate;
+}
+#site-sidebar .nav button:hover .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-icon{
+  background:transparent!important;
+  border-color:rgba(206,184,239,.19);
+  box-shadow:0 0 8px rgba(183,148,225,.10);
+}
+#site-sidebar .nav button.active .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-icon{
+  background:transparent!important;
+  border-color:rgba(193,161,233,.18);
+  box-shadow:0 0 8px rgba(177,139,224,.095);
+}
+@keyframes nav-icon-outline-breathe{
+  from{
+    border-color:rgba(206,184,239,.065);
+    box-shadow:0 0 3px rgba(183,148,225,.025);
+  }
+  to{
+    border-color:rgba(206,184,239,.14);
+    box-shadow:0 0 8px rgba(183,148,225,.085);
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  #site-sidebar .nav-icon,
+  body.mobile-sidebar-expanded #site-sidebar .nav-icon{
+    animation:none!important;
+  }
+}
