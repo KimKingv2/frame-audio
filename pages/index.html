@@ -25,6 +25,269 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 .scan-log-line[data-level="error"]{color:#e39a9a}
 .scan-log-placeholder{color:#746c80}
 @media(max-width:520px){.scan-log-toolbar{align-items:flex-start;flex-direction:column}.scan-log-toolbar>div{width:100%}.scan-log-button{flex:1}}
+
+
+/* FRAME Audio · interaction and typography refinement. */
+:root{
+  --silver-violet:#b7a6c8;
+  --silver-violet-bright:#d4c5e2;
+  --silver-violet-dim:#9983ad;
+  --progress-metal:#756581;
+}
+/* Navigation: no filled tiles; selection is carried by lilac text and glyphs. */
+#site-sidebar .label,
+body.mobile-sidebar-expanded #site-sidebar .label{
+  color:#a895ba!important;
+  background:transparent!important;
+}
+#site-sidebar .nav,
+#site-sidebar .nav.secondary,
+body.mobile-sidebar-expanded #site-sidebar .nav,
+body.mobile-sidebar-expanded #site-sidebar .nav.secondary{
+  background:transparent!important;
+}
+#site-sidebar .nav button,
+body.mobile-sidebar-expanded #site-sidebar .nav button{
+  background:transparent!important;
+  box-shadow:none!important;
+  border:0!important;
+}
+#site-sidebar .nav button:hover,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover{
+  background:transparent!important;
+  box-shadow:none!important;
+  color:#c8b6d8!important;
+  opacity:1!important;
+}
+#site-sidebar .nav button.active,
+body.mobile-sidebar-expanded #site-sidebar .nav button.active{
+  background:transparent!important;
+  box-shadow:none!important;
+  color:#ddc9ed!important;
+}
+#site-sidebar .nav button .nav-label,
+body.mobile-sidebar-expanded #site-sidebar .nav button .nav-label{
+  background-image:linear-gradient(105deg,#bba8ce 0%,#d7c7e4 52%,#b39bc8 100%)!important;
+  -webkit-text-fill-color:transparent!important;
+}
+#site-sidebar .nav button:hover .nav-label,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-label{
+  background-image:linear-gradient(105deg,#cbb8dd 0%,#e5d8ef 52%,#c4acda 100%)!important;
+  -webkit-text-fill-color:transparent!important;
+}
+#site-sidebar .nav button.active .nav-label,
+body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-label{
+  background-image:linear-gradient(100deg,#cfb5e3 0%,#e5d4f0 50%,#bd9bd7 100%)!important;
+  -webkit-text-fill-color:transparent!important;
+  text-shadow:0 0 13px rgba(183,145,210,.15)!important;
+}
+#site-sidebar .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav-icon{
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  animation:none!important;
+  color:#a98cbe!important;
+  filter:none!important;
+}
+#site-sidebar .nav-icon:not(:has(svg)),
+body.mobile-sidebar-expanded #site-sidebar .nav-icon:not(:has(svg)){
+  background-image:none!important;
+  background-clip:border-box!important;
+  -webkit-background-clip:border-box!important;
+  color:#a98cbe!important;
+  -webkit-text-fill-color:currentColor!important;
+}
+#site-sidebar .nav button:hover .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-icon{
+  color:#b99dce!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  filter:none!important;
+}
+#site-sidebar .nav button.active .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-icon{
+  color:#a986c2!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  filter:drop-shadow(0 0 5px rgba(169,134,194,.12))!important;
+}
+#site-sidebar .nav button[data-view="music"],
+#site-sidebar .nav button[data-view="podcasts"]{
+  background:transparent!important;
+}
+#site-sidebar .nav button[data-view="music"].active .nav-label,
+#site-sidebar .nav button[data-view="podcasts"].active .nav-label{
+  background-image:linear-gradient(100deg,#cfb5e3 0%,#e4d4ed 50%,#bc9ad4 100%)!important;
+}
+/* Music landing item: prevent the active Music tab from rendering as white. */
+#site-sidebar .nav button[data-view="music"].active,
+#site-sidebar .nav button[data-view="music"]:hover{
+  background:transparent!important;
+  color:#d5c2e3!important;
+}
+#site-sidebar .nav button[data-view="music"] .nav-icon,
+#site-sidebar .nav button[data-view="music"].active .nav-icon{
+  color:#a986c2!important;
+}
+
+/* Playback progress: no filled capsule behind the range input.
+   The rail and thumb use a dark violet metallic-silver finish. */
+.now-playing-tools-host .timeline,
+.now-playing-tools-host .timeline span{
+  color:#aa9abb!important;
+}
+#player-seek,
+.now-playing-tools-host #player-seek{
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  outline:0;
+}
+#player-seek::-webkit-slider-runnable-track,
+.now-playing-tools-host #player-seek::-webkit-slider-runnable-track{
+  height:4px!important;
+  border:0!important;
+  border-radius:6px!important;
+  background:linear-gradient(180deg,#796b82 0%,#554660 48%,#30243c 100%)!important;
+  box-shadow:inset 0 1px rgba(225,213,235,.12),0 1px 2px rgba(0,0,0,.38)!important;
+}
+#player-seek::-moz-range-track,
+.now-playing-tools-host #player-seek::-moz-range-track{
+  height:4px!important;
+  border:0!important;
+  border-radius:6px!important;
+  background:linear-gradient(180deg,#796b82 0%,#554660 48%,#30243c 100%)!important;
+  box-shadow:inset 0 1px rgba(225,213,235,.12),0 1px 2px rgba(0,0,0,.38)!important;
+}
+#player-seek::-webkit-slider-thumb,
+.now-playing-tools-host #player-seek::-webkit-slider-thumb{
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  width:13px!important;height:13px!important;margin-top:-4.5px!important;
+  border:1px solid #9c8aaa!important;border-radius:50%!important;
+  background:radial-gradient(circle at 34% 28%,#c9bdd3 0%,#897796 44%,#493852 100%)!important;
+  box-shadow:0 0 0 3px rgba(139,108,158,.13),0 1px 5px rgba(0,0,0,.72)!important;
+}
+#player-seek::-moz-range-thumb,
+.now-playing-tools-host #player-seek::-moz-range-thumb{
+  width:13px!important;height:13px!important;
+  border:1px solid #9c8aaa!important;border-radius:50%!important;
+  background:radial-gradient(circle at 34% 28%,#c9bdd3 0%,#897796 44%,#493852 100%)!important;
+  box-shadow:0 0 0 3px rgba(139,108,158,.13),0 1px 5px rgba(0,0,0,.72)!important;
+}
+#player-seek:focus-visible,
+.now-playing-tools-host #player-seek:focus-visible{
+  outline:0!important;
+}
+#player-seek:focus-visible::-webkit-slider-thumb,
+.now-playing-tools-host #player-seek:focus-visible::-webkit-slider-thumb{
+  box-shadow:0 0 0 4px rgba(177,146,199,.2),0 1px 5px rgba(0,0,0,.72)!important;
+}
+
+/* Bring every secondary/metadata label from neutral grey into pale lilac. */
+.top,.top strong,.count,.meta,.foot,.hero p,.empty p,
+.library-muted,.library-description,.summary-card span,.media-copy span,
+.media-duration,.media-card span,.show-card small,.artist-card small,
+.folder-card small,.playlist-card small,.playlist-card em,.show-card-copy em,
+.report-row small,.report-row span,.player-queue-heading-copy p,
+.player-queue-subtitle,.player-queue-number,.player-queue-status,
+#player-subtitle,.now-copy-separator,.now-playing-kind,
+.now-playing-track-copy p,.now-playing-lyrics-heading,
+.now-playing-empty p,.field label,.hint,.provider-card-heading span,
+.metadata-label,.metadata-heading span,.metadata-footer,
+.metadata-lyrics pre,.eq-band-label,.eq-band-value,.eq-footer,.eq-status,
+.lyrics-empty,.lyrics-plain-line,.entry-size,.browser-path,
+.scan-log-toolbar,.playback-log-toolbar,.scan-log-placeholder,
+.playback-log-placeholder,.error-table th,.error-reason,
+.type-pill,.type-pill.podcast,.type-pill.music{
+  color:#aa9abb!important;
+}
+.now-playing-lyric-line{color:#877995!important}
+.now-playing-lyric-line:hover{color:#b9a7c8!important}
+.now-playing-lyric-line.active{color:#d2c2df!important}
+.playback-connection-notice{color:#c0b0cd!important}
+
+/* Hover states must retain a visible surface and glyph.
+   Some previous gradient-text treatments left controls transparent on hover. */
+button:hover:not(:disabled),
+a:hover,
+[role="button"]:hover,
+.media-row[data-action="play"]:hover,
+.entry:hover{
+  opacity:1!important;
+  visibility:visible!important;
+}
+button:hover:not(:disabled){
+  -webkit-text-fill-color:currentColor;
+}
+.primary:hover{
+  color:#e3d5ec!important;
+  -webkit-text-fill-color:currentColor!important;
+  background:#5b426d!important;
+  opacity:1!important;visibility:visible!important;
+}
+.secondary:hover,
+.close:hover,
+.player-queue-close:hover{
+  color:#d7c5e3!important;
+  -webkit-text-fill-color:currentColor!important;
+  background:#241b2d!important;
+  opacity:1!important;visibility:visible!important;
+}
+.play-button:hover,.playlist-add-button:hover,.playlist-remove-button:hover,
+.album-link:hover,.back-link:hover,.now-playing-back:hover,
+.playlist-picker-option:hover,.playlist-create-inline button:hover{
+  color:#d7c5e3!important;
+  -webkit-text-fill-color:currentColor!important;
+  background:#251c2f!important;
+  opacity:1!important;visibility:visible!important;
+}
+.dock-transport-host .player-transport button:hover,
+.now-playing-transport-host .player-transport button:hover{
+  color:#d9c8e5!important;
+  -webkit-text-fill-color:currentColor!important;
+  background:rgba(126,91,151,.16)!important;
+  opacity:1!important;visibility:visible!important;
+}
+.dock-transport-host .player-transport .player-play:hover,
+.now-playing-transport-host .player-transport .player-play:hover{
+  color:#eee5f2!important;
+  background:#624979!important;
+}
+.dock-transport-host .dock-tool-toggle:hover,
+.dock-transport-host .dock-tool-toggle[aria-expanded="true"]:hover{
+  color:#d9c8e5!important;
+  -webkit-text-fill-color:currentColor!important;
+  background:rgba(104,75,127,.22)!important;
+  opacity:1!important;visibility:visible!important;
+}
+.now-playing-tools-host .controls .player-utility:hover,
+.now-playing-tools-host .controls .player-stop:hover,
+.now-playing-tools-host #player-speed:hover{
+  color:#d7c5e3!important;
+  -webkit-text-fill-color:currentColor!important;
+  background:#211829!important;
+  background-image:none!important;
+  background-clip:border-box!important;
+  -webkit-background-clip:border-box!important;
+  border-color:rgba(173,143,195,.22)!important;
+  filter:none!important;
+  opacity:1!important;visibility:visible!important;
+}
+#site-sidebar .nav button:hover .nav-label,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-label{
+  -webkit-text-fill-color:transparent!important;
+}
+#site-sidebar .nav button:hover .nav-icon:not(:has(svg)),
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-icon:not(:has(svg)){
+  -webkit-text-fill-color:currentColor!important;
+}
+
 </style>
 <link rel="stylesheet" href="/assets/css/metadata.css">
 <link rel="stylesheet" href="/assets/css/library.css?v=20261113-playlists-folders1">
