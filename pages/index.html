@@ -883,15 +883,23 @@ body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-icon:not(:has
 /* Keep Music in the same navigation icon system as every other section.
    No one-off animation, hover, active, border or shadow overrides. */
 
-/* Flat two-tone seek rail: elapsed time is darker than the remaining track. */
+/* Two-tone seek rail. Keep the percentage split tied to the live range value. */
+.now-playing-tools-host #player-seek,
+#player-detail-controls.now-playing-tools-host #player-seek{
+  --seek-progress:0%;
+  background:transparent!important;
+  background-color:transparent!important;
+}
 .now-playing-tools-host #player-seek::-webkit-slider-runnable-track,
 #player-detail-controls.now-playing-tools-host #player-seek::-webkit-slider-runnable-track{
   height:3px!important;
   border:0!important;
   border-radius:5px!important;
   background:linear-gradient(90deg,
-    #24182f 0 var(--seek-progress,0%),
-    #3b2b49 var(--seek-progress,0%) 100%)!important;
+    #24182f 0%,
+    #24182f var(--seek-progress, 0%),
+    #3b2b49 var(--seek-progress, 0%),
+    #3b2b49 100%)!important;
   box-shadow:none!important;
 }
 .now-playing-tools-host #player-seek::-moz-range-track,
@@ -939,52 +947,28 @@ body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-icon:not(:has
     0 2px 5px rgba(0,0,0,.42)!important;
 }
 
-/* Flatten and darken the seek rail. The thumb is a single solid purple-black
-   disc with a distinct black outer shadow, without metallic highlights. */
-.now-playing-tools-host #player-seek::-webkit-slider-runnable-track,
-#player-detail-controls.now-playing-tools-host #player-seek::-webkit-slider-runnable-track{
-  height:3px!important;
-  border:0!important;
-  border-radius:5px!important;
-  background:linear-gradient(90deg,#17101f 0%,#21162d 44%,#281a35 62%,#191121 100%)!important;
-  box-shadow:none!important;
+/* Restore semantic green for positive connection, storage and indexing states. */
+.statusbox.ok,
+.statusbox.success,
+#connection-result.ok,
+#storage-result.ok,
+#provider-settings-status.ok,
+#scan-progress.ok,
+.library-message.is-success,
+.eq-status.ok{
+  border-color:rgba(103,164,119,.34)!important;
+  background:#172019!important;
+  color:#a7d4b5!important;
 }
-.now-playing-tools-host #player-seek::-moz-range-track,
-#player-detail-controls.now-playing-tools-host #player-seek::-moz-range-track{
-  height:3px!important;
-  border:0!important;
-  border-radius:5px!important;
-  background:linear-gradient(90deg,#17101f 0%,#21162d 44%,#281a35 62%,#191121 100%)!important;
-  box-shadow:none!important;
+.playback-connection-notice.is-success{
+  border-color:rgba(103,164,119,.34)!important;
+  background:#172019!important;
+  color:#bfe2c8!important;
 }
-.now-playing-tools-host #player-seek::-moz-range-progress,
-#player-detail-controls.now-playing-tools-host #player-seek::-moz-range-progress{
-  height:3px!important;
-  background:transparent!important;
-  border:0!important;
+.scan-log-line[data-level="success"],
+.playback-log-line[data-level="success"]{
+  color:#9fc9a9!important;
 }
-.now-playing-tools-host #player-seek::-webkit-slider-thumb,
-#player-detail-controls.now-playing-tools-host #player-seek::-webkit-slider-thumb{
-  appearance:none!important;
-  -webkit-appearance:none!important;
-  width:11px!important;
-  height:11px!important;
-  margin-top:-4px!important;
-  border:1px solid #34233f!important;
-  border-radius:50%!important;
-  background:#211429!important;
-  box-shadow:0 0 0 2px rgba(0,0,0,.92),0 2px 6px rgba(0,0,0,.98)!important;
-}
-.now-playing-tools-host #player-seek::-moz-range-thumb,
-#player-detail-controls.now-playing-tools-host #player-seek::-moz-range-thumb{
-  width:11px!important;
-  height:11px!important;
-  border:1px solid #34233f!important;
-  border-radius:50%!important;
-  background:#211429!important;
-  box-shadow:0 0 0 2px rgba(0,0,0,.92),0 2px 6px rgba(0,0,0,.98)!important;
-}
-
 </style>
 </head>
 <body>
