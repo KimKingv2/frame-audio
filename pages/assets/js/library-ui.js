@@ -1619,7 +1619,12 @@ export function initLibraryUI(options = {}) {
 
   function timeline() {
     const d=Number(audio.duration||0),p=Number(audio.currentTime||0);
-    $("#player-seek").value=d>0?String(Math.round(p/d*1000)):"0";
+    const seek=$("#player-seek");
+    const seekValue=d>0?Math.max(0,Math.min(1000,Math.round(p/d*1000))):0;
+    if(seek){
+      seek.value=String(seekValue);
+      seek.style.setProperty("--seek-progress",`${seekValue/10}%`);
+    }
     $("#player-current").textContent=duration(p*1000);
     $("#player-duration").textContent=duration((d||state.currentItem?.durationMs/1000||0)*1000);
     updateMediaPositionState();
@@ -2159,6 +2164,10 @@ export function initLibraryUI(options = {}) {
     clearNextPreload();
     accountTime();persistSession(false);saveProgress(true);audio.pause();audio.removeAttribute("src");audio.removeAttribute("crossorigin");audio.load();
     state.currentItem=null;state.session=null;state.queue=[];state.queueIndex=-1;state.shuffleOrder=[];state.shufflePosition=-1;state.restorePositionMs=0;clearSavedPlaybackState();setDock(null);timeline();
+  });
+  $("#player-seek")?.addEventListener("input",e=>{
+    const value=Math.max(0,Math.min(1000,Number(e.target.value)||0));
+    e.target.style.setProperty("--seek-progress",`${value/10}%`);
   });
   $("#player-seek")?.addEventListener("change",e=>{if(Number.isFinite(audio.duration)&&audio.duration>0)audio.currentTime=audio.duration*Number(e.target.value)/1000;});
   $("#player-speed")?.addEventListener("change",e=>{state.speed=Math.min(2,Math.max(.5,Number(e.target.value)||1));audio.playbackRate=state.speed;if(state.currentItem?.itemType==="episode")saveProgress(true);savePlaybackQueueState();});
