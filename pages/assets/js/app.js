@@ -1942,9 +1942,14 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       const result = await listOpenListDirectory({ baseUrl: activeBaseUrl, path, page: 1, perPage: 100 });
       renderDirectory(result);
     } catch (cause) {
+      const errorMessage = String(cause?.message || cause);
+      if (activeProvider === "local" && /登入已失效|HTTP\\s*(?:401|403)|API\\s*(?:401|403)/i.test(errorMessage)) {
+        clearLocalOpenListSession();
+        applyActiveOpenListProvider("local");
+      }
       $("#connection-label").textContent = name + " 尚未連線";
       $("#connection-dot").style.background = "#b78b75";
-      setResult(cause.message || (name + " 連線失敗。"), "error");
+      setResult(errorMessage || (name + " 連線失敗。"), "error");
     } finally {
       button.disabled = false;
     }
