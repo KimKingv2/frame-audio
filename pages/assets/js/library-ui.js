@@ -13,6 +13,9 @@ export function initLibraryUI(options = {}) {
   let mediaSessionArtworkRequestId = 0;
   let mediaSessionArtworkPendingKey = "";
   let activeAudioTimingCleanup = null;
+  let playbackNoticeTimer = 0;
+  let activePlaybackProviderLabel = "VPS Alist";
+  const playbackLogEntries = [];
   let mediaSessionArtworkObjectUrl = "";
   let mediaSessionArtworkObjectUrlKey = "";
   const state = {
@@ -36,6 +39,56 @@ export function initLibraryUI(options = {}) {
     return h ? h+" 小時 "+m+" 分" : m ? m+" 分鐘" : n+" 秒";
   };
   function getConfig(){return options.getCredentials?.()||{};}
+  function playbackProviderLabel(provider) {
+    return ({vps:"VPS Alist",worker:"OpenList Worker","mobile-device":"Mobile Device Alist",local:"區域網路 OpenList"})[String(provider||"vps")] || "OpenList";
+  }
+  function appendPlaybackLog(message, level="info") {
+    const now=new Date();
+    const stamp=[String(now.getHours()).padStart(2,"0"),String(now.getMinutes()).padStart(2,"0"),String(now.getSeconds()).padStart(2,"0")].join(":")+"."+String(now.getMilliseconds()).padStart(3,"0");
+    const line=stamp+"  "+String(message||"");
+    playbackLogEntries.push(line);
+    if(playbackLogEntries.length>200)playbackLogEntries.shift();
+    const output=$("#playback-log-output");
+    if(output){
+      const placeholder=output.querySelector(".playback-log-placeholder");
+      if(placeholder)placeholder.remove();
+      const row=document.createElement("div");
+      row.className="playback-log-line";
+      row.dataset.level=["success","warning","error"].includes(level)?level:"info";
+      row.textContent=line;
+      output.append(row);
+      while(output.children.length>200)output.firstElementChild.remove();
+      output.scrollTop=output.scrollHeight;
+    }
+    const count=$("#playback-log-count");
+    if(count)count.textContent=playbackLogEntries.length+" 筆";
+    if(level==="error"){
+      const panel=$("#playback-log-panel");
+      if(panel)panel.open=true;
+    }
+  }
+  function hidePlaybackConnectionStatus(requestId=state.playRequestId) {
+    if(requestId!==state.playRequestId)return;
+    const node=$("#playback-connection-notice");
+    if(!node)return;
+    window.clearTimeout(playbackNoticeTimer);
+    node.classList.remove("is-visible");
+    playbackNoticeTimer=window.setTimeout(()=>{
+      if(requestId===state.playRequestId&&!node.classList.contains("is-visible"))node.hidden=true;
+    },260);
+  }
+  function setPlaybackConnectionStatus(message,type="connecting",requestId=state.playRequestId,hideAfterMs=0) {
+    if(requestId!==state.playRequestId)return;
+    const node=$("#playback-connection-notice");
+    if(!node)return;
+    window.clearTimeout(playbackNoticeTimer);
+    node.textContent=String(message||"");
+    node.className="playback-connection-notice is-visible"+(type?" is-"+type:"");
+    node.hidden=false;
+    if(hideAfterMs>0)playbackNoticeTimer=window.setTimeout(()=>hidePlaybackConnectionStatus(requestId),hideAfterMs);
+  }
+  const mediaReadyStateName=value=>["HAVE_NOTHING","HAVE_METADATA","HAVE_CURRENT_DATA","HAVE_FUTURE_DATA","HAVE_ENOUGH_DATA"][Number(value)]||"UNKNOWN";
+  const mediaNetworkStateName=value=>["NETWORK_EMPTY","NETWORK_IDLE","NETWORK_LOADING","NETWORK_NO_SOURCE"][Number(value)]||"UNKNOWN";
   function loadPlayerPreferences(){try{const saved=JSON.parse(localStorage.getItem("frame-audio-player-preferences")||"{}");if(PLAY_MODES.includes(saved.playMode))state.playMode=saved.playMode;state.shuffleEnabled=saved.shuffleEnabled===true;}catch{}}
   function savePlayerPreferences(){try{localStorage.setItem("frame-audio-player-preferences",JSON.stringify({playMode:state.playMode,shuffleEnabled:state.shuffleEnabled}));}catch{}}
   function updatePlayerModeButton(){const button=$("#player-mode");if(!button)return;const config={sequential:{icon:"→",label:"順序播放"},"repeat-one":{icon:"↻¹",label:"單曲循環"},"repeat-all":{icon:"↻",label:"列表循環"}}[state.playMode]||{icon:"→",label:"順序播放"};button.textContent=config.icon;button.title=config.label;button.setAttribute("aria-label",config.label);button.classList.toggle("active",state.playMode!=="sequential");audio.loop=false;}
@@ -64,37 +117,71 @@ export function initLibraryUI(options = {}) {
       if (timeoutId) clearTimeout(timeoutId);
       if (activeAudioTimingCleanup === cleanup) activeAudioTimingCleanup = null;
     };
+    const eventDetail = eventName => {
+      const elapsed=Math.round(performance.now()-startedAt);
+      const extra=eventName==="loadedmetadata"&&Number.isFinite(media.duration)
+        ? "；時長 "+duration(media.duration*1000)
+        : "";
+      return "HTML5 Audio "+eventName+" · "+elapsed+" ms"+extra+
+        " · readyState="+media.readyState+" ("+mediaReadyStateName(media.readyState)+")"+
+        " · networkState="+media.networkState+" ("+mediaNetworkStateName(media.networkState)+")";
+    };
     const mark = (eventName, key) => {
       const handler = () => {
         if (timings[key] === undefined) timings[key] = Math.round(performance.now() - startedAt);
+        appendPlaybackLog(eventDetail(eventName),eventName==="playing"?"success":"info");
         if (eventName === "playing") {
           console.info("[FRAME Audio] Audio startup pipeline", {
             ...context,
             ...timings,
             totalToPlayingMs: timings.playingMs
           });
+          setPlaybackConnectionStatus("已開始播放 · "+(context.providerLabel||"OpenList"),"success",context.requestId,2200);
           cleanup();
         }
       };
       media.addEventListener(eventName, handler);
       listeners.push([eventName, handler]);
     };
+    mark("play", "playEventMs");
     mark("loadstart", "loadStartMs");
     mark("loadedmetadata", "loadedMetadataMs");
     mark("loadeddata", "loadedDataMs");
     mark("canplay", "canPlayMs");
     mark("playing", "playingMs");
+    const onWaiting = () => {
+      appendPlaybackLog(eventDetail("waiting"),"warning");
+      setPlaybackConnectionStatus("音訊串流暫時等待資料…","warning",context.requestId);
+    };
+    const onStalled = () => {
+      appendPlaybackLog(eventDetail("stalled"),"warning");
+      setPlaybackConnectionStatus("音訊來源暫時沒有傳送資料…","warning",context.requestId);
+    };
+    media.addEventListener("waiting",onWaiting);
+    media.addEventListener("stalled",onStalled);
+    listeners.push(["waiting",onWaiting],["stalled",onStalled]);
     const onError = () => {
+      const errorCode=media.error?.code||null;
+      const errorMessage=media.error?.message||"瀏覽器未提供更詳細的 MediaError 訊息";
+      appendPlaybackLog("HTML5 Audio error · MediaError code="+String(errorCode||"未知")+" · "+errorMessage+
+        " · readyState="+media.readyState+" · networkState="+media.networkState,"error");
+      setPlaybackConnectionStatus("音訊載入失敗 · MediaError "+String(errorCode||"未知"),"error",context.requestId,10000);
       console.warn("[FRAME Audio] Audio startup pipeline failed", {
         ...context,
         ...timings,
-        errorCode: media.error?.code || null
+        errorCode,
+        errorMessage
       });
       cleanup();
     };
     media.addEventListener("error", onError);
     listeners.push(["error", onError]);
-    timeoutId = setTimeout(cleanup, 60000);
+    timeoutId = setTimeout(()=>{
+      if(cleaned)return;
+      appendPlaybackLog("播放啟動等待超過 60 秒，尚未收到 playing 事件。","warning");
+      setPlaybackConnectionStatus("尚未開始播放，請查看頁面最底部的連線日誌。","warning",context.requestId,10000);
+      cleanup();
+    },60000);
     return cleanup;
   }
 
@@ -1215,9 +1302,26 @@ export function initLibraryUI(options = {}) {
     const requestId=++state.playRequestId;
     const isCurrentRequest=()=>requestId===state.playRequestId;
     const config=getConfig();
-    if(!config.connected||!config.storageReady||!config.baseUrl){message("伺服器端 VPS Alist 或 Cloudflare 連線尚未就緒。","error");$("#open-settings")?.click();return;}
+    const providerLabel=playbackProviderLabel(config.provider);
+    activePlaybackProviderLabel=providerLabel;
+    if(!config.connected||!config.storageReady||!config.baseUrl){
+      appendPlaybackLog("播放中止 · "+providerLabel+" 或 Cloudflare D1 / R2 尚未就緒。","error");
+      setPlaybackConnectionStatus(providerLabel+" 尚未就緒，請先完成連線測試。","error",requestId,10000);
+      message(providerLabel+" 或 Cloudflare 連線尚未就緒。","error");
+      $("#open-settings")?.click();
+      return;
+    }
     const item=playable(raw,type);
-    if(!item.path||!item.id){message("這筆索引缺少檔案路徑或識別碼。","error");return;}
+    if(!item.path||!item.id){
+      appendPlaybackLog("播放中止 · 索引項目缺少檔案路徑或識別碼。","error");
+      setPlaybackConnectionStatus("播放項目資料不完整。","error",requestId,10000);
+      message("這筆索引缺少檔案路徑或識別碼。","error");
+      return;
+    }
+
+    appendPlaybackLog("開始播放請求 · "+(item.title||"未命名音訊")+" · "+providerLabel+" · "+(type==="episode"?"Podcast":"Music"));
+    appendPlaybackLog("檔案路徑："+item.path);
+    setPlaybackConnectionStatus("正在連接 "+providerLabel+"…","connecting",requestId);
 
     const cachedEntry=state.preloadEntry?.itemId===item.id&&state.preloadEntry?.path===item.path
       ? state.preloadEntry : null;
@@ -1225,15 +1329,32 @@ export function initLibraryUI(options = {}) {
 
     try {
       const infoStartedAt=performance.now();
+      appendPlaybackLog(cachedEntry?.promise?"使用下一首預載的檔案資訊。":"向 "+providerLabel+" 請求檔案資訊（/api/fs/get）……");
+      const requestFileInfo=()=>getOpenListFileInfo({
+        baseUrl:config.baseUrl,
+        path:item.path,
+        timeoutMs:180000,
+        onTiming:timing=>appendPlaybackLog(
+          "檔案資訊 API HTTP "+timing.status+" · response "+timing.responseMs+" ms · JSON "+timing.bodyMs+" ms"+
+          (timing.serverTiming?" · Server-Timing: "+timing.serverTiming:""),
+          timing.status>=200&&timing.status<300?"success":"warning"
+        )
+      });
       const infoRequest=cachedEntry?.promise
-        ? cachedEntry.promise.then(info=>info||getOpenListFileInfo({baseUrl:config.baseUrl,path:item.path,timeoutMs:180000}))
-        : getOpenListFileInfo({baseUrl:config.baseUrl,path:item.path,timeoutMs:180000});
+        ? cachedEntry.promise.then(info=>{
+            if(info){appendPlaybackLog("已沿用預載檔案資訊。","success");return info;}
+            return requestFileInfo();
+          })
+        : requestFileInfo();
       const infoPromise=infoRequest.then(info=>({info,elapsedMs:Math.round(performance.now()-infoStartedAt)}));
       const progressStartedAt=performance.now();
       const progressPromise=type==="episode"
         ? api("/api/listening?view=progress&itemType="+type+"&itemId="+encodeURIComponent(item.id))
             .then(data=>({data,elapsedMs:Math.round(performance.now()-progressStartedAt)}))
-            .catch(()=>({data:{item:null},elapsedMs:Math.round(performance.now()-progressStartedAt)}))
+            .catch(error=>{
+              appendPlaybackLog("Podcast 收聽進度查詢失敗，將從頭播放 · "+(error?.message||error),"warning");
+              return {data:{item:null},elapsedMs:Math.round(performance.now()-progressStartedAt)};
+            })
         : Promise.resolve({data:{item:null},elapsedMs:0});
       const [infoResult,progressResult]=await Promise.all([infoPromise,progressPromise]);
       const info=infoResult.info;
@@ -1248,9 +1369,14 @@ export function initLibraryUI(options = {}) {
         transport:"direct-raw-url"
       });
       if(!isCurrentRequest())return;
-      if(!info||info.is_dir)throw new Error("VPS Alist 回傳的項目是資料夾，不是音訊檔案。");
-      if(!info.raw_url)throw new Error("VPS Alist /api/fs/get 沒有提供 raw_url。");
-      if(!Number.isFinite(Number(info.size))||Number(info.size)<=0)throw new Error("VPS Alist 沒有提供有效檔案大小。");
+      if(type==="episode")appendPlaybackLog("Podcast 收聽進度查詢完成 · "+progressLookupMs+" ms。");
+      if(!info||info.is_dir)throw new Error(providerLabel+" 回傳的項目是資料夾，不是音訊檔案。");
+      if(!info.raw_url)throw new Error(providerLabel+" /api/fs/get 沒有提供 raw_url。");
+      if(!Number.isFinite(Number(info.size))||Number(info.size)<=0)throw new Error(providerLabel+" 沒有提供有效檔案大小。");
+      let audioHost="未知";
+      try{audioHost=new URL(String(info.raw_url),config.baseUrl||window.location.href).host;}catch{}
+      appendPlaybackLog("檔案資訊取得完成 · "+fileInfoElapsedMs+" ms · "+Number(info.size).toLocaleString()+" bytes · raw_url 初始主機 "+audioHost,"success");
+      setPlaybackConnectionStatus("已連接 "+providerLabel+"，正在啟動音訊…","loading",requestId);
 
       // Every item uses the Alist raw_url directly. The browser follows the
       // source's HTTP redirects; Pages never relays or transcodes audio.
@@ -1281,11 +1407,14 @@ export function initLibraryUI(options = {}) {
         ?Math.min(2,Math.max(.5,Number(saved.item.playback_rate))):1;
       $("#player-speed").value=String(state.speed);
       setDock(item);
-      $("#player-type").textContent=(type==="episode"?"PODCAST":"MUSIC")+" · VPS ALIST";
+      $("#player-type").textContent=(type==="episode"?"PODCAST":"MUSIC")+" · "+providerLabel.toUpperCase();
 
       const mediaLoadStartedAt=performance.now();
       activeAudioTimingCleanup = attachAudioStartupTiming(audio, mediaLoadStartedAt, {
+        requestId,
         provider: config.provider || "vps",
+        providerLabel,
+        itemTitle: item.title,
         source: cachedEntry ? "next-preload" : "api",
         fileInfoMs: fileInfoElapsedMs,
         podcastProgressMs: type === "episode" ? progressLookupMs : null
@@ -1295,9 +1424,11 @@ export function initLibraryUI(options = {}) {
         state.preloadEntry=null;
         state.preloadAudio=null;
       }
+      appendPlaybackLog("設定 HTMLAudioElement 音訊來源 · direct raw_url · host "+audioHost+"；Cloudflare Pages 不代理音訊資料。");
       audio.src=info.raw_url;
       audio.load();
       audio.playbackRate=state.speed;
+      setPlaybackConnectionStatus("檔案資訊已取得，正在連接音訊串流…","loading",requestId);
       if(warmedAudio){
         const releaseWarm=()=>{
           warmedAudio.pause();
@@ -1311,8 +1442,10 @@ export function initLibraryUI(options = {}) {
         }
       }
       try {
+        appendPlaybackLog("呼叫 HTMLMediaElement.play()。");
         await audio.play();
         if(!isCurrentRequest())return;
+        appendPlaybackLog("HTMLMediaElement.play() Promise 已完成，等待瀏覽器觸發 playing 事件。","success");
         console.info("[FRAME Audio] Playback started", {
           fileInfoMs:fileInfoElapsedMs,
           podcastProgressMs:type==="episode"?progressLookupMs:null,
@@ -1326,13 +1459,17 @@ export function initLibraryUI(options = {}) {
         activeAudioTimingCleanup = null;
         if(!isCurrentRequest()||isPlaybackInterruption(e))return;
         $("#player-toggle").textContent="▶";
-        message("VPS Alist 音訊網址已載入，但瀏覽器未能開始播放。"+(e.message?" "+e.message:""),"error");
+        appendPlaybackLog("播放啟動失敗 · "+(e?.name||"Error")+" · "+(e?.message||e),"error");
+        setPlaybackConnectionStatus(providerLabel+" 播放啟動失敗："+(e?.message||e),"error",requestId,10000);
+        message(providerLabel+" 音訊網址已載入，但瀏覽器未能開始播放。"+(e.message?" "+e.message:""),"error");
       }
     }catch(e){
       if(!isCurrentRequest())return;
       activeAudioTimingCleanup?.();
       activeAudioTimingCleanup = null;
-      message("VPS Alist 播放失敗（未切換其他來源）："+(e.message||e),"error");
+      appendPlaybackLog("播放準備失敗 · "+(e?.name||"Error")+" · "+(e?.message||e),"error");
+      setPlaybackConnectionStatus(providerLabel+" 連線失敗："+(e?.message||e),"error",requestId,12000);
+      message(providerLabel+" 播放失敗（未切換其他來源）："+(e.message||e),"error");
     }
   }
 
@@ -1460,14 +1597,33 @@ export function initLibraryUI(options = {}) {
     if(state.searchComposing||event.isComposing)return;
     refreshSearchResults(event.target);
   });
+  $("#playback-log-copy")?.addEventListener("click",async()=>{
+    if(!playbackLogEntries.length)return;
+    try{
+      await navigator.clipboard.writeText(playbackLogEntries.join("\n"));
+      const button=$("#playback-log-copy");
+      if(button){const label=button.textContent;button.textContent="已複製";window.setTimeout(()=>{button.textContent=label;},1200);}
+    }catch(error){appendPlaybackLog("複製日誌失敗 · "+(error?.message||error),"warning");}
+  });
+  $("#playback-log-clear")?.addEventListener("click",()=>{
+    playbackLogEntries.length=0;
+    const output=$("#playback-log-output");
+    if(output)output.innerHTML='<div class="playback-log-placeholder">尚無日誌。選擇歌曲或 Podcast 單集後，這裡會記錄連線與播放事件。</div>';
+    const count=$("#playback-log-count");
+    if(count)count.textContent="0 筆";
+  });
   audio.addEventListener("error",()=>{
     if(!state.currentItem||!audio.src)return;
     const code=audio.error?audio.error.code:"未知";
     $("#player-toggle").textContent="▶";
-    $("#player-type").textContent="VPS ALIST ERROR";
-    $("#player-subtitle").textContent="VPS Alist 音訊載入失敗，MediaError code："+code+"。未自動切換其他來源。";
+    $("#player-type").textContent=activePlaybackProviderLabel.toUpperCase()+" ERROR";
+    $("#player-subtitle").textContent=activePlaybackProviderLabel+" 音訊載入失敗，MediaError code："+code+"。未自動切換其他來源。";
+    if(!activeAudioTimingCleanup){
+      appendPlaybackLog("HTML5 Audio 發生錯誤 · MediaError code="+code+" · "+(audio.error?.message||"無更多錯誤資訊"),"error");
+      setPlaybackConnectionStatus(activePlaybackProviderLabel+" 音訊載入失敗 · MediaError "+code,"error",state.playRequestId,10000);
+    }
     syncMediaSessionPlaybackState();
-    console.error("[FRAME Audio] VPS Alist HTML5 Audio MediaError code:",code);
+    console.error("[FRAME Audio] "+activePlaybackProviderLabel+" HTML5 Audio MediaError code:",code);
   });
   audio.addEventListener("play",()=>{
     startSession();$("#player-toggle").textContent="Ⅱ";
@@ -1540,6 +1696,8 @@ export function initLibraryUI(options = {}) {
   $("#player-next")?.addEventListener("click",()=>next(1));
   $("#player-stop")?.addEventListener("click",()=>{
     state.playRequestId+=1;
+    appendPlaybackLog("使用者停止播放。");
+    setPlaybackConnectionStatus("已停止播放。","idle",state.playRequestId,1400);
     clearNextPreload();
     accountTime();persistSession(false);saveProgress(true);audio.pause();audio.removeAttribute("src");audio.removeAttribute("crossorigin");audio.load();
     state.currentItem=null;state.session=null;state.queue=[];state.queueIndex=-1;state.shuffleOrder=[];state.shufflePosition=-1;setDock(null);timeline();

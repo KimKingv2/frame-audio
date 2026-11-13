@@ -3,7 +3,7 @@
 <head>
 <!-- Production deployment trigger: 2026-11-11; includes metadata-origin-probe1. -->
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#15131d"><meta name="description" content="FRAME Audio：共用曲庫，支援 VPS Alist、OpenList Worker 與區域網路設備來源。">
+<meta name="theme-color" content="#15131d"><meta name="description" content="FRAME Audio：共用曲庫，支援 VPS Alist、OpenList Worker、Mobile Device Alist 與區域網路設備來源。">
 <title>FRAME Audio</title>
 <style>
 :root{color-scheme:dark;--bg:#15131d;--line:rgba(208,190,238,.1);--text:#f0edf6;--muted:#a39bad;--accent:#c5a8ef;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--bg);color:var(--text)}button,input{font:inherit}button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.shell{min-height:calc(100vh - 92px);display:grid;grid-template-columns:230px minmax(0,1fr)}aside{position:sticky;top:0;height:calc(100vh - 92px);min-height:550px;padding:27px 17px;background:#191622;border-right:1px solid var(--line);display:flex;flex-direction:column}.brand{display:flex;align-items:center;gap:11px;padding:0 9px 34px;font-size:15px;letter-spacing:.14em}.brand b{color:var(--accent);letter-spacing:0}.mark{width:25px;height:25px;border-radius:8px;background:linear-gradient(145deg,#d5b9f6,#7959a8);display:grid;place-items:center;color:#211a2d;font-weight:800}.label{padding:0 10px 9px;color:#746d80;font-size:9px;letter-spacing:.18em;font-weight:700}.nav{display:grid;gap:4px}.nav button{border:0;background:none;color:#aaa3b5;text-align:left;padding:10px 11px;border-radius:8px;font-size:12px;cursor:pointer}.nav button:hover{background:#ffffff0a;color:white}.nav button.active{color:#eadfff;background:#a984db24;box-shadow:inset 2px 0 #b99ae8}.gapline{height:1px;background:var(--line);margin:20px 7px}.sidefoot{margin-top:auto;border-top:1px solid var(--line);padding:15px 10px 3px;color:#827b8c;font-size:10px}.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#b78b75;margin-right:8px}main{padding:0 clamp(22px,5vw,70px) 120px;min-width:0}.top{height:75px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;color:#898293;font-size:11px}.top strong{color:#e4deed;font-weight:500}.topright{display:flex;align-items:center;gap:12px}.pill{border:1px solid #b78b7540;border-radius:20px;padding:7px 10px;color:#b49b8d;font-size:8px;letter-spacing:.13em}.primary{border:1px solid #b99ae866;border-radius:8px;padding:9px 13px;color:#eee5ff;background:#8c68b52c;font-size:11px;cursor:pointer}.primary:hover{background:#8c68b54a}.hero{position:relative;overflow:hidden;min-height:240px;margin:34px 0 40px;padding:38px 40px;border:1px solid #cbb2ee22;border-radius:16px;background:radial-gradient(ellipse at 78% 50%,#805ba833,transparent 38%),linear-gradient(115deg,#252033,#292239);display:flex;align-items:center}.hero-copy{position:relative;z-index:1;max-width:520px}.eyebrow,.kicker{color:#b99ae8;font-size:9px;font-weight:700;letter-spacing:.2em}.hero h1{font-size:clamp(30px,4vw,43px);line-height:1.2;letter-spacing:-.04em;margin:17px 0 10px}.hero h1 span{color:var(--accent)}.hero p{color:#a8a0b4;font-size:12px;line-height:1.9;margin:0}.disc{position:absolute;right:12%;width:165px;height:165px;border-radius:50%;background:repeating-radial-gradient(circle,#211a2a 0 3px,#382c48 4px 5px,#201a28 6px 8px);box-shadow:0 18px 45px #0006,0 0 55px #b18fe022;transform:rotate(-18deg);display:grid;place-items:center}.disc:after{content:"FA";width:44px;height:44px;border-radius:50%;background:linear-gradient(145deg,#d4b7f5,#8766b1);display:grid;place-items:center;color:#292033;font-size:11px;font-weight:800}.sectionhead{display:flex;justify-content:space-between;align-items:end;margin-bottom:18px}.sectionhead h2{font-size:19px;margin:8px 0 0}.count{font-size:10px;color:#8f879b}.empty{min-height:230px;border:1px dashed #c0aadd2e;border-radius:13px;background:#ffffff03;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:30px 22px}.emptyicon{width:46px;height:46px;border:1px solid #c1a2e733;border-radius:14px;background:#9b75c91a;display:grid;place-items:center;color:#c3a4eb;font-size:23px}.empty h3{font-size:14px;margin:16px 0 7px}.empty p{max-width:440px;color:#928a9f;font-size:11px;line-height:1.9;margin:0}.meta{margin-top:20px;font-size:8px;letter-spacing:.13em;color:#726b7c}.foot{display:flex;justify-content:space-between;margin-top:38px;color:#625c6d;font-size:8px;letter-spacing:.14em}.dock{position:fixed;bottom:0;left:0;right:0;height:92px;background:#191621f5;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1.2fr 1fr;align-items:center;padding:12px 26px;gap:22px}.now{display:flex;align-items:center;gap:11px;font-size:11px}.cover{width:46px;height:46px;border-radius:7px;background:linear-gradient(145deg,#443456,#241e30);display:grid;place-items:center;color:#d8c1f7;font-size:10px;font-weight:700}.now small{display:block;color:#827b8c;margin-top:5px;font-size:9px}.controls{text-align:center;color:#777080;font-size:10px}.controls button{border:0;border-radius:50%;background:#4a3b5e;color:#bba1df;width:29px;height:29px;margin:0 8px}.timeline{display:flex;align-items:center;gap:9px;margin-top:8px;color:#736c7d;font-size:8px}.bar{height:3px;background:#393342;border-radius:4px;flex:1}.mode{text-align:right;color:#655e70;font-size:8px;letter-spacing:.1em}
@@ -29,6 +29,34 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 <link rel="stylesheet" href="/assets/css/metadata.css">
 <link rel="stylesheet" href="/assets/css/library.css?v=20261112-refresh-rate-polish1">
 <link rel="stylesheet" href="/assets/css/interaction.css?v=20261113-distinct-nav-icons1">
+<style>
+.playback-connection-notice{position:fixed;z-index:120;right:clamp(14px,3vw,30px);bottom:102px;display:flex;align-items:center;gap:9px;max-width:min(440px,calc(100vw - 28px));padding:9px 13px;border:1px solid #b99ae84a;border-radius:10px;background:#211e2bf5;box-shadow:0 10px 32px #0008;color:#e4dced;font-size:11px;line-height:1.55;opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity .22s ease,transform .22s ease}
+.playback-connection-notice[hidden]{display:none}
+.playback-connection-notice.is-visible{opacity:1;transform:translateY(0)}
+.playback-connection-notice:before{content:"";width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#b99ae8;box-shadow:0 0 12px #b99ae877}
+.playback-connection-notice.is-connecting:before,.playback-connection-notice.is-loading:before,.playback-connection-notice.is-warning:before{animation:playback-connection-pulse 1.2s ease-in-out infinite}
+.playback-connection-notice.is-success{border-color:#79b88a66;color:#bfe2c8}
+.playback-connection-notice.is-success:before{background:#83c795;box-shadow:0 0 12px #83c79577}
+.playback-connection-notice.is-error{border-color:#d17a7a66;color:#f0bcbc}
+.playback-connection-notice.is-error:before{background:#e58c8c;box-shadow:0 0 12px #e58c8c77}
+@keyframes playback-connection-pulse{0%,100%{opacity:.45;transform:scale(.82)}50%{opacity:1;transform:scale(1.15)}}
+.playback-log-panel{margin:26px 0 0;border:1px solid #c7b3df28;border-radius:10px;background:#14121b;color:#dcd5e8;overflow:hidden}
+.playback-log-panel summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 13px;cursor:pointer;list-style:none;font-size:11px;font-weight:650}
+.playback-log-panel summary::-webkit-details-marker{display:none}
+.playback-log-panel summary:after{content:"⌄";color:#8c819d;font-size:13px;margin-left:auto}
+.playback-log-panel[open] summary:after{content:"⌃"}
+.playback-log-count{color:#8e82a3;font-size:9px;font-weight:500}
+.playback-log-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-top:1px solid #ffffff0d;border-bottom:1px solid #ffffff0d;color:#877e94;font-size:9px}
+.playback-log-toolbar>div{display:flex;gap:6px;flex-shrink:0}
+.playback-log-button{padding:5px 8px!important;font-size:9px!important}
+.playback-log-output{max-height:260px;overflow:auto;padding:9px 11px;font:10px/1.75 ui-monospace,SFMono-Regular,Menlo,monospace;color:#b9afc8;white-space:pre-wrap;overflow-wrap:anywhere}
+.playback-log-line{padding:2px 0;border-bottom:1px solid #ffffff08}
+.playback-log-line[data-level="success"]{color:#9fc9a9}
+.playback-log-line[data-level="warning"]{color:#d8b987}
+.playback-log-line[data-level="error"]{color:#e39a9a}
+.playback-log-placeholder{color:#746c80}
+@media(max-width:760px){.playback-connection-notice{left:12px;right:12px;bottom:124px;max-width:none;width:auto}.playback-log-toolbar{align-items:flex-start;flex-direction:column}.playback-log-toolbar>div{width:100%}.playback-log-button{flex:1}}
+</style>
 </head>
 <body>
 <button class="mobile-nav-scrim" id="mobile-nav-scrim" type="button" aria-label="關閉導覽選單" aria-hidden="true" tabindex="-1"></button>
@@ -69,6 +97,11 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   <header class="top"><span>FRAME Audio　/　<strong id="section">Music</strong></span><div class="topright"><span class="pill">V1.0 PRIVATE RELEASE</span><a class="primary" href="/playback-diagnostic.html" style="text-decoration:none">連線速度測試</a><button class="primary" id="open-settings">連線設定</button></div></header>
   <section class="hero"><div class="hero-copy"><div class="eyebrow" id="eyebrow">YOUR MUSIC LIBRARY</div><h1 id="title">音樂，<span>隨時入場。</span></h1><p id="description">整理你的收藏，讓每一次播放都回到自己的音樂世界。</p></div><div class="disc" aria-hidden="true"></div></section>
   <section id="library-content" class="library-content"><div class="empty"><div class="emptyicon">♫</div><h3>正在準備曲庫</h3><p>連接 Cloudflare D1 後，這裡會顯示你的 Music 與 Podcast 收藏。</p></div></section>
+  <details class="playback-log-panel" id="playback-log-panel">
+    <summary><span>播放連線詳細狀態</span><span class="playback-log-count" id="playback-log-count">0 筆</span></summary>
+    <div class="playback-log-toolbar"><span>記錄目前頁面工作階段最近 200 筆播放事件，不會保存音訊簽名網址或帳號密碼。</span><div><button class="secondary playback-log-button" id="playback-log-copy" type="button">複製日誌</button><button class="secondary playback-log-button" id="playback-log-clear" type="button">清空</button></div></div>
+    <div class="playback-log-output" id="playback-log-output" role="log" aria-live="polite"><div class="playback-log-placeholder">尚無日誌。選擇歌曲或 Podcast 單集後，這裡會記錄連線與播放事件。</div></div>
+  </details>
   <footer class="foot"><span>FRAME AUDIO</span><span>PRIVATE LISTENING SPACE · V1.0 PRIVATE RELEASE</span></footer>
 </main>
 </div>
@@ -132,6 +165,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 </section>
 
 <audio id="audio-player" preload="none"></audio>
+<div class="playback-connection-notice" id="playback-connection-notice" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
 
 <dialog id="lyrics-dialog" class="feature-dialog lyrics-dialog">
@@ -240,5 +274,5 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   });
 })();
 </script>
-<script type="module" src="/assets/js/app.js?v=20261113-mobile-device-source1"></script>
+<script type="module" src="/assets/js/app.js?v=20261113-playback-connect-status1"></script>
 </body></html>
