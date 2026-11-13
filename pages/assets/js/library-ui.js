@@ -579,9 +579,10 @@ export function initLibraryUI(options = {}) {
         all("/api/catalog/podcasts?kind=shows"),all("/api/catalog/podcasts?kind=episodes"),
         api("/api/listening?view=recent&itemType=track&limit=8").catch(()=>({items:[]}))
       ]);
-      Object.assign(state,{tracks,folders,shows,episodes,loaded:true,loadedAt:Date.now()});
-      const tracksById=new Map(tracks.map(item=>[String(item.id||""),item]).filter(([id])=>id));
-      const tracksByPath=new Map(tracks.map(item=>[String(pathOf(item)||""),item]).filter(([path])=>path));
+      const sortedTracks=tracks.slice().sort(compareTrackFileNames);
+      Object.assign(state,{tracks:sortedTracks,folders,shows,episodes,loaded:true,loadedAt:Date.now()});
+      const tracksById=new Map(sortedTracks.map(item=>[String(item.id||""),item]).filter(([id])=>id));
+      const tracksByPath=new Map(sortedTracks.map(item=>[String(pathOf(item)||""),item]).filter(([path])=>path));
       state.recentTracks=(recentResult.items||[]).map(record=>{
         const item=tracksById.get(String(record.item_id||""))||tracksByPath.get(String(record.path||""));
         return item?{...item,recentlyPlayedAt:record.updated_at}:{...record,id:record.item_id,path:record.path,recentlyPlayedAt:record.updated_at};
@@ -610,6 +611,11 @@ export function initLibraryUI(options = {}) {
   }
   function revokeCovers(){for(const url of state.artworkUrls)URL.revokeObjectURL(url);state.artworkUrls.clear();}
   const pathOf=item=>item.file?.path||item.path||"";
+  const fileNameOf=item=>String(pathOf(item)||"").split("/").pop()||"";
+  function compareTrackFileNames(a,b){
+    const byName=fileNameOf(a).localeCompare(fileNameOf(b),"zh-Hant",{numeric:true,sensitivity:"base"});
+    return byName||String(pathOf(a)||"").localeCompare(String(pathOf(b)||""),"zh-Hant",{numeric:true,sensitivity:"base"});
+  }
   const artworkOf=item=>item.artwork?.sha256||item.artworkHash||item.artwork_hash||null;
   function playable(item,type) {
     const path=pathOf(item);
@@ -813,6 +819,16 @@ export function initLibraryUI(options = {}) {
       oldToNew.set(oldIndex,queue.length);queue.push(item);
     });
     if(!queue.length)return false;
+    const queueLabel=String(saved.queueLabel|| (type==="episode"?"Podcast":"所有歌曲")).slice(0,240);
+    if(type==="track"&&(queueLabel==="所有歌曲"||queueLabel.startsWith("搜尋結果 / "))){
+      const originalQueue=queue.slice();
+      const sortedQueue=originalQueue.slice().sort(compareTrackFileNames);
+      const sortedIndexByPath=new Map(sortedQueue.map((item,index)=>[String(pathOf(item)||""),index]));
+      for(const [oldIndex,queueIndex] of oldToNew){
+        oldToNew.set(oldIndex,sortedIndexByPath.get(String(pathOf(originalQueue[queueIndex])||"")));
+      }
+      queue.splice(0,queue.length,...sortedQueue);
+    }
     let restoredIndex=oldToNew.get(Number(saved.queueIndex));
     if(restoredIndex==null){
       const ref=Array.isArray(saved.currentItem)?saved.currentItem:[saved.currentItem?.id,saved.currentItem?.path];
@@ -821,7 +837,7 @@ export function initLibraryUI(options = {}) {
     }
     if(!Number.isInteger(restoredIndex)||restoredIndex<0||restoredIndex>=queue.length)restoredIndex=0;
     state.queue=queue;state.queueIndex=restoredIndex;
-    state.queueLabel=String(saved.queueLabel|| (type==="episode"?"Podcast":"所有歌曲")).slice(0,240);
+    state.queueLabel=queueLabel;
     state.currentItem=playable(queue[restoredIndex],type);state.session=null;
     state.playMode=PLAY_MODES.includes(saved.playMode)?saved.playMode:state.playMode;
     state.shuffleEnabled=saved.shuffleEnabled===true;
