@@ -1603,7 +1603,7 @@ export function initLibraryUI(options = {}) {
         state.trackPage=Math.max(0,nextPage);
         renderTracks();
         animateLibraryContent();
-        root.querySelector(".library-pagination")?.scrollIntoView({block:"nearest",behavior:"smooth"});
+        root.scrollIntoView({block:"start",behavior:"smooth"});
         return;
       }
       if(action==="play"){
