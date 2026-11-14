@@ -426,8 +426,13 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   async function loadConnectionSettings() {
     localProfile = readLocalOpenListProfile();
     restoreLocalOpenListSession();
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch("/api/settings/connections", { credentials: "same-origin" });
+      const response = await fetch("/api/settings/connections", {
+        credentials: "same-origin",
+        signal: controller.signal
+      });
       let data = {};
       try { data = await response.json(); } catch {}
       if (!response.ok || !data.ok) throw new Error(data.error || ("連線設定 HTTP " + response.status));
@@ -437,7 +442,10 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         "mobile-device": data.profiles?.["mobile-device"] || { baseUrl: "", hasToken: false, configured: false }
       };
     } catch (cause) {
-      console.warn("[FRAME Audio] Could not load Cloudflare OpenList environment profiles", cause);
+      const failure = cause?.name === "AbortError"
+        ? new Error("讀取已保存的來源設定逾時（15 秒）。請檢查網路與 Cloudflare Access，重新整理後再試。")
+        : cause;
+      console.warn("[FRAME Audio] Could not load Cloudflare OpenList environment profiles", failure);
       serverProfiles = {
         vps: { baseUrl: "", hasToken: false, configured: false },
         worker: { baseUrl: "", hasToken: false, configured: false },
@@ -445,9 +453,11 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       };
       const status = $("#provider-settings-status");
       if (status) {
-        status.textContent = "無法讀取 Cloudflare 伺服器端來源狀態：" + (cause.message || cause);
+        status.textContent = "無法讀取 Cloudflare 伺服器端來源狀態：" + (failure.message || failure);
         status.className = "statusbox error";
       }
+    } finally {
+      window.clearTimeout(timeoutId);
     }
     // Restore the last explicitly saved source as-is. Never silently fall
     // back to a different provider or probe an inactive endpoint.
