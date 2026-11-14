@@ -159,21 +159,18 @@ async function loginProvider(baseUrl, provider, username, password) {
 }
 
 /**
- * Username/password login takes priority. A legacy static Token remains available
- * only as a temporary migration fallback.
+ * All server-side providers require dedicated username/password Secrets.
+ * Short-lived JWTs are issued only by /api/auth/login and cached in KV/memory.
  */
 export async function getProviderToken(env, provider, baseUrl, profile, options = {}) {
   const username = String(profile?.username || "").trim();
   const password = String(profile?.password || "");
-  const legacyToken = String(profile?.token || "").trim();
 
   if (Boolean(username) !== Boolean(password)) {
     throw new Error("帳號與密碼 Secrets 必須同時設定。");
   }
-
-  if (!username && !password) {
-    if (legacyToken) return { token: legacyToken, managed: false, source: "legacy-secret" };
-    throw new Error("尚未設定服務帳號密碼或舊版 API Token Secret。");
+  if (!username || !password) {
+    throw new Error("尚未設定完整的服務帳號密碼 Secrets。");
   }
 
   const key = await cacheKeyFor(provider, baseUrl, username);

@@ -167,7 +167,7 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000, provi
     provider: source,
     endpoint,
     status: upstream?.status || 0,
-    authMode: auth.managed ? "automatic-login" : "legacy-token",
+    authMode: "automatic-login",
     profileMs: Math.round(profileMs),
     upstreamMs: Math.round(upstreamMs),
     elapsedMs: Math.round((performance.now() - startedAt) * 10) / 10

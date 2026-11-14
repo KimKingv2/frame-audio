@@ -1,4 +1,4 @@
-import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo, configureOpenListConnection, normalizeOpenListUrl, loginOpenList } from "./openlist-client.js?v=20261114-transient-list-retry1";
+import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo, configureOpenListConnection, normalizeOpenListUrl, loginOpenList } from "./openlist-client.js?v=20261114-auth-password-only1";
 import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261113-mobile-device-source1";
 import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js?v=20261114-podcast-full-rescan1";
 import { initLibraryUI } from "./library-ui.js?v=20261113-track-pages-500-cover-restore1";
@@ -25,9 +25,9 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   const DEFAULT_LOCAL_OPENLIST_BASE_URL = "http://127.0.0.1:5244";
   const PROVIDER_LABELS = { vps: "VPS Alist", worker: "OpenList Worker", "mobile-device": "Mobile Device Alist", local: "區域網路 OpenList" };
   let serverProfiles = {
-    vps: { baseUrl: "", hasToken: false, configured: false },
-    worker: { baseUrl: "", hasToken: false, configured: false },
-    "mobile-device": { baseUrl: "", hasToken: false, configured: false }
+    vps: { baseUrl: "", hasCredentials: false, configured: false },
+    worker: { baseUrl: "", hasCredentials: false, configured: false },
+    "mobile-device": { baseUrl: "", hasCredentials: false, configured: false }
   };
   let localProfile = { baseUrl: DEFAULT_LOCAL_OPENLIST_BASE_URL, username: "" };
   let localSessionToken = "";
@@ -405,8 +405,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     const renderServerStatus = (id, label, profile) => {
       const node = $("#" + id);
       if (!node) return;
-      const authLabel = profile.authMode === "automatic-login" ? " · 自動登入" :
-        profile.authMode === "legacy-token" ? " · 舊 Token" : "";
+      const authLabel = profile.authMode === "automatic-login" ? " · 帳號密碼自動登入" : "";
       node.textContent = label + "：" + (profile.configured ? "已就緒" : "未完整設定") +
         authLabel + (profile.baseUrl ? " · " + profile.baseUrl : "");
     };
@@ -447,9 +446,9 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       try { data = await response.json(); } catch {}
       if (!response.ok || !data.ok) throw new Error(data.error || ("連線設定 HTTP " + response.status));
       serverProfiles = {
-        vps: data.profiles?.vps || { baseUrl: "", hasToken: false, configured: false },
-        worker: data.profiles?.worker || { baseUrl: "", hasToken: false, configured: false },
-        "mobile-device": data.profiles?.["mobile-device"] || { baseUrl: "", hasToken: false, configured: false }
+        vps: data.profiles?.vps || { baseUrl: "", hasCredentials: false, configured: false },
+        worker: data.profiles?.worker || { baseUrl: "", hasCredentials: false, configured: false },
+        "mobile-device": data.profiles?.["mobile-device"] || { baseUrl: "", hasCredentials: false, configured: false }
       };
     } catch (cause) {
       loadFailure = cause?.name === "AbortError"
@@ -457,9 +456,9 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         : cause;
       console.warn("[FRAME Audio] Could not load Cloudflare OpenList environment profiles", loadFailure);
       serverProfiles = {
-        vps: { baseUrl: "", hasToken: false, configured: false },
-        worker: { baseUrl: "", hasToken: false, configured: false },
-        "mobile-device": { baseUrl: "", hasToken: false, configured: false }
+        vps: { baseUrl: "", hasCredentials: false, configured: false },
+        worker: { baseUrl: "", hasCredentials: false, configured: false },
+        "mobile-device": { baseUrl: "", hasCredentials: false, configured: false }
       };
     } finally {
       window.clearTimeout(timeoutId);

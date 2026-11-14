@@ -15,7 +15,7 @@ FRAME Audio has four possible sources that share one D1 catalogue and R2 artwork
 - At startup only the saved active server-side provider may be tested. If LAN is active, the page waits for username/password login from a user gesture.
 - An unconfigured active server provider is reported unavailable; the app does not silently fall back to a different provider.
 - The settings endpoint reads environment bindings and returns endpoint configuration plus a credential-present flag; it does not contact any Alist/OpenList node.
-- Server sources prefer dedicated username/password Secrets and automatically call `/api/auth/login`; legacy static Token Secrets remain a migration fallback until each provider passes testing.
+- All three server sources require dedicated username/password Secrets and automatically call `/api/auth/login`. Static API Token authentication and its environment-variable fallbacks have been removed.
 - Provider JWTs are cached in the shared `MEDIA_AUTH_TOKEN_CACHE` KV binding with an expiry TTL, plus per-isolate memory. The generic cache prefix is `media-platform:provider-auth:v1`; separate media applications can reuse cached logins only when provider identity, base URL, username, key derivation and `Client-Id: media-platform-server-{provider}` all match. No credentials or JWTs are returned to browser JavaScript. The Mobile Device provider identity is `mobile-device`, and its stable Client-Id is `media-platform-server-mobile-device`.
 - The diagnostic page lists all four providers without probing them. Users can select any 2–4 providers, including all four; only after the explicit Start test button is pressed are those selected providers temporarily activated for this diagnostic run, one at a time. The saved app-wide active provider is not changed. Unselected providers receive no API requests.
 - VPS, Worker and Mobile Device requests include the explicit active provider ID. Unknown IDs are rejected rather than defaulting to VPS.
@@ -23,7 +23,7 @@ FRAME Audio has four possible sources that share one D1 catalogue and R2 artwork
 
 ## Cloudflare Preview / Production values
 
-Configure each Pages environment separately. For the Preview migration, create or select the shared KV namespace `media-platform-auth-cache` and bind it as `MEDIA_AUTH_TOKEN_CACHE`. Keep a separate namespace for Production. Add the service-account Secrets below, and keep legacy Token Secrets until every provider passes testing. Add these Mobile Device values:
+Configure each Pages environment separately. For the Preview migration, create or select the shared KV namespace `media-platform-auth-cache` and bind it as `MEDIA_AUTH_TOKEN_CACHE`. Keep a separate namespace for Production. Add the service-account Secrets below. No static API Token Secret is used or required. Add these Mobile Device values:
 
 | Name | Type |
 |---|---|
@@ -39,7 +39,7 @@ Existing settings:
 | OpenList Worker | `OPENLIST_WORKER_API_BASE_URL` | `OPENLIST_WORKER_USERNAME` | `OPENLIST_WORKER_PASSWORD` |
 | Mobile Device Alist | `ALIST_MOBILE_DEVICE_API_BASE_URL` | `ALIST_MOBILE_DEVICE_USERNAME` | `ALIST_MOBILE_DEVICE_PASSWORD` |
 
-`FRAME_AUDIO_API_ADMIN_TOKEN` remains a separate Secret for FRAME Audio's own private API gate. Upstream service credentials are read only by Pages Functions, while short-lived JWTs are cached in KV/memory; neither credentials nor JWTs are sent to browser JavaScript or written to D1/R2. Legacy Token Secrets remain supported only during migration. The Mobile Device endpoint must be an HTTPS URL reachable from Cloudflare Pages Functions; a private RFC1918 address on a home LAN is not reachable from Cloudflare without a suitable tunnel or public route.
+`FRAME_AUDIO_API_ADMIN_TOKEN` remains a separate Secret for FRAME Audio's own private API gate. Upstream service credentials are read only by Pages Functions, while short-lived JWTs are cached in KV/memory; neither credentials nor JWTs are sent to browser JavaScript or written to D1/R2. Legacy static API Token Secrets are no longer read and may be removed from Pages environment settings after deployment. The Mobile Device endpoint must be an HTTPS URL reachable from Cloudflare Pages Functions; a private RFC1918 address on a home LAN is not reachable from Cloudflare without a suitable tunnel or public route.
 
 ## LAN OpenList username/password login
 
