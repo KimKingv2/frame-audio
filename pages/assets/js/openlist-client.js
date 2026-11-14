@@ -1,6 +1,6 @@
 const DEFAULT_TIMEOUT_MS = 180000;
 const DIRECTORY_LIST_TIMEOUT_MS = 45000;
-const DIRECTORY_LIST_MAX_ATTEMPTS = 2;
+const DIRECTORY_LIST_MAX_ATTEMPTS = 4;
 const DIRECTORY_LIST_RETRY_DELAY_MS = 900;
 let activeConnection = { provider: "mobile-device", baseUrl: "", token: "" };
 
@@ -169,7 +169,7 @@ export async function listOpenListDirectory({
   const safePage = Number.isSafeInteger(Number(page)) && Number(page) > 0 ? Number(page) : 1;
   const safePerPage = Number.isSafeInteger(Number(perPage)) && Number(perPage) > 0 ? Math.min(500, Number(perPage)) : 100;
   const safeTimeout = Math.max(1000, Math.min(180000, Number(timeoutMs) || DIRECTORY_LIST_TIMEOUT_MS));
-  const safeAttempts = Math.max(1, Math.min(2, Math.floor(Number(maxAttempts) || DIRECTORY_LIST_MAX_ATTEMPTS)));
+  const safeAttempts = Math.max(1, Math.min(4, Math.floor(Number(maxAttempts) || DIRECTORY_LIST_MAX_ATTEMPTS)));
   let payload = null, lastError = null;
   for (let attempt = 1; attempt <= safeAttempts; attempt += 1) {
     const startedAt = performance.now();
@@ -185,9 +185,14 @@ export async function listOpenListDirectory({
     } catch (error) {
       lastError = error;
       emit(sourceLabel(config.provider) + " 目錄列表失敗：" + (error?.message || error), "warning");
-      const retryable = /逾時|無法直接連接|無法取得 Cloudflare Pages/i.test(String(error?.message || ""));
+      const message = String(error?.message || "");
+      const retryable = /逾時|無法直接連接|無法取得 Cloudflare Pages/i.test(message) ||
+        /HTTP\s+(?:500|502|503|504|520|521|522|523|524|525|526|527|530)\b/i.test(message);
       if (!retryable || attempt >= safeAttempts) break;
-      await new Promise(resolve => setTimeout(resolve, DIRECTORY_LIST_RETRY_DELAY_MS));
+      const delayMs = Math.min(5000, DIRECTORY_LIST_RETRY_DELAY_MS * attempt);
+      emit("偵測到暫時性目錄 API 錯誤，" + delayMs +
+        " ms 後進行下一次重試（" + (attempt + 1) + "/" + safeAttempts + "）。", "warning");
+      await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   }
   if (!payload) throw lastError || new Error(sourceLabel(config.provider) + " 目錄列表失敗。");

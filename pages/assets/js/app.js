@@ -1,4 +1,4 @@
-import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo, configureOpenListConnection, normalizeOpenListUrl, loginOpenList } from "./openlist-client.js?v=20261114-response-body-timeout1";
+import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo, configureOpenListConnection, normalizeOpenListUrl, loginOpenList } from "./openlist-client.js?v=20261114-transient-list-retry1";
 import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261113-mobile-device-source1";
 import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js?v=20261114-podcast-full-rescan1";
 import { initLibraryUI } from "./library-ui.js?v=20261113-track-pages-500-cover-restore1";
@@ -38,6 +38,9 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   let cloudflareStorageReady = false;
   let activePath = "/";
   let scanRunning = false;
+  // Reuse the global music retry queue across automatically chained batches.
+  // Queue writes keep this page-session cache synchronized.
+  let musicRetryPathCache = null;
   let scanPauseRequested = false;
   let connected = false;
   let activeCoverUrl = "";
@@ -1100,18 +1103,40 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   }
 
   async function loadRetryPathSet() {
-    const response = await fetch("/api/catalog/retries", {
-      method: "GET",
-      credentials: "same-origin",
-    });
-    let data = {};
-    try { data = await response.json(); } catch {}
-    if (!response.ok || !data.ok) {
-      throw new Error(data.error || ("讀取失敗重試佇列失敗（HTTP " + response.status + "）。"));
+    if (musicRetryPathCache instanceof Set) {
+      appendScanLog("使用本分頁快取的全域失敗重試佇列：" + musicRetryPathCache.size + " 個待重試路徑");
+      return new Set(musicRetryPathCache);
     }
-    return new Set((data.items || [])
-      .map(item => String(item?.path || ""))
-      .filter(path => path.startsWith("/")));
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 30000);
+    const startedAt = performance.now();
+    appendScanLog("全域失敗重試佇列讀取開始（逾時上限 30 秒）");
+    try {
+      const response = await fetch("/api/catalog/retries", {
+        method: "GET",
+        credentials: "same-origin",
+        signal: controller.signal
+      });
+      let data = {};
+      try { data = await response.json(); } catch {}
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || ("讀取失敗重試佇列失敗（HTTP " + response.status + "）。"));
+      }
+      musicRetryPathCache = new Set((data.items || [])
+        .map(item => String(item?.path || ""))
+        .filter(path => path.startsWith("/")));
+      appendScanLog("全域失敗重試佇列讀取完成：" + musicRetryPathCache.size +
+        " 個待重試路徑；耗時 " + Math.round(performance.now() - startedAt) + " ms", "success");
+      return new Set(musicRetryPathCache);
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        throw new Error("讀取全域失敗重試佇列逾時（30 秒）。掃描進度已保留，請檢查 Cloudflare D1 API 後再續掃。");
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
   }
 
   async function saveRetryPath(path, message) {
@@ -1128,6 +1153,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     if (!response.ok || !data.ok) {
       throw new Error(data.error || ("保存失敗重試項目失敗（HTTP " + response.status + "）。"));
     }
+    if (musicRetryPathCache instanceof Set) musicRetryPathCache.add(path);
   }
 
   async function resolveRetryPath(path) {
@@ -1144,6 +1170,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     if (!response.ok || !data.ok) {
       throw new Error(data.error || ("解除失敗重試項目失敗（HTTP " + response.status + "）。"));
     }
+    if (musicRetryPathCache instanceof Set) musicRetryPathCache.delete(path);
   }
 
   function newScanState(rootPath, previousState = null, forceReindex = false) {
@@ -1289,8 +1316,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       }
 
       const retryPaths = await loadRetryPathSet();
-      appendScanLog("全域失敗重試佇列讀取完成：" + retryPaths.size + " 個待重試路徑",
-        retryPaths.size ? "warning" : "success");
       setScanProgress("批量索引已啟動。\n" + scanProgressText(state, batch), "ok");
       const startedAt = Date.now();
       const maxIndexedPerBatch = 500;
@@ -1404,7 +1429,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         }
 
         batch.phase = "正在讀取目錄列表：" + state.currentFolder +
-          "（第 " + state.page + " 頁；單次最長 45 秒，最多自動重試 1 次）";
+          "（第 " + state.page + " 頁；單次最長 45 秒，遇到暫時性錯誤最多自動重試 3 次）";
         setScanProgress(scanProgressText(state, batch), "ok");
         const directoryListStartedAt = performance.now();
         const listing = await listOpenListDirectory({
