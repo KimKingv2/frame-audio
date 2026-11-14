@@ -13,14 +13,34 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function withServerTiming(response, metrics = {}) {
+  const entries = [
+    ["openlist_profile", metrics.profileMs],
+    ["openlist_upstream", metrics.upstreamMs],
+    ["openlist_body", metrics.bodyMs],
+    ["retry_wait", metrics.retryWaitMs],
+    ["function_total", metrics.totalMs]
+  ].filter(([, value]) => Number.isFinite(Number(value)) && Number(value) >= 0)
+    .map(([name, value]) => name + ";dur=" + (Math.round(Number(value) * 10) / 10));
+  if (entries.length) response.headers.set("Server-Timing", entries.join(", "));
+  return response;
+}
+
 export async function onRequestPost({ request, env }) {
+  const handlerStartedAt = performance.now();
+  const timings = { profileMs: 0, upstreamMs: 0, bodyMs: 0, retryWaitMs: 0 };
+  const addTiming = result => {
+    for (const key of ["profileMs", "upstreamMs", "bodyMs"]) timings[key] += Number(result?.timing?.[key] || 0);
+  };
+  const respond = response => withServerTiming(response, { ...timings, totalMs: performance.now() - handlerStartedAt });
   let body;
   try { body = await readJson(request, 65536); }
   catch (cause) { return error(cause.message || "檔案資訊請求格式不正確。", 400); }
 
   if (!validOpenListPath(body?.path)) return error("OpenList 檔案路徑無效。", 400);
 
-  const provider = body.provider === "worker" ? "worker" : "vps";
+  const provider = ["vps", "worker", "mobile-device"].includes(String(body.provider || "")) ? String(body.provider) : "";
+  if (!provider) return error("請明確指定目前活動的 VPS、Worker 或 Mobile Device 來源。", 400);
   let result;
   let transientFailure = false;
   for (let attempt = 1; attempt <= LINK_RETRY_DELAYS_MS.length + 1; attempt += 1) {
@@ -28,7 +48,8 @@ export async function onRequestPost({ request, env }) {
       path: body.path,
       password: ""
     }, 55000, provider);
-    if (result.response) return result.response;
+    addTiming(result);
+    if (result.response) return respond(result.response);
     if (!isTransientProviderLinkError(result.payload)) break;
 
     transientFailure = true;
@@ -48,6 +69,7 @@ export async function onRequestPost({ request, env }) {
       delayMs,
       reason: "temporary provider network failure"
     });
+    timings.retryWaitMs += delayMs;
     await sleep(delayMs);
   }
 
@@ -59,8 +81,8 @@ export async function onRequestPost({ request, env }) {
   if (Number(payload.code) === 200 && payload.data && typeof payload.data === "object" &&
       payload.data.raw_url) {
     const rawUrl = normalizedRawUrl(payload.data.raw_url, result.baseUrl);
-    if (!rawUrl) return error("OpenList 回傳的 raw_url 格式不受支援。", 502);
+    if (!rawUrl) return respond(error("OpenList 回傳的 raw_url 格式不受支援。", 502));
     payload.data.raw_url = rawUrl;
   }
-  return json(payload);
+  return respond(json(payload));
 }

@@ -3,8 +3,8 @@ import {
   joinOpenListPath,
   formatBytes,
   getOpenListFileInfo
-} from "./openlist-client.js?v=20261112-multi-openlist2";
-import { inspectAudioMetadata } from "./metadata-inspector.js";
+} from "./openlist-client.js?v=20261114-response-body-timeout1";
+import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261113-mobile-device-source1";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
 const MAX_FILE_ATTEMPTS = 20;
@@ -50,11 +50,12 @@ function positiveInteger(value) {
   return Number.isSafeInteger(number) && number > 0 ? number : null;
 }
 
-function newPodcastState(rootPath, previousState = null) {
+function newPodcastState(rootPath, previousState = null, forceReindex = false) {
   return {
     version: 1,
     kind: "podcasts",
     rootPath,
+    forceReindex: forceReindex === true,
     pendingFolders: [rootPath],
     currentFolder: null,
     page: 1,
@@ -75,6 +76,7 @@ function newPodcastState(rootPath, previousState = null) {
 function progressText(state, batch, finished = false, pauseRequested = false) {
   const lines = [
     "Podcast 根目錄：" + state.rootPath,
+    "掃描模式：" + (state.forceReindex ? "完整重掃（重新解析所有單集）" : "增量掃描"),
     "節目資料夾：" + (state.showFolders || []).length + " 個",
     "已新增／更新單集：" + state.indexedCount + " 集",
     "未變更而跳過：" + state.skippedCount + " 集",
@@ -88,7 +90,9 @@ function progressText(state, batch, finished = false, pauseRequested = false) {
   if (state.currentFolder) {
     lines.push("續作游標：第 " + state.page + " 頁，第 " + (state.itemIndex + 1) + " 個項目。");
   }
-  if (state.completed) lines.push("Podcast 目錄已完成遍歷。再次掃描會跳過未變更單集，並檢查新增或變更檔案。");
+  if (state.completed) lines.push(state.forceReindex
+    ? "Podcast 完整重掃已完成。下一次一般掃描會回到增量模式。"
+    : "Podcast 目錄已完成遍歷。再次掃描會跳過未變更單集，並檢查新增或變更檔案。");
   else if (pauseRequested) lines.push("已要求暫停，進度已保存，可以之後續作。");
   else if (finished) lines.push("本批已結束，進度已保存至 D1，可以之後續作。");
   else lines.push("掃描進行中，請保持此頁面開啟；進度會持續保存至 D1。");
@@ -290,7 +294,8 @@ export async function runPodcastBatch({
   rootPath,
   onLog = () => {},
   onProgress = () => {},
-  shouldPause = () => false
+  shouldPause = () => false,
+  forceReindex = false
 }) {
   const root = normalizePath(rootPath);
   if (!baseUrl) throw new Error("伺服器端連線尚未就緒。");
@@ -307,15 +312,19 @@ export async function runPodcastBatch({
     log("Podcast 根目錄：" + root);
     const stored = await scanStateRequest(key);
     state = stored.state;
-    if (!state) {
-      state = newPodcastState(root);
+    if (forceReindex) {
+      state = newPodcastState(root, state, true);
+      log("已啟用 Podcast 完整重掃：從節目根目錄重新開始，忽略所有單集的未變更判斷；既有目錄資料、收藏與收聽紀錄不會被清除。", "warning");
+      await saveScanState(key, state, log);
+    } else if (!state) {
+      state = newPodcastState(root, null, false);
       await saveScanState(key, state, log);
     } else if (state.completed) {
       const restart = window.confirm(
         "這個 Podcast 根目錄上一輪已完成。\n再次掃描會跳過未變更單集，只索引新增或變更項目，不會刪除既有資料。要開始新一輪嗎？"
       );
       if (!restart) return { cancelled: true };
-      state = newPodcastState(root, state);
+      state = newPodcastState(root, state, false);
       await saveScanState(key, state, log);
     }
 
@@ -467,7 +476,7 @@ export async function runPodcastBatch({
           } else {
             const existing = existingByPath.get(fullPath);
             const modified = item.modified || null;
-            const unchanged = !retryPaths.has(fullPath) && existing &&
+            const unchanged = !state.forceReindex && !retryPaths.has(fullPath) && existing &&
               Number(existing.sizeBytes) === Number(item.size) &&
               !!modified && existing.modifiedAt === modified;
             if (unchanged) {

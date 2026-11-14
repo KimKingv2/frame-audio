@@ -3,7 +3,7 @@
 <head>
 <!-- Production deployment trigger: 2026-11-11; includes metadata-origin-probe1. -->
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#15131d"><meta name="description" content="FRAME Audio：共用曲庫，支援 VPS Alist、OpenList Worker 與區域網路設備來源。">
+<meta name="theme-color" content="#0e0d12"><meta name="description" content="FRAME Audio：共用曲庫，支援 VPS Alist、OpenList Worker、Mobile Device Alist 與區域網路設備來源。">
 <title>FRAME Audio</title>
 <style>
 :root{color-scheme:dark;--bg:#15131d;--line:rgba(208,190,238,.1);--text:#f0edf6;--muted:#a39bad;--accent:#c5a8ef;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--bg);color:var(--text)}button,input{font:inherit}button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.shell{min-height:calc(100vh - 92px);display:grid;grid-template-columns:230px minmax(0,1fr)}aside{position:sticky;top:0;height:calc(100vh - 92px);min-height:550px;padding:27px 17px;background:#191622;border-right:1px solid var(--line);display:flex;flex-direction:column}.brand{display:flex;align-items:center;gap:11px;padding:0 9px 34px;font-size:15px;letter-spacing:.14em}.brand b{color:var(--accent);letter-spacing:0}.mark{width:25px;height:25px;border-radius:8px;background:linear-gradient(145deg,#d5b9f6,#7959a8);display:grid;place-items:center;color:#211a2d;font-weight:800}.label{padding:0 10px 9px;color:#746d80;font-size:9px;letter-spacing:.18em;font-weight:700}.nav{display:grid;gap:4px}.nav button{border:0;background:none;color:#aaa3b5;text-align:left;padding:10px 11px;border-radius:8px;font-size:12px;cursor:pointer}.nav button:hover{background:#ffffff0a;color:white}.nav button.active{color:#eadfff;background:#a984db24;box-shadow:inset 2px 0 #b99ae8}.gapline{height:1px;background:var(--line);margin:20px 7px}.sidefoot{margin-top:auto;border-top:1px solid var(--line);padding:15px 10px 3px;color:#827b8c;font-size:10px}.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#b78b75;margin-right:8px}main{padding:0 clamp(22px,5vw,70px) 120px;min-width:0}.top{height:75px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;color:#898293;font-size:11px}.top strong{color:#e4deed;font-weight:500}.topright{display:flex;align-items:center;gap:12px}.pill{border:1px solid #b78b7540;border-radius:20px;padding:7px 10px;color:#b49b8d;font-size:8px;letter-spacing:.13em}.primary{border:1px solid #b99ae866;border-radius:8px;padding:9px 13px;color:#eee5ff;background:#8c68b52c;font-size:11px;cursor:pointer}.primary:hover{background:#8c68b54a}.hero{position:relative;overflow:hidden;min-height:240px;margin:34px 0 40px;padding:38px 40px;border:1px solid #cbb2ee22;border-radius:16px;background:radial-gradient(ellipse at 78% 50%,#805ba833,transparent 38%),linear-gradient(115deg,#252033,#292239);display:flex;align-items:center}.hero-copy{position:relative;z-index:1;max-width:520px}.eyebrow,.kicker{color:#b99ae8;font-size:9px;font-weight:700;letter-spacing:.2em}.hero h1{font-size:clamp(30px,4vw,43px);line-height:1.2;letter-spacing:-.04em;margin:17px 0 10px}.hero h1 span{color:var(--accent)}.hero p{color:#a8a0b4;font-size:12px;line-height:1.9;margin:0}.disc{position:absolute;right:12%;width:165px;height:165px;border-radius:50%;background:repeating-radial-gradient(circle,#211a2a 0 3px,#382c48 4px 5px,#201a28 6px 8px);box-shadow:0 18px 45px #0006,0 0 55px #b18fe022;transform:rotate(-18deg);display:grid;place-items:center}.disc:after{content:"FA";width:44px;height:44px;border-radius:50%;background:linear-gradient(145deg,#d4b7f5,#8766b1);display:grid;place-items:center;color:#292033;font-size:11px;font-weight:800}.sectionhead{display:flex;justify-content:space-between;align-items:end;margin-bottom:18px}.sectionhead h2{font-size:19px;margin:8px 0 0}.count{font-size:10px;color:#8f879b}.empty{min-height:230px;border:1px dashed #c0aadd2e;border-radius:13px;background:#ffffff03;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:30px 22px}.emptyicon{width:46px;height:46px;border:1px solid #c1a2e733;border-radius:14px;background:#9b75c91a;display:grid;place-items:center;color:#c3a4eb;font-size:23px}.empty h3{font-size:14px;margin:16px 0 7px}.empty p{max-width:440px;color:#928a9f;font-size:11px;line-height:1.9;margin:0}.meta{margin-top:20px;font-size:8px;letter-spacing:.13em;color:#726b7c}.foot{display:flex;justify-content:space-between;margin-top:38px;color:#625c6d;font-size:8px;letter-spacing:.14em}.dock{position:fixed;bottom:0;left:0;right:0;height:92px;background:#191621f5;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1.2fr 1fr;align-items:center;padding:12px 26px;gap:22px}.now{display:flex;align-items:center;gap:11px;font-size:11px}.cover{width:46px;height:46px;border-radius:7px;background:linear-gradient(145deg,#443456,#241e30);display:grid;place-items:center;color:#d8c1f7;font-size:10px;font-weight:700}.now small{display:block;color:#827b8c;margin-top:5px;font-size:9px}.controls{text-align:center;color:#777080;font-size:10px}.controls button{border:0;border-radius:50%;background:#4a3b5e;color:#bba1df;width:29px;height:29px;margin:0 8px}.timeline{display:flex;align-items:center;gap:9px;margin-top:8px;color:#736c7d;font-size:8px}.bar{height:3px;background:#393342;border-radius:4px;flex:1}.mode{text-align:right;color:#655e70;font-size:8px;letter-spacing:.1em}
@@ -25,10 +25,1179 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 .scan-log-line[data-level="error"]{color:#e39a9a}
 .scan-log-placeholder{color:#746c80}
 @media(max-width:520px){.scan-log-toolbar{align-items:flex-start;flex-direction:column}.scan-log-toolbar>div{width:100%}.scan-log-button{flex:1}}
+
+
+/* FRAME Audio · interaction and typography refinement. */
+:root{
+  --silver-violet:#b7a6c8;
+  --silver-violet-bright:#d4c5e2;
+  --silver-violet-dim:#9983ad;
+  --progress-metal:#756581;
+}
+/* Navigation: no filled tiles; selection is carried by lilac text and glyphs. */
+#site-sidebar .label,
+body.mobile-sidebar-expanded #site-sidebar .label{
+  color:#a895ba!important;
+  background:transparent!important;
+}
+#site-sidebar .nav,
+#site-sidebar .nav.secondary,
+body.mobile-sidebar-expanded #site-sidebar .nav,
+body.mobile-sidebar-expanded #site-sidebar .nav.secondary{
+  background:transparent!important;
+}
+#site-sidebar .nav button,
+body.mobile-sidebar-expanded #site-sidebar .nav button{
+  background:transparent!important;
+  box-shadow:none!important;
+  border:0!important;
+}
+#site-sidebar .nav button:hover,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover{
+  background:transparent!important;
+  box-shadow:none!important;
+  color:#c8b6d8!important;
+  opacity:1!important;
+}
+#site-sidebar .nav button.active,
+body.mobile-sidebar-expanded #site-sidebar .nav button.active{
+  background:transparent!important;
+  box-shadow:none!important;
+  color:#ddc9ed!important;
+}
+#site-sidebar .nav button .nav-label,
+body.mobile-sidebar-expanded #site-sidebar .nav button .nav-label{
+  background-image:linear-gradient(105deg,#bba8ce 0%,#d7c7e4 52%,#b39bc8 100%)!important;
+  -webkit-text-fill-color:transparent!important;
+}
+#site-sidebar .nav button:hover .nav-label,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-label{
+  background-image:linear-gradient(105deg,#cbb8dd 0%,#e5d8ef 52%,#c4acda 100%)!important;
+  -webkit-text-fill-color:transparent!important;
+}
+#site-sidebar .nav button.active .nav-label,
+body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-label{
+  background-image:linear-gradient(100deg,#cfb5e3 0%,#e5d4f0 50%,#bd9bd7 100%)!important;
+  -webkit-text-fill-color:transparent!important;
+  text-shadow:0 0 13px rgba(183,145,210,.15)!important;
+}
+#site-sidebar .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav-icon{
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  animation:none!important;
+  color:#a98cbe!important;
+  filter:none!important;
+}
+#site-sidebar .nav-icon:not(:has(svg)),
+body.mobile-sidebar-expanded #site-sidebar .nav-icon:not(:has(svg)){
+  background-image:none!important;
+  background-clip:border-box!important;
+  -webkit-background-clip:border-box!important;
+  color:#a98cbe!important;
+  -webkit-text-fill-color:currentColor!important;
+}
+#site-sidebar .nav button:hover .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-icon{
+  color:#b99dce!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  filter:none!important;
+}
+#site-sidebar .nav button.active .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-icon{
+  color:#a986c2!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  filter:drop-shadow(0 0 5px rgba(169,134,194,.12))!important;
+}
+#site-sidebar .nav button[data-view="music"],
+#site-sidebar .nav button[data-view="podcasts"]{
+  background:transparent!important;
+}
+#site-sidebar .nav button[data-view="music"].active .nav-label,
+#site-sidebar .nav button[data-view="podcasts"].active .nav-label{
+  background-image:linear-gradient(100deg,#cfb5e3 0%,#e4d4ed 50%,#bc9ad4 100%)!important;
+}
+/* Music landing item: prevent the active Music tab from rendering as white. */
+#site-sidebar .nav button[data-view="music"].active,
+#site-sidebar .nav button[data-view="music"]:hover{
+  background:transparent!important;
+  color:#d5c2e3!important;
+}
+/* Music icons inherit the shared .nav-icon color for a consistent idle state. */
+
+/* Playback progress: no filled capsule behind the range input.
+   The rail and thumb use a dark violet metallic-silver finish. */
+.now-playing-tools-host .timeline,
+.now-playing-tools-host .timeline span{
+  color:#aa9abb!important;
+}
+#player-seek,
+.now-playing-tools-host #player-seek{
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  outline:0;
+}
+#player-seek::-webkit-slider-runnable-track,
+.now-playing-tools-host #player-seek::-webkit-slider-runnable-track{
+  height:4px!important;
+  border:0!important;
+  border-radius:6px!important;
+  background:linear-gradient(180deg,#796b82 0%,#554660 48%,#30243c 100%)!important;
+  box-shadow:inset 0 1px rgba(225,213,235,.12),0 1px 2px rgba(0,0,0,.38)!important;
+}
+#player-seek::-moz-range-track,
+.now-playing-tools-host #player-seek::-moz-range-track{
+  height:4px!important;
+  border:0!important;
+  border-radius:6px!important;
+  background:linear-gradient(180deg,#796b82 0%,#554660 48%,#30243c 100%)!important;
+  box-shadow:inset 0 1px rgba(225,213,235,.12),0 1px 2px rgba(0,0,0,.38)!important;
+}
+#player-seek::-webkit-slider-thumb,
+.now-playing-tools-host #player-seek::-webkit-slider-thumb{
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  width:13px!important;height:13px!important;margin-top:-4.5px!important;
+  border:1px solid #9c8aaa!important;border-radius:50%!important;
+  background:radial-gradient(circle at 34% 28%,#c9bdd3 0%,#897796 44%,#493852 100%)!important;
+  box-shadow:0 0 0 3px rgba(139,108,158,.13),0 1px 5px rgba(0,0,0,.72)!important;
+}
+#player-seek::-moz-range-thumb,
+.now-playing-tools-host #player-seek::-moz-range-thumb{
+  width:13px!important;height:13px!important;
+  border:1px solid #9c8aaa!important;border-radius:50%!important;
+  background:radial-gradient(circle at 34% 28%,#c9bdd3 0%,#897796 44%,#493852 100%)!important;
+  box-shadow:0 0 0 3px rgba(139,108,158,.13),0 1px 5px rgba(0,0,0,.72)!important;
+}
+#player-seek:focus-visible,
+.now-playing-tools-host #player-seek:focus-visible{
+  outline:0!important;
+}
+#player-seek:focus-visible::-webkit-slider-thumb,
+.now-playing-tools-host #player-seek:focus-visible::-webkit-slider-thumb{
+  box-shadow:0 0 0 4px rgba(177,146,199,.2),0 1px 5px rgba(0,0,0,.72)!important;
+}
+
+/* Bring every secondary/metadata label from neutral grey into pale lilac. */
+.top,.top strong,.count,.meta,.foot,.hero p,.empty p,
+.library-muted,.library-description,.summary-card span,.media-copy span,
+.media-duration,.media-card span,.show-card small,.artist-card small,
+.folder-card small,.playlist-card small,.playlist-card em,.show-card-copy em,
+.report-row small,.report-row span,.player-queue-heading-copy p,
+.player-queue-subtitle,.player-queue-number,.player-queue-status,
+#player-subtitle,.now-copy-separator,.now-playing-kind,
+.now-playing-track-copy p,.now-playing-lyrics-heading,
+.now-playing-empty p,.field label,.hint,.provider-card-heading span,
+.metadata-label,.metadata-heading span,.metadata-footer,
+.metadata-lyrics pre,.eq-band-label,.eq-band-value,.eq-footer,.eq-status,
+.lyrics-empty,.lyrics-plain-line,.entry-size,.browser-path,
+.scan-log-toolbar,.playback-log-toolbar,.scan-log-placeholder,
+.playback-log-placeholder,.error-table th,.error-reason,
+.type-pill,.type-pill.podcast,.type-pill.music{
+  color:#aa9abb!important;
+}
+.now-playing-lyric-line{color:#877995!important}
+.now-playing-lyric-line:hover{color:#b9a7c8!important}
+.now-playing-lyric-line.active{color:#d2c2df!important}
+.playback-connection-notice{color:#c0b0cd!important}
+
+/* Hover states must retain a visible surface and glyph.
+   Some previous gradient-text treatments left controls transparent on hover. */
+button:hover:not(:disabled),
+a:hover,
+[role="button"]:hover,
+.media-row[data-action="play"]:hover,
+.entry:hover{
+  opacity:1!important;
+  visibility:visible!important;
+}
+button:hover:not(:disabled){
+  -webkit-text-fill-color:currentColor;
+}
+.primary:hover{
+  color:#e3d5ec!important;
+  -webkit-text-fill-color:currentColor!important;
+  background:#5b426d!important;
+  opacity:1!important;visibility:visible!important;
+}
+.secondary:hover,
+.close:hover,
+.player-queue-close:hover{
+  color:#d7c5e3!important;
+  -webkit-text-fill-color:currentColor!important;
+  background:#241b2d!important;
+  opacity:1!important;visibility:visible!important;
+}
+.play-button:hover,.playlist-add-button:hover,.playlist-remove-button:hover,
+.album-link:hover,.back-link:hover,.now-playing-back:hover,
+.playlist-picker-option:hover,.playlist-create-inline button:hover{
+  color:#d7c5e3!important;
+  -webkit-text-fill-color:currentColor!important;
+  background:#251c2f!important;
+  opacity:1!important;visibility:visible!important;
+}
+.dock-transport-host .player-transport button:hover,
+.now-playing-transport-host .player-transport button:hover{
+  color:#d9c8e5!important;
+  -webkit-text-fill-color:currentColor!important;
+  background:rgba(126,91,151,.16)!important;
+  opacity:1!important;visibility:visible!important;
+}
+.dock-transport-host .player-transport .player-play:hover,
+.now-playing-transport-host .player-transport .player-play:hover{
+  color:#eee5f2!important;
+  background:#624979!important;
+}
+.dock-transport-host .dock-tool-toggle:hover,
+.dock-transport-host .dock-tool-toggle[aria-expanded="true"]:hover{
+  color:#d9c8e5!important;
+  -webkit-text-fill-color:currentColor!important;
+  background:rgba(104,75,127,.22)!important;
+  opacity:1!important;visibility:visible!important;
+}
+.now-playing-tools-host .controls .player-utility:hover,
+.now-playing-tools-host .controls .player-stop:hover,
+.now-playing-tools-host #player-speed:hover{
+  color:#d7c5e3!important;
+  -webkit-text-fill-color:currentColor!important;
+  background:#211829!important;
+  background-image:none!important;
+  background-clip:border-box!important;
+  -webkit-background-clip:border-box!important;
+  border-color:rgba(173,143,195,.22)!important;
+  filter:none!important;
+  opacity:1!important;visibility:visible!important;
+}
+#site-sidebar .nav button:hover .nav-label,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-label{
+  -webkit-text-fill-color:transparent!important;
+}
+#site-sidebar .nav button:hover .nav-icon:not(:has(svg)),
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-icon:not(:has(svg)){
+  -webkit-text-fill-color:currentColor!important;
+}
+
+
+/* Remaining secondary labels across music, podcast, reports and diagnostics. */
+.media-card small,.folder-card em,.show-detail p,.report-switch button,
+.period-switch button,.player-transport select,.player-stop,
+.player-queue-empty,.now-playing-reindex-status,.player-control-separator,
+.now-playing-tools-host .timeline span,.lyrics-dialog .dialog-head p,
+.playback-log-count,.scan-log-count,.entry-size,.browser-empty,
+.library-search::placeholder,.field input::placeholder{
+  color:#aa9abb!important;
+}
+.report-switch button.active,.period-switch button.active,
+.report-row b,.error-table code,.path-edit,.eq-band-value,
+.player-transport select:focus{
+  color:#c1afd1!important;
+}
+.eq-band-label,.eq-footer,.eq-status,.lyrics-empty,.lyrics-plain-line,
+.player-queue-empty,.now-playing-reindex-status{
+  color:#a393b5!important;
+}
+#player-seek::-moz-range-progress,
+.now-playing-tools-host #player-seek::-moz-range-progress{
+  background:transparent!important;border:0!important;
+}
+/* Flat, visible hover feedback for ordinary buttons and icon-only controls. */
+button:hover:not(:disabled){
+  background-color:#211a29!important;
+  color:#d7c5e3!important;
+  -webkit-text-fill-color:currentColor!important;
+  background-clip:border-box!important;
+  -webkit-background-clip:border-box!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+.primary:hover,
+#player-toggle:hover,
+.dock-transport-host .player-transport .player-play:hover,
+.now-playing-transport-host .player-transport .player-play:hover{
+  background-color:#5b426d!important;
+  color:#eee5f2!important;
+}
+#site-sidebar .nav button:hover,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover{
+  background:transparent!important;
+}
+#site-sidebar .nav button:hover .nav-label,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-label{
+  background-clip:text!important;-webkit-background-clip:text!important;
+  -webkit-text-fill-color:transparent!important;
+}
+#site-sidebar .nav button:hover .nav-icon:not(:has(svg)),
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-icon:not(:has(svg)){
+  background-image:none!important;background-clip:border-box!important;
+  -webkit-background-clip:border-box!important;-webkit-text-fill-color:currentColor!important;
+}
+
 </style>
 <link rel="stylesheet" href="/assets/css/metadata.css">
-<link rel="stylesheet" href="/assets/css/library.css?v=20261112-refresh-rate-polish1">
-<link rel="stylesheet" href="/assets/css/interaction.css?v=20261112-multi-openlist1">
+<link rel="stylesheet" href="/assets/css/library.css?v=20261113-playlists-folders1">
+<link rel="stylesheet" href="/assets/css/interaction.css?v=20261113-outline-controls1">
+<style>
+.playback-connection-notice{position:fixed;z-index:120;right:clamp(14px,3vw,30px);bottom:102px;display:flex;align-items:center;gap:9px;max-width:min(440px,calc(100vw - 28px));padding:9px 13px;border:1px solid #b99ae84a;border-radius:10px;background:#211e2bf5;box-shadow:0 10px 32px #0008;color:#e4dced;font-size:11px;line-height:1.55;opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity .22s ease,transform .22s ease}
+.playback-connection-notice[hidden]{display:none}
+.playback-connection-notice.is-visible{opacity:1;transform:translateY(0)}
+.playback-connection-notice:before{content:"";width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#b99ae8;box-shadow:0 0 12px #b99ae877}
+.playback-connection-notice.is-connecting:before,.playback-connection-notice.is-loading:before,.playback-connection-notice.is-warning:before{animation:playback-connection-pulse 1.2s ease-in-out infinite}
+.playback-connection-notice.is-success{border-color:#79b88a66;color:#bfe2c8}
+.playback-connection-notice.is-success:before{background:#83c795;box-shadow:0 0 12px #83c79577}
+.playback-connection-notice.is-error{border-color:#d17a7a66;color:#f0bcbc}
+.playback-connection-notice.is-error:before{background:#e58c8c;box-shadow:0 0 12px #e58c8c77}
+@keyframes playback-connection-pulse{0%,100%{opacity:.45;transform:scale(.82)}50%{opacity:1;transform:scale(1.15)}}
+.playback-log-panel{margin:26px 0 0;border:1px solid #c7b3df28;border-radius:10px;background:#14121b;color:#dcd5e8;overflow:hidden}
+.playback-log-panel summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 13px;cursor:pointer;list-style:none;font-size:11px;font-weight:650}
+.playback-log-panel summary::-webkit-details-marker{display:none}
+.playback-log-panel summary:after{content:"⌄";color:#8c819d;font-size:13px;margin-left:auto}
+.playback-log-panel[open] summary:after{content:"⌃"}
+.playback-log-count{color:#8e82a3;font-size:9px;font-weight:500}
+.playback-log-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-top:1px solid #ffffff0d;border-bottom:1px solid #ffffff0d;color:#877e94;font-size:9px}
+.playback-log-toolbar>div{display:flex;gap:6px;flex-shrink:0}
+.playback-log-button{padding:5px 8px!important;font-size:9px!important}
+.playback-log-output{max-height:260px;overflow:auto;padding:9px 11px;font:10px/1.75 ui-monospace,SFMono-Regular,Menlo,monospace;color:#b9afc8;white-space:pre-wrap;overflow-wrap:anywhere}
+.playback-log-line{padding:2px 0;border-bottom:1px solid #ffffff08}
+.playback-log-line[data-level="success"]{color:#9fc9a9}
+.playback-log-line[data-level="warning"]{color:#d8b987}
+.playback-log-line[data-level="error"]{color:#e39a9a}
+.playback-log-placeholder{color:#746c80}
+/* FRAME Audio · Dark Reader-inspired global dim pass.
+   Preserve the charcoal-violet identity while lowering the luminance of every surface. */
+:root{
+  color-scheme:dark;
+  --bg:#0e0d12;
+  --line:rgba(177,151,194,.045);
+  --text:#b1aaa8;
+  --muted:#7e7777;
+  --accent:#ad8bc5;
+  --surface:#15121a;
+  --surface-raised:#19151f;
+  --surface-deep:#100f14;
+  --violet:#a98ac0;
+}
+html,body{background:#0e0d12!important;color:#b1aaa8!important}
+body{
+  background:
+    radial-gradient(ellipse at 78% 8%,rgba(73,45,93,.075),transparent 43%),
+    linear-gradient(145deg,#0f0e13 0%,#0d0c11 60%,#100e14 100%)!important;
+}
+button{border:0!important}
+button:focus-visible,input:focus-visible,select:focus-visible{
+  outline:2px solid rgba(173,139,197,.62)!important;
+  outline-offset:3px!important;
+}
+.shell,main{background:transparent!important;color:#b1aaa8!important}
+#site-sidebar,aside{
+  background:linear-gradient(180deg,#121017 0%,#100e14 100%)!important;
+  border-color:rgba(177,151,194,.035)!important;
+  box-shadow:none!important;
+}
+#site-sidebar .brand,.brand{color:#aaa19e!important}
+#site-sidebar .brand b,.brand b{color:#b292c8!important}
+.mark{background:linear-gradient(145deg,#b69aca,#735487)!important;color:#19131f!important;box-shadow:none!important}
+#site-sidebar .label,.label{color:#817a76!important;letter-spacing:.22em!important}
+#site-sidebar .gapline,.gapline{background:rgba(177,151,194,.045)!important}
+#site-sidebar .sidefoot,.sidefoot{color:#77706f!important;border-color:rgba(177,151,194,.045)!important}
+#site-sidebar .nav button,
+body.mobile-sidebar-expanded #site-sidebar .nav button{
+  border:0!important;color:#a9a19f!important;background:transparent!important;
+  box-shadow:none!important;
+}
+#site-sidebar .nav button:hover,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover{
+  background:rgba(255,255,255,.018)!important;color:#c1b8b5!important;
+}
+#site-sidebar .nav button.active,
+body.mobile-sidebar-expanded #site-sidebar .nav button.active{
+  color:#c9addb!important;
+  background:linear-gradient(100deg,rgba(91,61,111,.16),rgba(51,35,66,.075))!important;
+  box-shadow:inset -2px 0 rgba(139,91,170,.72)!important;
+}
+#site-sidebar .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav-icon{
+  border:0!important;border-radius:14px!important;
+  background:rgba(76,49,96,.105)!important;color:#aa8fbd!important;
+  box-shadow:none!important;animation:none!important;
+}
+#site-sidebar .nav button.active .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-icon{
+  background:rgba(91,57,117,.16)!important;color:#c09bd6!important;
+}
+#site-sidebar .nav button:hover .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-icon{
+  background:rgba(91,57,117,.14)!important;color:#bca0cf!important;
+}
+main{color:#b1aaa8!important}
+.top{color:#817a79!important;border-color:rgba(177,151,194,.045)!important}
+.top strong{color:#b9b0ad!important}
+.pill{border:0!important;background:#17131b!important;color:#8e7f91!important}
+.hero{
+  border:1px solid rgba(177,151,194,.035)!important;border-radius:16px!important;
+  background:
+    radial-gradient(ellipse at 78% 50%,rgba(83,53,105,.085),transparent 42%),
+    linear-gradient(115deg,#19151e,#15121a)!important;
+  box-shadow:none!important;
+}
+.hero h1,.sectionhead h2,.library-section-head h3{color:#b9b0ad!important}
+.hero h1 span,.eyebrow,.kicker{color:#ad8bc5!important}
+.hero p{color:#898180!important}
+.count,.library-muted,.library-description{color:#777171!important}
+.empty,.library-empty,.library-message{
+  border:1px solid rgba(177,151,194,.035)!important;
+  background:#131118!important;color:#aaa1a0!important;box-shadow:none!important;
+}
+.emptyicon,.library-empty-mark{
+  border:0!important;background:rgba(83,53,105,.14)!important;color:#ad91c1!important;
+}
+.summary-card,.media-card,.show-card,.artist-card,.folder-card,.playlist-card,
+.report-list,.report-row,.show-detail,.error-table-wrap,.scan-log-panel,
+.playback-log-panel,.provider-card,.metadata-result,.browser,.player-queue-panel,
+.playlist-picker-option,.playlist-create-inline{
+  border:1px solid rgba(177,151,194,.04)!important;
+  background:linear-gradient(150deg,#17131b,#131117)!important;
+  box-shadow:none!important;color:#b3aaa8!important;
+}
+.summary-card span,.media-card span,.show-card small,.artist-card small,
+.folder-card small,.playlist-card small,.report-row small,.report-row span,
+.metadata-label,.metadata-footer{color:#7d7575!important}
+.summary-card strong,.media-copy strong,.show-card-copy strong,
+.artist-card strong,.folder-card strong,.playlist-card strong,
+.report-row strong,.metadata-value{color:#b6adab!important}
+.media-row,.report-row,.entry,.error-table td{
+  border-color:rgba(177,151,194,.035)!important;color:#aaa2a0!important;
+  background:transparent!important;
+}
+.media-row:hover,.entry:hover{background:rgba(255,255,255,.018)!important}
+.media-cover,.artist-avatar,.folder-card>span,.playlist-card-icon,
+.emptyicon,.type-pill{
+  border:0!important;background:rgba(80,52,100,.14)!important;color:#ac91c0!important;
+}
+.playlist-card-favorites .playlist-card-icon{background:rgba(112,60,91,.12)!important;color:#be91ad!important}
+.playlist-add-button,.playlist-remove-button,.play-button,.player-stop,
+.player-utility,.eq-switch,.eq-toolbar select,.report-switch button,.period-switch button,
+.album-link,.back-link,.now-playing-back,.player-queue-close,
+.playlist-picker-option,.playlist-create-inline button{
+  border:0!important;background:#18141d!important;color:#a995b8!important;
+  box-shadow:none!important;
+}
+.playlist-add-button:hover,.play-button:hover,.album-link:hover,
+.back-link:hover,.now-playing-back:hover,.player-queue-close:hover{
+  background:#201828!important;color:#c6a9d8!important;
+}
+.primary{
+  border:0!important;border-radius:11px!important;
+  color:#d4c1df!important;background:#49345b!important;box-shadow:none!important;
+}
+.primary:hover{background:#543d67!important}
+.secondary{
+  border:0!important;border-radius:11px!important;
+  color:#aaa0ad!important;background:#19151e!important;box-shadow:none!important;
+}
+.secondary:hover{background:#211a28!important;color:#c5b2d0!important}
+button,.nav button,.player-transport button,.dock-tool-toggle,
+.dock-favorite-toggle,.playlist-add-button,.playlist-remove-button{
+  border-color:transparent!important;box-shadow:none;
+}
+.dock{
+  background:linear-gradient(180deg,rgba(20,17,25,.985),rgba(14,13,18,.995))!important;
+  border-top:1px solid rgba(177,151,194,.045)!important;box-shadow:0 -10px 28px rgba(0,0,0,.24)!important;
+}
+.dock-transport-host .player-transport button,
+.now-playing-transport-host .player-transport button{
+  border:0!important;background:transparent!important;color:#bca9c8!important;
+}
+.dock-transport-host .player-transport button:hover,
+.now-playing-transport-host .player-transport button:hover{
+  background:rgba(128,89,153,.09)!important;color:#d0b7dc!important;
+}
+.dock-transport-host .player-transport .player-play,
+.now-playing-transport-host .player-transport .player-play{
+  border:0!important;border-radius:17px!important;background:#503a66!important;
+  color:#e0d5e5!important;box-shadow:0 4px 14px rgba(54,34,70,.22)!important;
+}
+.dock-transport-host .player-transport .player-play:hover,
+.now-playing-transport-host .player-transport .player-play:hover{background:#5b4372!important}
+.dock-transport-host .dock-tool-toggle{
+  border:0!important;background:rgba(77,51,96,.12)!important;color:#b59bc4!important;
+}
+.dock-transport-host .dock-tool-toggle[aria-expanded=true]{
+  background:rgba(95,62,119,.2)!important;color:#cbb1d9!important;
+}
+.dock-favorite-toggle{border:0!important;background:transparent!important;color:#a994b6!important}
+.dock-favorite-toggle.is-favorite{color:#c49bcf!important}
+#player-title{color:#bcb3b0!important}
+#player-subtitle,.now-copy-separator{color:#7e7778!important}
+.cover{border:0!important;background-color:#1b1522!important;box-shadow:none!important}
+.player-queue-panel{
+  border:1px solid rgba(177,151,194,.045)!important;
+  background:linear-gradient(160deg,#19151f,#121016)!important;
+}
+.player-queue-header{border-color:rgba(177,151,194,.04)!important}
+.player-queue-heading-copy h2,.player-queue-title{color:#bcb2b0!important}
+.player-queue-heading-copy p,.player-queue-subtitle,.player-queue-number{color:#7e7678!important}
+.player-queue-item{border:0!important}
+.player-queue-item:hover{background:rgba(255,255,255,.02)!important}
+.player-queue-item.is-current{background:rgba(97,64,120,.12)!important}
+.now-playing-page{
+  background:
+    radial-gradient(ellipse at 16% 12%,rgba(88,60,111,.11),transparent 42%),
+    radial-gradient(ellipse at 88% 78%,rgba(54,44,79,.08),transparent 40%),
+    linear-gradient(145deg,#121017 0%,#0e0d12 55%,#121018 100%)!important;
+  box-shadow:none!important;
+}
+.now-playing-track-copy h1{color:#c0b5b3!important}
+.now-playing-track-copy p,.now-playing-kind,.now-playing-lyrics-heading{color:#81797c!important}
+.now-playing-track-meta{color:#9e84b3!important}
+.now-playing-track-meta span{border:0!important;background:#17131c!important}
+.now-playing-art{border:0!important;box-shadow:0 12px 30px rgba(0,0,0,.3)!important}
+.now-playing-lyric-line{color:#625d68!important}
+.now-playing-lyric-line:hover{color:#a99bb2!important;background:transparent!important}
+.now-playing-lyric-line.active{color:#d7c5df!important;text-shadow:0 0 20px rgba(155,120,181,.25)!important}
+.now-playing-tools-host .controls .player-utility,
+.now-playing-tools-host .controls .player-stop,
+.now-playing-tools-host #player-speed{
+  border:0!important;background:#17131c!important;color:#a996b4!important;box-shadow:none!important;
+}
+.now-playing-tools-host .controls .player-utility.active{background:#21182a!important;color:#c7add5!important}
+.now-playing-tools-host #player-speed{background:#17131c!important}
+#player-seek,.now-playing-tools-host #player-seek{background:#29232e!important}
+#player-seek::-webkit-slider-thumb,.now-playing-tools-host #player-seek::-webkit-slider-thumb{background:#a98bc0!important}
+#player-seek::-moz-range-thumb,.now-playing-tools-host #player-seek::-moz-range-thumb{background:#a98bc0!important;border:0!important}
+dialog,.dialog,.lyrics-dialog{
+  border:1px solid rgba(177,151,194,.055)!important;background:#15121a!important;
+  color:#b7aeac!important;box-shadow:0 22px 70px rgba(0,0,0,.55)!important;
+}
+dialog::backdrop{background:rgba(4,3,7,.82)!important}
+.dialog-head,.dialog-body,.lyrics-dialog .dialog-head{border-color:rgba(177,151,194,.04)!important}
+.dialog-head h2,.provider-card-heading strong{color:#bcb2b0!important}
+.field label,.hint{color:#81797a!important}
+.field input,.field select,.connection-profiles>.field select,
+.provider-card .field input,.now-playing-tools-host #player-speed{
+  border:0!important;background:#100f14!important;color:#b8afb0!important;
+}
+.field input::placeholder{color:#625d62!important}
+.statusbox,.browser-head,.scan-log-toolbar,.playback-log-toolbar{
+  border-color:rgba(177,151,194,.035)!important;background:#131118!important;color:#93898f!important;
+}
+.entry{border-top-color:rgba(177,151,194,.035)!important;color:#aaa0a2!important}
+.browser-path,.path-edit{color:#b5a8bc!important}
+.scan-log-output,.playback-log-output{background:#100f14!important;color:#9c929c!important}
+.error-table th,.error-table td{border-color:rgba(177,151,194,.035)!important}
+.error-table th{background:#15121a!important;color:#8d838b!important}
+.error-table code,.error-reason{color:#ad9db5!important}
+.type-pill,.type-pill.podcast,.type-pill.music{background:#1a1520!important;color:#a990ba!important;border:0!important}
+.eq-bands,.lyrics-list,.lyrics-plain-line,.lyrics-empty{
+  border-color:rgba(177,151,194,.035)!important;background:transparent!important;color:#a49a9e!important;
+}
+.eq-band-label,.eq-band-value,.eq-footer,.eq-status{color:#887e84!important}
+.lyrics-line{color:#68616c!important}
+.lyrics-line:hover{background:rgba(255,255,255,.018)!important;color:#aaa0b0!important}
+.lyrics-line.active{color:#d0bfd9!important;background:rgba(104,75,125,.11)!important}
+.metadata-result,.metadata-lyrics{background:#131118!important;border-color:rgba(177,151,194,.04)!important}
+.metadata-heading strong,.metadata-lyrics strong{color:#b69bc7!important}
+.metadata-heading span,.metadata-label,.metadata-footer{color:#7e7678!important}
+.metadata-value,.metadata-lyrics pre{color:#aca2a2!important}
+.playback-connection-notice{
+  border:0!important;background:#19151f!important;color:#bcb1ba!important;
+  box-shadow:0 8px 25px rgba(0,0,0,.35)!important;
+}
+.playback-connection-notice.is-success{background:#172019!important;color:#a9c6ae!important}
+.playback-connection-notice.is-error{background:#211517!important;color:#d8a6a6!important}
+.now-playing-topbar .secondary{background:#17131c!important;color:#aa9bb2!important}
+@media(max-width:760px){
+  #site-sidebar,aside{background:linear-gradient(165deg,#15121a,#100e14 76%)!important}
+  .dock{background:rgba(17,15,21,.99)!important}
+  .now-playing-page{background:linear-gradient(165deg,#111017,#0e0d12)!important}
+}
+@media(prefers-reduced-motion:reduce){
+  #site-sidebar .nav-icon,body.mobile-sidebar-expanded #site-sidebar .nav-icon{animation:none!important}
+}
+
+
+/* FRAME Audio · midnight silver-lilac finish.
+   Keep surfaces nearly black; let typography and line work carry the light. */
+#site-sidebar .nav button,
+body.mobile-sidebar-expanded #site-sidebar .nav button{
+  color:#c9b9d5!important;
+  background:transparent!important;
+  transition:background .28s ease,color .28s ease;
+}
+#site-sidebar .nav button .nav-label,
+body.mobile-sidebar-expanded #site-sidebar .nav button .nav-label{
+  color:transparent!important;
+  background-image:linear-gradient(105deg,#b9a8c8 0%,#e7dced 48%,#bba5cf 100%)!important;
+  -webkit-background-clip:text!important;
+  background-clip:text!important;
+  -webkit-text-fill-color:transparent!important;
+  text-shadow:0 0 12px rgba(186,151,211,.075);
+  transition:filter .28s ease,text-shadow .28s ease;
+}
+#site-sidebar .nav button:hover,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover{
+  background:linear-gradient(100deg,rgba(91,65,111,.075),rgba(47,34,58,.018))!important;
+}
+#site-sidebar .nav button:hover .nav-label,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-label{
+  background-image:linear-gradient(105deg,#d3c1e0 0%,#fff5ff 52%,#cbb4df 100%)!important;
+  text-shadow:0 0 15px rgba(197,164,224,.16);
+}
+#site-sidebar .nav button.active,
+body.mobile-sidebar-expanded #site-sidebar .nav button.active{
+  color:#eadcf3!important;
+  background:linear-gradient(100deg,rgba(91,61,111,.12),rgba(51,35,66,.035))!important;
+  box-shadow:inset -1px 0 rgba(176,139,204,.48)!important;
+}
+#site-sidebar .nav button.active .nav-label,
+body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-label{
+  background-image:linear-gradient(100deg,#d8c6e5 0%,#fff5ff 48%,#c3a8d8 100%)!important;
+  text-shadow:0 0 16px rgba(194,158,222,.18);
+}
+#site-sidebar .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav-icon{
+  border:1px solid rgba(193,166,215,.13)!important;
+  border-radius:13px!important;
+  background:transparent!important;
+  color:#c7b3d8!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.025),0 0 7px rgba(177,139,210,.045)!important;
+  animation:frame-nav-outline-breathe 5.6s ease-in-out infinite alternate!important;
+  transition:border-color .3s ease,color .3s ease,box-shadow .3s ease,filter .3s ease;
+}
+#site-sidebar .nav-icon svg{
+  filter:drop-shadow(0 0 4px rgba(192,158,221,.10));
+}
+#site-sidebar .nav-icon:not(:has(svg)),
+body.mobile-sidebar-expanded #site-sidebar .nav-icon:not(:has(svg)){
+  color:transparent!important;
+  background-image:linear-gradient(145deg,#bca7d0 0%,#f0e7f5 52%,#aa91c2 100%)!important;
+  -webkit-background-clip:text!important;
+  background-clip:text!important;
+  -webkit-text-fill-color:transparent!important;
+}
+#site-sidebar .nav button:hover .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-icon{
+  border-color:rgba(205,180,226,.23)!important;
+  color:#e9dcf2!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.035),0 0 10px rgba(184,147,215,.10)!important;
+  filter:brightness(1.08);
+}
+#site-sidebar .nav button.active .nav-icon,
+body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-icon{
+  border-color:rgba(211,183,232,.24)!important;
+  color:#f0e5f7!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.04),0 0 12px rgba(185,145,218,.12)!important;
+}
+#site-sidebar .nav button.active .nav-icon:not(:has(svg)),
+body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-icon:not(:has(svg)){
+  background-image:linear-gradient(145deg,#d5c0e6 0%,#fff7ff 52%,#c1a5d9 100%)!important;
+}
+@keyframes frame-nav-outline-breathe{
+  from{
+    border-color:rgba(193,166,215,.075);
+    box-shadow:inset 0 1px rgba(255,255,255,.015),0 0 3px rgba(177,139,210,.025);
+  }
+  to{
+    border-color:rgba(205,180,226,.17);
+    box-shadow:inset 0 1px rgba(255,255,255,.035),0 0 9px rgba(177,139,210,.075);
+  }
+}
+
+/* Playback detail controls: glass-dark surfaces with luminous gradient glyphs. */
+.now-playing-tools-host .controls .player-utility,
+.now-playing-tools-host .controls .player-stop{
+  border:1px solid rgba(193,166,215,.15)!important;
+  border-radius:13px!important;
+  background-color:transparent!important;
+  background-image:linear-gradient(140deg,#bba6d0 0%,#f0e8f5 54%,#b39bc9 100%)!important;
+  background-clip:text!important;
+  -webkit-background-clip:text!important;
+  color:transparent!important;
+  -webkit-text-fill-color:transparent!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.025),0 0 8px rgba(177,139,210,.045)!important;
+  transition:border-color .25s ease,box-shadow .25s ease,filter .25s ease,transform .2s ease;
+}
+.now-playing-tools-host .controls .player-utility:hover,
+.now-playing-tools-host .controls .player-stop:hover{
+  border-color:rgba(216,194,233,.27)!important;
+  background-color:transparent!important;
+  filter:brightness(1.12);
+  box-shadow:inset 0 1px rgba(255,255,255,.04),0 0 12px rgba(187,151,219,.10)!important;
+}
+.now-playing-tools-host .controls .player-utility.active{
+  border-color:rgba(216,190,238,.30)!important;
+  background-color:transparent!important;
+  background-image:linear-gradient(135deg,#d4bee5 0%,#fff5ff 52%,#c1a5d9 100%)!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.05),0 0 14px rgba(190,151,224,.14)!important;
+  filter:brightness(1.06);
+}
+.now-playing-tools-host .controls .player-stop{
+  background-image:linear-gradient(135deg,#c69eae 0%,#f2dce7 55%,#bd91a8 100%)!important;
+}
+.now-playing-tools-host #player-speed{
+  border:1px solid rgba(193,166,215,.13)!important;
+  border-radius:12px!important;
+  background:linear-gradient(145deg,rgba(24,19,30,.45),rgba(14,13,19,.30))!important;
+  color:#e0d2eb!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.025),0 0 8px rgba(177,139,210,.035)!important;
+}
+.now-playing-tools-host #player-speed:focus-visible{
+  border-color:rgba(216,190,238,.34)!important;
+  outline:1px solid rgba(193,161,224,.4)!important;
+}
+
+/* Give the track title the same pearlescent highlight without brightening the canvas. */
+#player-title,
+.now-playing-track-copy h1{
+  color:transparent!important;
+  background-image:linear-gradient(100deg,#c8b5d8 0%,#f1eaf5 48%,#bca5cf 100%)!important;
+  -webkit-background-clip:text!important;
+  background-clip:text!important;
+  -webkit-text-fill-color:transparent!important;
+  text-shadow:0 0 18px rgba(181,145,211,.12);
+}
+@media(prefers-reduced-motion:reduce){
+  #site-sidebar .nav-icon,
+  body.mobile-sidebar-expanded #site-sidebar .nav-icon{
+    animation:none!important;
+  }
+}
+
+
+/* Final interaction corrections: Music glyph, dock hover, and dark-violet seek rail. */
+
+/* Music now uses the same inline SVG icon system as every other nav item. */
+/* Dock controls should not flash a hover tile. Keep each control's base surface
+   and glyph color while the pointer is over it. */
+.dock button:not(.player-play):hover:not(:disabled),
+.dock button:not(.player-play):focus:not(:disabled){
+  background:transparent!important;
+  background-image:none!important;
+  color:inherit!important;
+  -webkit-text-fill-color:currentColor!important;
+  box-shadow:none!important;
+  filter:none!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+.dock .dock-tool-toggle:hover:not(:disabled),
+.dock .dock-tool-toggle[aria-expanded="true"]:hover:not(:disabled){
+  background:rgba(77,51,96,.12)!important;
+  color:#b59bc4!important;
+}
+.dock .dock-favorite-toggle:hover:not(:disabled){
+  background:transparent!important;
+  color:#a994b6!important;
+}
+.dock .dock-favorite-toggle.is-favorite:hover:not(:disabled){
+  background:transparent!important;
+  color:#c49bcf!important;
+}
+.dock .player-play:hover:not(:disabled){
+  background:#503a66!important;
+  color:#e0d5e5!important;
+  box-shadow:0 4px 14px rgba(54,34,70,.22)!important;
+  filter:none!important;
+}
+.dock .now-open:hover #player-title{
+  color:inherit!important;
+  background-image:inherit!important;
+  text-shadow:inherit!important;
+}
+
+/* Now Playing seek bar: no filled input backdrop, a darker left-to-right
+   violet rail with restrained silver depth, and a deeper metallic thumb. */
+.now-playing-tools-host #player-seek,
+#player-detail-controls.now-playing-tools-host #player-seek{
+  background:transparent!important;
+  background-color:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+.now-playing-tools-host #player-seek::-webkit-slider-runnable-track,
+#player-detail-controls.now-playing-tools-host #player-seek::-webkit-slider-runnable-track{
+  height:4px!important;
+  border:0!important;
+  border-radius:6px!important;
+  background:linear-gradient(90deg,#201827 0%,#34263f 38%,#40304b 58%,#282033 100%)!important;
+  box-shadow:inset 0 1px rgba(185,163,201,.12),inset 0 -1px rgba(7,5,10,.45)!important;
+}
+.now-playing-tools-host #player-seek::-moz-range-track,
+#player-detail-controls.now-playing-tools-host #player-seek::-moz-range-track{
+  height:4px!important;
+  border:0!important;
+  border-radius:6px!important;
+  background:linear-gradient(90deg,#201827 0%,#34263f 38%,#40304b 58%,#282033 100%)!important;
+  box-shadow:inset 0 1px rgba(185,163,201,.12),inset 0 -1px rgba(7,5,10,.45)!important;
+}
+.now-playing-tools-host #player-seek::-moz-range-progress,
+#player-detail-controls.now-playing-tools-host #player-seek::-moz-range-progress{
+  height:4px!important;
+  background:transparent!important;
+  border:0!important;
+}
+.now-playing-tools-host #player-seek::-webkit-slider-thumb,
+#player-detail-controls.now-playing-tools-host #player-seek::-webkit-slider-thumb{
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  width:12px!important;
+  height:12px!important;
+  margin-top:-4px!important;
+  border:1px solid #74627f!important;
+  border-radius:50%!important;
+  background:radial-gradient(circle at 32% 26%,#685674 0%,#403149 44%,#211828 100%)!important;
+  box-shadow:0 0 0 2px rgba(99,73,117,.13),0 1px 5px rgba(0,0,0,.78)!important;
+}
+.now-playing-tools-host #player-seek::-moz-range-thumb,
+#player-detail-controls.now-playing-tools-host #player-seek::-moz-range-thumb{
+  width:12px!important;
+  height:12px!important;
+  border:1px solid #74627f!important;
+  border-radius:50%!important;
+  background:radial-gradient(circle at 32% 26%,#685674 0%,#403149 44%,#211828 100%)!important;
+  box-shadow:0 0 0 2px rgba(99,73,117,.13),0 1px 5px rgba(0,0,0,.78)!important;
+}
+
+
+.dock .now-open:hover #player-title{
+  color:transparent!important;
+  background-image:linear-gradient(100deg,#c8b5d8 0%,#f1eaf5 48%,#bca5cf 100%)!important;
+  background-clip:text!important;
+  -webkit-background-clip:text!important;
+  -webkit-text-fill-color:transparent!important;
+  text-shadow:0 0 18px rgba(181,145,211,.12)!important;
+}
+
+
+
+/* Keep Music in the same navigation icon system as every other section.
+   No one-off animation, hover, active, border or shadow overrides. */
+
+/* Two-tone seek rail. Keep the percentage split tied to the live range value. */
+.now-playing-tools-host #player-seek,
+#player-detail-controls.now-playing-tools-host #player-seek{
+  --seek-progress:0%;
+  background:transparent!important;
+  background-color:transparent!important;
+}
+.now-playing-tools-host #player-seek::-webkit-slider-runnable-track,
+#player-detail-controls.now-playing-tools-host #player-seek::-webkit-slider-runnable-track{
+  height:3px!important;
+  border:0!important;
+  border-radius:5px!important;
+  background:linear-gradient(90deg,
+    #24182f 0%,
+    #24182f var(--seek-progress, 0%),
+    #3b2b49 var(--seek-progress, 0%),
+    #3b2b49 100%)!important;
+  box-shadow:none!important;
+}
+.now-playing-tools-host #player-seek::-moz-range-track,
+#player-detail-controls.now-playing-tools-host #player-seek::-moz-range-track{
+  height:3px!important;
+  border:0!important;
+  border-radius:5px!important;
+  background:#3b2b49!important;
+  box-shadow:none!important;
+}
+.now-playing-tools-host #player-seek::-moz-range-progress,
+#player-detail-controls.now-playing-tools-host #player-seek::-moz-range-progress{
+  height:3px!important;
+  border:0!important;
+  border-radius:5px!important;
+  background:#24182f!important;
+}
+.now-playing-tools-host #player-seek::-webkit-slider-thumb,
+#player-detail-controls.now-playing-tools-host #player-seek::-webkit-slider-thumb{
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  width:11px!important;
+  height:11px!important;
+  margin-top:-4px!important;
+  border:1px solid #5a436c!important;
+  border-radius:50%!important;
+  background:#3d2c4d!important;
+  box-shadow:
+    0 0 0 1.5px rgba(48,31,64,.92),
+    0 0 5px 3px rgba(70,47,92,.42),
+    0 0 11px 5px rgba(70,47,92,.16),
+    0 2px 5px rgba(0,0,0,.42)!important;
+}
+.now-playing-tools-host #player-seek::-moz-range-thumb,
+#player-detail-controls.now-playing-tools-host #player-seek::-moz-range-thumb{
+  width:11px!important;
+  height:11px!important;
+  border:1px solid #5a436c!important;
+  border-radius:50%!important;
+  background:#3d2c4d!important;
+  box-shadow:
+    0 0 0 1.5px rgba(48,31,64,.92),
+    0 0 5px 3px rgba(70,47,92,.42),
+    0 0 11px 5px rgba(70,47,92,.16),
+    0 2px 5px rgba(0,0,0,.42)!important;
+}
+
+/* Restore semantic green for positive connection, storage and indexing states. */
+.statusbox.ok,
+.statusbox.success,
+#connection-result.ok,
+#storage-result.ok,
+#provider-settings-status.ok,
+#scan-progress.ok,
+.library-message.is-success,
+.eq-status.ok{
+  border-color:rgba(103,164,119,.34)!important;
+  background:#172019!important;
+  color:#a7d4b5!important;
+}
+.playback-connection-notice.is-success{
+  border-color:rgba(103,164,119,.34)!important;
+  background:#172019!important;
+  color:#bfe2c8!important;
+}
+.scan-log-line[data-level="success"],
+.playback-log-line[data-level="success"]{
+  color:#9fc9a9!important;
+}
+
+/* Dock favorite stays immediately beside Previous at every viewport width. */
+.dock-transport-host .player-transport > .dock-favorite-toggle{
+  display:grid!important;place-items:center!important;
+  flex:0 0 38px!important;width:38px!important;min-width:38px!important;max-width:38px!important;
+  height:40px!important;min-height:40px!important;max-height:40px!important;
+  margin:0!important;padding:0!important;border:0!important;border-radius:50%!important;
+  color:#a994b6!important;background:transparent!important;box-shadow:none!important;
+}
+.dock-transport-host .player-transport > .dock-favorite-toggle:hover:not(:disabled){
+  color:#d7bfdc!important;background:transparent!important;
+}
+.dock-transport-host .player-transport > .dock-favorite-toggle.is-favorite{color:#c49bcf!important}
+.dock-transport-host .player-transport > .dock-favorite-toggle svg{width:19px!important;height:19px!important}
+@media(max-width:900px) and (min-width:761px){
+  .dock-transport-host .player-transport > .dock-favorite-toggle{
+    flex-basis:34px!important;width:34px!important;min-width:34px!important;max-width:34px!important;
+    height:36px!important;min-height:36px!important;max-height:36px!important;
+  }
+}
+@media(max-width:760px){
+  .dock-transport-host .player-transport > .dock-favorite-toggle{
+    flex-basis:32px!important;width:32px!important;min-width:32px!important;max-width:32px!important;
+    height:36px!important;min-height:36px!important;max-height:36px!important;
+  }
+}
+@media(max-width:390px){
+  .dock-transport-host .player-transport > .dock-favorite-toggle{
+    flex-basis:29px!important;width:29px!important;min-width:29px!important;max-width:29px!important;
+    height:34px!important;min-height:34px!important;max-height:34px!important;
+  }
+}
+
+/* The scrim is a full-screen button: neutralize the global button hover fill. */
+button.mobile-nav-scrim,
+button.mobile-nav-scrim:hover:not(:disabled),
+button.mobile-nav-scrim:focus,
+button.mobile-nav-scrim:focus-visible,
+button.mobile-nav-scrim:active{
+  background:rgba(7,5,12,.62)!important;
+  background-image:none!important;
+  border:0!important;
+  box-shadow:none!important;
+  color:transparent!important;
+  outline:0!important;
+  filter:none!important;
+}
+
+/* Keep the viewport's scrollbar gutter reserved while the drawer locks page scroll. */
+html{
+  scrollbar-gutter:stable;
+}
+body.mobile-sidebar-expanded{
+  scrollbar-gutter:stable;
+}
+
+
+/* Now Playing: replace the text glyph with a refined, crisp chevron. */
+.now-playing-back .now-playing-back-icon{
+  display:block!important;
+  flex:0 0 15px!important;
+  width:15px!important;
+  height:15px!important;
+  overflow:visible!important;
+  fill:none!important;
+  stroke:currentColor!important;
+  stroke-width:1.8!important;
+  stroke-linecap:round!important;
+  stroke-linejoin:round!important;
+  opacity:.92;
+  transform:translateY(-.25px);
+  transition:transform .24s cubic-bezier(.2,.8,.2,1),opacity .24s ease;
+}
+.now-playing-back:hover .now-playing-back-icon{
+  transform:translateY(1px);
+  opacity:1;
+}
+
+
+
+/* Top-bar utility actions: quiet, matched controls for diagnostics and source settings. */
+header.top .topright{
+  min-width:0;
+  gap:9px!important;
+}
+header.top .topright > a.primary[href="/playback-diagnostic.html"],
+header.top .topright > button#open-settings{
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:8px!important;
+  height:36px!important;
+  min-height:36px!important;
+  max-width:min(270px,30vw)!important;
+  min-width:0!important;
+  padding:0 13px!important;
+  border:1px solid rgba(174,145,190,.17)!important;
+  border-radius:10px!important;
+  background:linear-gradient(138deg,rgba(40,33,47,.88),rgba(25,22,31,.94))!important;
+  color:#c1b5c7!important;
+  font-size:10.5px!important;
+  font-weight:500!important;
+  line-height:1!important;
+  letter-spacing:.015em!important;
+  text-decoration:none!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.035),0 3px 12px rgba(0,0,0,.13)!important;
+  cursor:pointer!important;
+  transition:background .2s ease,border-color .2s ease,color .2s ease,box-shadow .2s ease,transform .2s ease!important;
+}
+header.top .topright > a.primary[href="/playback-diagnostic.html"]::before,
+header.top .topright > button#open-settings::before{
+  content:"";
+  display:block;
+  flex:0 0 14px;
+  width:14px;
+  height:14px;
+  background-color:#a88db9;
+  opacity:.88;
+  -webkit-mask-repeat:no-repeat;
+  mask-repeat:no-repeat;
+  -webkit-mask-position:center;
+  mask-position:center;
+  -webkit-mask-size:contain;
+  mask-size:contain;
+  transition:background-color .2s ease,opacity .2s ease;
+}
+header.top .topright > a.primary[href="/playback-diagnostic.html"]::before{
+  -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 13a9 9 0 1 1 18 0'/%3E%3Cpath d='m12 13 4-4'/%3E%3Cpath d='M5.7 6.7 4.5 5.5M18.3 6.7l1.2-1.2'/%3E%3C/svg%3E");
+  mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 13a9 9 0 1 1 18 0'/%3E%3Cpath d='m12 13 4-4'/%3E%3Cpath d='M5.7 6.7 4.5 5.5M18.3 6.7l1.2-1.2'/%3E%3C/svg%3E");
+}
+header.top .topright > button#open-settings::before{
+  -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round'%3E%3Cpath d='M4 7h9M17 7h3M4 17h3M11 17h9'/%3E%3Ccircle cx='15' cy='7' r='2'/%3E%3Ccircle cx='9' cy='17' r='2'/%3E%3C/svg%3E");
+  mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round'%3E%3Cpath d='M4 7h9M17 7h3M4 17h3M11 17h9'/%3E%3Ccircle cx='15' cy='7' r='2'/%3E%3Ccircle cx='9' cy='17' r='2'/%3E%3C/svg%3E");
+}
+header.top .topright > a.primary[href="/playback-diagnostic.html"]:hover,
+header.top .topright > button#open-settings:hover{
+  border-color:rgba(183,151,202,.34)!important;
+  background:linear-gradient(138deg,rgba(57,44,66,.94),rgba(32,26,39,.98))!important;
+  color:#e0d1e5!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.055),0 5px 16px rgba(0,0,0,.2),0 0 18px rgba(147,108,166,.07)!important;
+  transform:translateY(-1px);
+}
+header.top .topright > a.primary[href="/playback-diagnostic.html"]:hover::before,
+header.top .topright > button#open-settings:hover::before{
+  background-color:#c5a6d5;
+  opacity:1;
+}
+header.top .topright > a.primary[href="/playback-diagnostic.html"]:active,
+header.top .topright > button#open-settings:active{
+  transform:translateY(0);
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.2)!important;
+}
+@media(max-width:900px){
+  header.top .topright{gap:7px!important}
+  header.top .topright > a.primary[href="/playback-diagnostic.html"],
+  header.top .topright > button#open-settings{
+    max-width:min(240px,31vw)!important;
+    padding:0 10px!important;
+  }
+}
+@media(max-width:520px){
+  header.top .topright > a.primary[href="/playback-diagnostic.html"],
+  header.top .topright > button#open-settings{
+    height:33px!important;
+    min-height:33px!important;
+    gap:6px!important;
+    font-size:9px!important;
+    padding:0 8px!important;
+  }
+  header.top .topright > a.primary[href="/playback-diagnostic.html"]::before,
+  header.top .topright > button#open-settings::before{
+    flex-basis:12px;
+    width:12px;
+    height:12px;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  header.top .topright > a.primary[href="/playback-diagnostic.html"],
+  header.top .topright > button#open-settings,
+  header.top .topright > a.primary[href="/playback-diagnostic.html"]::before,
+  header.top .topright > button#open-settings::before{
+    transition:none!important;
+  }
+}
+
+
+
+/* The track pager stays light and frameless, in line with the rest of the library. */
+.library-pagination{
+  margin:24px 0 34px!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  gap:16px!important;
+  color:#817a80!important;
+}
+.library-pagination .secondary{
+  min-width:0!important;
+  padding:8px 10px!important;
+  border:0!important;
+  border-radius:8px!important;
+  background:transparent!important;
+  color:#a79ba9!important;
+  box-shadow:none!important;
+}
+.library-pagination .secondary:hover:not(:disabled){
+  background:rgba(145,111,161,.11)!important;
+  color:#d0bfd8!important;
+}
+.library-pagination .secondary:disabled{
+  opacity:.24!important;
+  background:transparent!important;
+  cursor:default!important;
+}
+.library-pagination > span{
+  color:#817a80!important;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:.015em;
+}
+@media(max-width:520px){
+  .library-pagination{gap:7px!important;margin:20px 0 28px!important;font-size:9px!important}
+  .library-pagination .secondary{padding:8px 7px!important;font-size:10px!important}
+}
+
+</style>
 </head>
 <body>
 <button class="mobile-nav-scrim" id="mobile-nav-scrim" type="button" aria-label="關閉導覽選單" aria-hidden="true" tabindex="-1"></button>
@@ -40,21 +1209,21 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   </div>
   <div class="label">LIBRARY</div>
   <nav class="nav" aria-label="媒體庫">
-    <button class="active" data-view="music" type="button" title="Music" aria-label="Music"><span class="nav-icon" aria-hidden="true">♫</span><span class="nav-label">Music</span></button>
-    <button data-view="podcasts" type="button" title="Podcasts" aria-label="Podcasts"><span class="nav-icon" aria-hidden="true">◖</span><span class="nav-label">Podcasts</span></button>
+    <button class="active" data-view="music" type="button" title="Music" aria-label="Music"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><path d="M8.7 17.2V5.1L20 3v12.1" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="5.7" cy="18.1" rx="3" ry="2.25" stroke="currentColor" stroke-width="1.65"/><ellipse cx="17" cy="16.1" rx="3" ry="2.25" stroke="currentColor" stroke-width="1.65"/></svg></span><span class="nav-label">Music</span></button>
+    <button data-view="podcasts" type="button" title="Podcasts" aria-label="Podcasts"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><rect x="9" y="3.5" width="6" height="11" rx="3" stroke="currentColor" stroke-width="1.7"/><path d="M6.5 11.5v.8a5.5 5.5 0 0 0 11 0v-.8M12 17.8V21m-3 0h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M4.6 8.5a8 8 0 0 0 0 7M19.4 8.5a8 8 0 0 1 0 7" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" opacity=".7"/></svg></span><span class="nav-label">Podcasts</span></button>
   </nav>
   <div class="gapline"></div>
   <div class="label">MUSIC</div>
   <nav class="nav secondary" aria-label="音樂分類">
-    <button data-view="tracks" type="button" title="所有歌曲" aria-label="所有歌曲"><span class="nav-icon" aria-hidden="true">≡</span><span class="nav-label">所有歌曲</span></button>
-    <button data-view="albums" type="button" title="專輯" aria-label="專輯"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">專輯</span></button>
-    <button data-view="artists" type="button" title="歌手" aria-label="歌手"><span class="nav-icon" aria-hidden="true">♙</span><span class="nav-label">歌手</span></button>
-    <button data-view="folders" type="button" title="資料夾歌單" aria-label="資料夾歌單"><span class="nav-icon" aria-hidden="true">▱</span><span class="nav-label">資料夾歌單</span></button>
+    <button data-view="tracks" type="button" title="所有歌曲" aria-label="所有歌曲"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><path d="M10 5.5h10M10 11.8h10M10 18.1h7" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"/><path d="M5.5 5.2v9.7a2 2 0 1 1-1.5-1.9V7l5-1v7.9a2 2 0 1 1-1.5-1.9V4.7l-2 .5Z" fill="currentColor" opacity=".88"/></svg></span><span class="nav-label">所有歌曲</span></button>
+    <button data-view="albums" type="button" title="專輯" aria-label="專輯"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><path d="M4 4.5h11.5v15H4z" stroke="currentColor" stroke-width="1.65" stroke-linejoin="round"/><path d="M7 7.5h5.5M7 10h3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><circle cx="16.8" cy="12" r="4.2" fill="#191622" stroke="currentColor" stroke-width="1.65"/><circle cx="16.8" cy="12" r="1.15" fill="currentColor"/><path d="M16.8 7.8a4.2 4.2 0 0 1 4.2 4.2" stroke="currentColor" stroke-width=".9" opacity=".55"/></svg></span><span class="nav-label">專輯</span></button>
+    <button data-view="playlists" type="button" title="收藏歌單" aria-label="收藏歌單"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><path d="M12 20s-7.5-4.6-7.5-10.1A4.15 4.15 0 0 1 12 7.5a4.15 4.15 0 0 1 7.5 2.4C19.5 15.4 12 20 12 20Z" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.2 12.3h7.6M12 8.5v7.6" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" opacity=".55"/></svg></span><span class="nav-label">收藏歌單</span></button>
+    <button data-view="folders" type="button" title="資料夾歌單" aria-label="資料夾歌單"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><path d="M3.5 7.6A2.1 2.1 0 0 1 5.6 5.5h4l2 2.1h6.8a2.1 2.1 0 0 1 2.1 2.1v8.7a1.9 1.9 0 0 1-1.9 1.9H5.4a1.9 1.9 0 0 1-1.9-1.9V7.6Z" stroke="currentColor" stroke-width="1.65" stroke-linejoin="round"/><path d="M13.5 10.2v5.55a1.65 1.65 0 1 1-1.25-1.6v-3.3l4-1v4.55a1.65 1.65 0 1 1-1.25-1.6v-3.25l-1.5.65Z" fill="currentColor" opacity=".88"/></svg></span><span class="nav-label">資料夾歌單</span></button>
   </nav>
   <div class="gapline"></div>
   <div class="label">PODCASTS</div>
   <nav class="nav secondary" aria-label="Podcast 分類">
-    <button data-view="shows" type="button" title="所有節目" aria-label="所有節目"><span class="nav-icon" aria-hidden="true">▣</span><span class="nav-label">所有節目</span></button>
+    <button data-view="shows" type="button" title="所有節目" aria-label="所有節目"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><rect x="3.5" y="4.5" width="17" height="15" rx="3" stroke="currentColor" stroke-width="1.65"/><path d="M7.2 11.8v1.4M9.6 9.1v6.8M12 7.4v10.2M14.4 9.6v5.8M16.8 11v3" stroke="currentColor" stroke-width="1.55" stroke-linecap="round"/><path d="M6.5 7.4h.01M17.5 16.7h.01" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" opacity=".65"/></svg></span><span class="nav-label">所有節目</span></button>
     <button data-view="continue" type="button" title="繼續收聽" aria-label="繼續收聽"><span class="nav-icon" aria-hidden="true">◷</span><span class="nav-label">繼續收聽</span></button>
   </nav>
   <div class="gapline"></div>
@@ -66,24 +1235,34 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   <div class="sidefoot"><span class="dot" id="connection-dot"></span><span id="connection-label">資料來源尚未連接</span></div>
 </aside>
 <main>
-  <header class="top"><span>FRAME Audio　/　<strong id="section">Music</strong></span><div class="topright"><span class="pill">V1.0 PRIVATE RELEASE</span><a class="primary" href="/playback-diagnostic.html" style="text-decoration:none">播放診斷</a><button class="primary" id="open-settings">連線設定</button></div></header>
+  <header class="top"><span>FRAME Audio　/　<strong id="section">Music</strong></span><div class="topright"><span class="pill">V1.0 PRIVATE RELEASE</span><a class="primary" href="/playback-diagnostic.html" style="text-decoration:none">連線速度測試</a><button class="primary" id="open-settings">連線設定</button></div></header>
   <section class="hero"><div class="hero-copy"><div class="eyebrow" id="eyebrow">YOUR MUSIC LIBRARY</div><h1 id="title">音樂，<span>隨時入場。</span></h1><p id="description">整理你的收藏，讓每一次播放都回到自己的音樂世界。</p></div><div class="disc" aria-hidden="true"></div></section>
   <section id="library-content" class="library-content"><div class="empty"><div class="emptyicon">♫</div><h3>正在準備曲庫</h3><p>連接 Cloudflare D1 後，這裡會顯示你的 Music 與 Podcast 收藏。</p></div></section>
+  <details class="playback-log-panel" id="playback-log-panel">
+    <summary><span>播放連線詳細狀態</span><span class="playback-log-count" id="playback-log-count">0 筆</span></summary>
+    <div class="playback-log-toolbar"><span>記錄目前頁面工作階段最近 200 筆播放事件，不會保存音訊簽名網址或帳號密碼。</span><div><button class="secondary playback-log-button" id="playback-log-copy" type="button">複製日誌</button><button class="secondary playback-log-button" id="playback-log-clear" type="button">清空</button></div></div>
+    <div class="playback-log-output" id="playback-log-output" role="log" aria-live="polite"><div class="playback-log-placeholder">尚無日誌。選擇歌曲或 Podcast 單集後，這裡會記錄連線與播放事件。</div></div>
+  </details>
   <footer class="foot"><span>FRAME AUDIO</span><span>PRIVATE LISTENING SPACE · V1.0 PRIVATE RELEASE</span></footer>
 </main>
 </div>
 <div class="dock" role="region" aria-label="音訊播放器">
-  <button class="now now-open" id="player-now-playing" type="button" disabled aria-label="開啟正在播放詳情">
-    <div class="cover" id="player-cover">FA</div>
-    <div class="now-copy">
-      <b id="player-title">尚未選擇音訊</b>
-      <span class="now-copy-separator" aria-hidden="true">·</span>
-      <small id="player-subtitle">選擇歌曲後即可播放</small>
-      <span id="player-type">READY</span>
-    </div>
-  </button>
+  <div class="dock-current-group">
+    <button class="now now-open" id="player-now-playing" type="button" disabled aria-label="開啟正在播放詳情">
+      <div class="cover" id="player-cover">FA</div>
+      <div class="now-copy">
+        <b id="player-title">尚未選擇音訊</b>
+        <span class="now-copy-separator" aria-hidden="true">·</span>
+        <small id="player-subtitle">選擇歌曲後即可播放</small>
+        <span id="player-type">READY</span>
+      </div>
+    </button>
+  </div>
   <div class="dock-transport-host" aria-label="播放控制">
     <div class="player-transport" id="player-transport">
+      <button class="dock-favorite-toggle" id="player-favorite-toggle" type="button" disabled aria-label="尚未播放歌曲" aria-pressed="false" title="尚未播放歌曲">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z"/></svg>
+      </button>
       <button id="player-prev" type="button" aria-label="上一首" title="上一首">⏮</button>
       <button id="player-toggle" class="player-play" type="button" aria-label="播放／暫停" title="播放／暫停">▶</button>
       <button id="player-next" type="button" aria-label="下一首" title="下一首">⏭</button>
@@ -132,6 +1311,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
 </section>
 
 <audio id="audio-player" preload="none"></audio>
+<div class="playback-connection-notice" id="playback-connection-notice" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
 
 <dialog id="lyrics-dialog" class="feature-dialog lyrics-dialog">
@@ -145,6 +1325,21 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   </div>
 </dialog>
 
+<dialog id="playlist-picker-dialog" class="feature-dialog playlist-picker-dialog" aria-labelledby="playlist-picker-title">
+   <div class="dialog-head">
+     <div><span class="kicker">YOUR PLAYLISTS</span><h2 id="playlist-picker-title">加入收藏歌單</h2></div>
+     <button class="close" type="button" data-action="close-playlist-dialog" aria-label="關閉">×</button>
+   </div>
+   <div class="dialog-body">
+     <p class="hint" id="playlist-picker-track" hidden></p>
+     <div class="playlist-picker-list" id="playlist-picker-list"></div>
+     <div class="playlist-create-inline">
+       <div class="field"><label for="playlist-new-name">建立自訂歌單</label><input id="playlist-new-name" type="text" maxlength="40" placeholder="輸入歌單名稱"></div>
+       <button class="primary" id="playlist-create-submit" type="button" data-action="save-playlist">建立歌單</button>
+     </div>
+     <p class="hint" id="playlist-dialog-status" role="status">選擇一個歌單即可加入歌曲。</p>
+   </div>
+ </dialog>
 <dialog id="connection-dialog">
   <div class="dialog-head"><h2>OpenList 來源管理</h2><button class="close" id="close-settings" aria-label="關閉">×</button></div>
   <div class="dialog-body">
@@ -152,38 +1347,46 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
       <div class="field">
         <label for="active-openlist-provider">目前使用的音訊來源</label>
         <select id="active-openlist-provider">
+          <option value="mobile-device">Mobile Device Alist（伺服器端，預設）</option>
           <option value="vps">VPS Alist（伺服器端）</option>
           <option value="worker">OpenList Worker（伺服器端）</option>
           <option value="local">區域網路 OpenList（裝置直連）</option>
         </select>
-        <div class="hint">選擇後按「保存設定並切換來源」。VPS／Worker 由 Pages 伺服器端憑證設定管理；區域網路來源由目前裝置直接連線。</div>
+        <div class="hint">下拉選單只選擇候選來源；按下「保存設定並切換來源」後才會成為活動來源。只有活動來源會連線、測試或取得下載連結，其餘來源不會被探測。</div>
       </div>
       <div class="provider-grid">
         <section class="provider-card">
           <div class="provider-card-heading"><strong>VPS Alist</strong><span>SERVER PROXY</span></div>
           <div class="hint" id="vps-openlist-env-status">正在讀取 Cloudflare Pages 設定……</div>
-          <div class="hint">網址 Variable：<code>ALIST_VPS_API_BASE_URL</code><br>Token Secret：<code>ALIST_VPS_API_TOKEN</code></div>
-          <div class="hint">Pages Functions 在伺服器端呼叫 VPS Alist。Token 不會傳到瀏覽器。</div>
+          <div class="hint">網址 Variable：<code>ALIST_VPS_API_BASE_URL</code><br>帳號 Secrets：<code>ALIST_VPS_USERNAME</code>、<code>ALIST_VPS_PASSWORD</code></div>
+          <div class="hint">Pages Functions 在伺服器端使用專用帳號登入，快取及更新 Token。帳號密碼與 Token 都不會傳到瀏覽器。</div>
         </section>
         <section class="provider-card">
           <div class="provider-card-heading"><strong>OpenList Worker</strong><span>SERVER PROXY</span></div>
           <div class="hint" id="worker-openlist-env-status">正在讀取 Cloudflare Pages 設定……</div>
-          <div class="hint">網址 Variable：<code>ALIST_WORKER_API_BASE_URL</code><br>Token Secret：<code>ALIST_WORKER_API_TOKEN</code></div>
-          <div class="hint">Worker 憑證由 Pages Functions 在伺服器端使用，不會傳到瀏覽器。</div>
+          <div class="hint">網址 Variable：<code>OPENLIST_WORKER_API_BASE_URL</code><br>帳號 Secrets：<code>OPENLIST_WORKER_USERNAME</code>、<code>OPENLIST_WORKER_PASSWORD</code></div>
+          <div class="hint">Pages Functions 使用專用帳號登入，快取及更新 Token；帳號密碼不會傳到瀏覽器。</div>
+        </section>
+        <section class="provider-card">
+          <div class="provider-card-heading"><strong>Mobile Device Alist</strong><span>SERVER PROXY</span></div>
+          <div class="hint" id="mobile-device-openlist-env-status">正在讀取 Cloudflare Pages 設定……</div>
+          <div class="hint">網址 Variable：<code>ALIST_MOBILE_DEVICE_API_BASE_URL</code><br>帳號 Secrets：<code>ALIST_MOBILE_DEVICE_USERNAME</code>、<code>ALIST_MOBILE_DEVICE_PASSWORD</code></div>
+          <div class="hint">Pages Functions 只在 Mobile Device Alist 成為活動來源時使用專用帳號登入並呼叫它。Mobile Device 地址必須是 Pages Functions 可連接的 HTTPS 地址。</div>
         </section>
         <section class="provider-card provider-card-local">
           <div class="provider-card-heading"><strong>區域網路 OpenList</strong><span>DEVICE DIRECT</span></div>
-          <div class="field"><label for="local-openlist-base-url">區域網路 API 網址</label><input id="local-openlist-base-url" type="url" placeholder="http://192.168.31.xx:5244" spellcheck="false" autocomplete="off"></div>
-          <div class="field"><label for="local-openlist-token">區域網路 API Token</label><input id="local-openlist-token" type="password" placeholder="輸入這台區域網路 OpenList Token" autocomplete="new-password" spellcheck="false"></div>
-          <div class="hint">手機瀏覽器直接連接同一 Wi-Fi 的另一台設備。網址與 Token 保存在目前瀏覽器的本機儲存區；Chrome 首次連線可能會詢問「本機網路」權限，請允許。保存後請另外點擊「測試目前來源」，不會在網頁載入時自動連線。</div>
+          <div class="field"><label for="local-openlist-base-url">區域網路 OpenList 地址</label><input id="local-openlist-base-url" type="url" value="http://127.0.0.1:5244" placeholder="http://127.0.0.1:5244" spellcheck="false" autocomplete="off"></div>
+          <div class="field"><label for="local-openlist-username">OpenList 帳號</label><input id="local-openlist-username" type="text" placeholder="輸入 OpenList 使用者名稱" autocomplete="username" spellcheck="false"></div>
+          <div class="field"><label for="local-openlist-password">OpenList 密碼</label><input id="local-openlist-password" type="password" placeholder="輸入 OpenList 密碼" autocomplete="current-password" spellcheck="false"></div>
+          <div class="hint">瀏覽器直接向區域網路 OpenList 的 /api/auth/login 登入。網址與帳號保存在此裝置的 localStorage；登入 Token 僅保存在目前分頁的 sessionStorage，重新整理可沿用，關閉分頁或手動登出會清除。密碼不會保存。</div><div class="actions local-openlist-actions"><button type="button" class="secondary" id="logout-local-openlist" disabled>登出區域網路</button><span class="hint" id="local-openlist-session-status">尚未登入</span></div><div class="hint"><a href="/lan-access-diagnostic.html" style="color:#c7b3e4">Firefox／區域網路連線診斷 →</a></div>
         </section>
       </div>
-      <div class="actions"><button type="button" class="primary" id="save-switch-openlist">保存區域網路設定／切換來源</button><button type="button" class="secondary" id="test-connection">測試目前來源並讀取目錄</button></div>
+      <div class="actions"><button type="button" class="primary" id="save-switch-openlist">保存設定並切換來源／區域網路登入</button><button type="button" class="secondary" id="test-connection">測試目前活動來源</button></div>
       <div class="statusbox" id="provider-settings-status" role="status">正在讀取已保存的來源設定……</div>
     </section>
     <div class="field">
       <label>Cloudflare 私有儲存</label>
-      <div class="hint">Cloudflare Access 保護管理 API。FRAME Audio 內部管理 Token 與 D1 / R2 管理權限留在伺服器端。VPS Alist／OpenList Worker 的網址與 Token 固定由 Cloudflare Pages Variables and Secrets 提供；區域網路 Token 僅用於目前裝置直連。</div>
+      <div class="hint">Cloudflare Access 保護管理 API。VPS Alist、OpenList Worker、Mobile Device Alist 的網址及專用帳號 Secrets 由 Pages 提供；Pages Functions 在伺服器端自動取得及更新 JWT。區域網路 OpenList 使用帳號密碼直接登入，JWT 僅在目前頁面記憶體中保存。</div>
     </div>
     <div class="formgrid">
       <div class="field"><label for="music-root-path">Music 索引根目錄</label><input id="music-root-path" type="text" value="/中國移動雲盤/Kim King/03 Music" spellcheck="false"><div class="hint">Music 掃描只讀取此目錄及其子資料夾；可手動修改，或在下方瀏覽資料夾後選為 Music 根目錄。</div></div>
@@ -192,14 +1395,14 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
     </div>
     <div class="actions"><button type="button" class="secondary" id="browse-root" disabled>重新讀取目前路徑</button></div>
     <div class="actions"><button type="button" class="secondary" id="test-storage">測試 Cloudflare D1 / R2</button></div>
-    <div class="statusbox" id="connection-result" role="status">尚未連線。測試會由 Cloudflare Pages Functions 以伺服器端 Secret 呼叫 VPS Alist 唯讀 API。</div>
+    <div class="statusbox" id="connection-result" role="status">尚未連線。只有上次保存的活動來源會被測試；其他來源不會自動連線。</div>
     <div class="statusbox" id="storage-result" role="status">Cloudflare D1 / R2 尚未測試。設定完成後可在此確認連線。</div>
     <div class="browser" id="directory-browser" hidden>
       <div class="browser-head"><span class="browser-path" id="current-path">/</span><div class="browser-root-actions"><button type="button" class="secondary" id="use-current-music-root">設為 Music 根目錄</button><button type="button" class="secondary" id="use-current-podcast-root">設為 Podcast 根目錄</button><button type="button" class="secondary" id="choose-current">複製此路徑</button></div></div>
       <div class="browser-list" id="directory-list"></div>
-      <div class="actions" style="flex-wrap:wrap"><button class="primary" id="scan-music-batch">掃描／續掃音樂</button><button class="secondary" id="scan-podcast-batch">掃描／續掃 Podcast</button><button class="secondary" id="scan-pause" disabled>暫停</button></div>
+      <div class="actions" style="flex-wrap:wrap"><button class="primary" id="scan-music-batch">掃描／續掃音樂</button><button class="secondary" id="scan-music-full">完整重掃音樂標籤</button><button class="secondary" id="scan-podcast-batch">掃描／續掃 Podcast</button><button class="secondary" id="scan-podcast-full">完整重掃 Podcast 標籤</button><button class="secondary" id="scan-pause" disabled>暫停</button></div>
       <div class="statusbox" id="scan-progress" role="status">尚未開始掃描。音樂與 Podcast 使用獨立入口、進度及失敗重試佇列；進度保存在 D1。</div>
-      <div class="hint">音樂根目錄：/中國移動雲盤/Kim King/03 Music。Podcast 根目錄：/中國移動雲盤/Kim King/13 喜马拉雅。Podcast 第一層每個資料夾視為一個節目，其下子資料夾中的音訊檔視為單集。兩種掃描各自保存續掃游標與失敗重試佇列；未變更內容會跳過。每批最多新增／更新 500 個項目、檢查 500 個項目或完成 500 個資料夾；單曲／單集最多嘗試 20 次。原始音訊不會上傳或修改。</div>
+      <div class="hint">音樂根目錄：/中國移動雲盤/Kim King/03 Music。Podcast 根目錄：/中國移動雲盤/Kim King/13 喜马拉雅。Podcast 第一層每個資料夾視為一個節目，其下子資料夾中的音訊檔視為單集。「掃描／續掃音樂」會跳過未變更歌曲；「完整重掃音樂標籤」會重新解析整個 Music 根目錄並自動接續所有批次，可隨時暫停。「掃描／續掃 Podcast」會跳過未變更單集；「完整重掃 Podcast 標籤」會重新解析所有 Podcast 單集，並自動接續所有批次，可隨時暫停。Music 與 Podcast 各自保存進度及失敗重試佇列。每批最多新增／更新 500 個項目、檢查 500 個項目或完成 500 個資料夾；單曲／單集最多嘗試 20 次。原始音訊不會上傳或修改。</div>
       <details class="scan-log-panel" id="scan-log-panel" open>
         <summary><span>即時掃描日誌</span><span class="scan-log-count" id="scan-log-count">0 筆</span></summary>
         <div class="scan-log-toolbar"><span>逐步記錄 API、Range、解析、R2、D1 與進度保存耗時</span><div><button class="secondary scan-log-button" id="scan-log-copy" type="button">複製日誌</button><button class="secondary scan-log-button" id="scan-log-clear" type="button">清空</button></div></div>
@@ -207,7 +1410,7 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
       </details>
     </div>
     <div class="metadata-result" id="metadata-result" hidden></div>
-    <div class="privacy">瀏覽器只會收到必要的目錄與檔案資訊。所有音樂與 Podcast 播放都只使用 VPS Alist 回傳的 raw_url，由 HTML5 Audio 直接連接並跟隨來源端 HTTP 302 重新導向；Cloudflare Pages 不代理、不轉碼，也不接收音訊資料。伺服器端 API 請求不需要 VPS Alist 的瀏覽器 CORS 預檢；曲庫 metadata 的 Range 讀取仍須由最終檔案主機允許本網站跨來源讀取。</div>
+    <div class="privacy">只有目前活動來源會提供目錄、檔案資訊與播放連結；其他來源不會被探測。音訊仍使用活動來源回傳的 raw_url，由 HTML5 Audio 直接連接最終音訊主機；Cloudflare Pages 不代理、不轉碼，也不接收音訊資料。最終下載主機仍會看到瀏覽器的公網 IP；若需隱藏 IP，必須另行使用活動節點代理音訊串流。</div>
   </div>
 </dialog>
 <script>
@@ -232,5 +1435,5 @@ dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,760px);padding:0;
   });
 })();
 </script>
-<script type="module" src="/assets/js/app.js?v=20261112-env-profiles1"></script>
+<script type="module" src="/assets/js/app.js?v=20261114-auth-password-only1"></script>
 </body></html>

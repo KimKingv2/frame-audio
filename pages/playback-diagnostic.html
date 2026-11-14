@@ -1,28 +1,397 @@
 <!doctype html>
-<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#15131d"><title>FRAME Audio｜播放診斷</title>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#15131d">
+<title>FRAME Audio｜四來源速度比較</title>
 <style>
-:root{color-scheme:dark;background:#15131d;color:#eee9f6;font:14px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif}*{box-sizing:border-box}body{margin:0;padding:24px 16px 70px}.wrap{max-width:850px;margin:auto}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:26px}.brand{letter-spacing:.12em;font-size:12px;color:#bda0e8}.brand b{color:#f1eaff}.back{color:#c7b3e4;text-decoration:none;font-size:12px}.card{border:1px solid #cbb2ee25;border-radius:13px;background:#211e2b;padding:20px;margin:14px 0}.card h1{font-size:23px;margin:0 0 8px}.sub{color:#9c93aa;font-size:12px}.grid{display:grid;gap:12px}.field{display:grid;gap:6px}.field label{font-size:11px;color:#b9afc8}.field input{width:100%;border:1px solid #c7b3df30;border-radius:8px;padding:11px;background:#171520;color:#f3eff9;font:12px inherit}.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}button{border:1px solid #b99ae866;border-radius:8px;padding:10px 14px;color:#eee5ff;background:#8c68b52c;cursor:pointer}button.secondary{border-color:#c7b3df33;background:#fff1;color:#c9c1d4}button:disabled{opacity:.5;cursor:wait}.status{white-space:pre-wrap;overflow-wrap:anywhere;background:#14121b;border-radius:9px;padding:12px;color:#b9afc8;font:11px/1.8 ui-monospace,Menlo,monospace;min-height:90px}.log{max-height:420px;overflow:auto}.audio{width:100%;margin-top:12px}.note{font-size:11px;color:#8f879b}.ok{color:#9fd1ac}.warn{color:#e0bd88}.err{color:#eea5a5}
-</style></head><body><div class="wrap">
-<div class="top"><div class="brand">FRAME <b>Audio</b> / DIAGNOSTICS</div><a class="back" href="/">← 返回播放器</a></div>
-<section class="card"><h1>VPS Alist 播放鏈路診斷</h1><div class="sub">只讀檢查伺服器端 Alist 檔案資訊、音訊來源 Range 與 HTML5 Audio。Range 測試最多讀取 64 KiB，不會下載整首或修改原始檔案。</div></section>
-<section class="card"><div class="grid">
-<div class="field"><label>伺服器端憑證</label><div class="note">VPS Alist Token 由 Cloudflare Pages Secret 管理，本頁不會取得或保存 Token。</div></div>
-<div class="field"><label for="path">完整音訊路徑</label><input id="path" placeholder="/中國移動雲盤/Kim King/03 Music/歌曲.mp3"></div>
-</div><div class="actions"><button id="probe">檢查 API + Range（最多 64 KiB）</button><button id="play" class="secondary">直接測試 HTML5 播放</button><button id="stop" class="secondary">停止播放</button></div><p class="note">播放測試會使用 VPS Alist 回傳的 raw_url。若格式不支援，日誌會列出 MediaError code。</p><audio id="audio" class="audio" controls preload="metadata"></audio></section>
-<section class="card"><h2 style="font-size:15px;margin-top:0">診斷結果</h2><div id="summary" class="status">尚未開始。先填 Token 與音訊路徑。</div></section>
-<section class="card"><h2 style="font-size:15px;margin-top:0">事件日誌</h2><div id="log" class="status log">等待操作…</div></section>
+:root{color-scheme:dark;background:#15131d;color:#eee9f6;font:14px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;--line:#cbb2ee25;--muted:#9c93aa;--accent:#c5a8ef}
+*{box-sizing:border-box}body{margin:0;padding:22px 16px 64px;background:radial-gradient(ellipse at 50% -20%,#815da51d,transparent 55%),#15131d;color:#eee9f6}.wrap{max-width:1040px;margin:auto}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:24px}.brand{letter-spacing:.12em;font-size:12px;color:#bda0e8}.brand b{color:#f1eaff}.back{color:#c7b3e4;text-decoration:none;font-size:12px}
+.hero,.card{border:1px solid var(--line);border-radius:15px;background:#211e2b;padding:20px;margin:14px 0}.hero{padding:25px 24px;background:radial-gradient(ellipse at 90% 35%,#805ba833,transparent 36%),linear-gradient(115deg,#252033,#292239)}
+.eyebrow{font-size:9px;letter-spacing:.2em;color:#b99ae8;font-weight:700}.hero h1{margin:8px 0 6px;font-size:25px}.sub,.note{color:var(--muted);font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.source{border:1px solid #c7b3df25;border-radius:10px;background:#171520;padding:14px;min-width:0}.source.selected{border-color:#bd9bea99;background:#211a2d}
+.source-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.source-title{display:flex;align-items:center;gap:9px;font-weight:600}.source-title input{accent-color:#b99ae8;width:17px;height:17px}.tag{font-size:10px;color:#a7c8b0;background:#77bd8c17;border:1px solid #77bd8c30;border-radius:20px;padding:3px 8px;white-space:nowrap}.tag.warn{color:#e1c18e;background:#d4a45914;border-color:#d4a45933}.tag.err{color:#e6a0a0;background:#d46a6a14;border-color:#d46a6a33}
+.field{display:grid;gap:7px;margin:14px 0}.field label{font-size:11px;color:#b9afc8}.field input{width:100%;border:1px solid #c7b3df30;border-radius:8px;padding:11px 12px;background:#171520;color:#f3eff9;font:13px inherit;outline:none}.field input:focus{border-color:#b99ae8aa}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.btn{border:1px solid #b99ae866;border-radius:8px;padding:10px 14px;color:#eee5ff;background:#8c68b52c;cursor:pointer;font:inherit;font-size:12px}.btn.secondary{border-color:#c7b3df33;background:#fff1;color:#c9c1d4}.btn:disabled{opacity:.45;cursor:wait}
+.status{margin-top:9px;color:var(--muted);font-size:11px;overflow-wrap:anywhere}.status strong{color:#ddd3ec;font-weight:500}.count{font-size:11px;color:#cbb8e4}
+.table-wrap{overflow-x:auto;border:1px solid #c7b3df20;border-radius:10px}table{width:100%;border-collapse:collapse;min-width:680px;font-size:12px}th,td{padding:11px 12px;border-bottom:1px solid #c7b3df17;text-align:left;vertical-align:top}th{font-size:10px;color:#a99db8;background:#ffffff05;font-weight:600}td:first-child{color:#c9bfd5;width:23%}tr:last-child td{border-bottom:0}.value{color:#e9e1f2;font-variant-numeric:tabular-nums}.muted{color:#81798e}.ok{color:#9fd1ac}.warn-text{color:#e0bd88}.err{color:#eea5a5}
+.console{white-space:pre-wrap;overflow-wrap:anywhere;background:#14121b;border-radius:9px;padding:12px;color:#b9afc8;font:11px/1.8 ui-monospace,Menlo,monospace;min-height:70px;max-height:300px;overflow:auto}details{margin-top:12px}summary{cursor:pointer;color:#b99ae8;font-size:11px}
+.notice{border-left:2px solid #c99b5a;padding:5px 0 5px 12px;color:#cbbda6;font-size:11px}.safe{border-left-color:#6bb58b;color:#a9cdb5}
+@media(max-width:680px){body{padding:14px 12px 40px}.grid{grid-template-columns:1fr}.hero{padding:20px}.hero h1{font-size:22px}.card{padding:15px}.top{margin-bottom:16px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div class="brand">FRAME <b>Audio</b> / CONNECTION BENCHMARK</div><a class="back" href="/">← 返回播放器</a></div>
+  <section class="hero">
+    <div class="eyebrow">FOUR PROVIDERS · SIDE-BY-SIDE</div>
+    <h1>四來源連線速度比較</h1>
+    <div class="sub">VPS Alist、OpenList Worker、Mobile Device Alist、區域網路 OpenList。可勾選 2～4 個來源，以相同音訊路徑依序測試。</div>
+  </section>
+
+  <section class="card">
+    <div class="source">
+      <div class="source-head"><strong>目前播放器保存的活動來源</strong><span class="tag" id="active-source">讀取中</span></div>
+      <div class="status" id="load-status">正在讀取來源設定狀態。這一步不會連接任何 Alist／OpenList 節點，也不會連接中國移動雲盤。</div>
+    </div>
+    <h2 style="font-size:15px;margin:18px 0 10px">選擇要比較的來源（至少 2 個，可全選）</h2>
+    <div class="grid">
+      <label class="source" id="card-vps">
+        <div class="source-head"><span class="source-title"><input type="checkbox" value="vps" class="provider-choice"><span>VPS Alist</span></span><span class="tag" id="status-vps">讀取設定中</span></div>
+        <div class="status" id="detail-vps">Cloudflare Pages Variable + Secret</div>
+      </label>
+      <label class="source" id="card-worker">
+        <div class="source-head"><span class="source-title"><input type="checkbox" value="worker" class="provider-choice"><span>OpenList Worker</span></span><span class="tag" id="status-worker">讀取設定中</span></div>
+        <div class="status" id="detail-worker">Cloudflare Pages Variable + Secret</div>
+      </label>
+      <label class="source" id="card-mobile-device">
+        <div class="source-head"><span class="source-title"><input type="checkbox" value="mobile-device" class="provider-choice"><span>Mobile Device Alist</span></span><span class="tag" id="status-mobile-device">讀取設定中</span></div>
+        <div class="status" id="detail-mobile-device">Cloudflare Pages Variable + Secret</div>
+      </label>
+      <label class="source" id="card-local">
+        <div class="source-head"><span class="source-title"><input type="checkbox" value="local" class="provider-choice"><span>區域網路 OpenList</span></span><span class="tag" id="status-local">讀取設定中</span></div>
+        <div class="status" id="detail-local">瀏覽器直連；帳號密碼只在測試時輸入</div>
+      </label>
+    </div>
+    <div class="count" id="selection-count">已選 0 / 4 個來源</div>
+    <div class="field">
+      <label for="path">所有選取來源都存在的音訊完整路徑</label>
+      <input id="path" autocomplete="off" spellcheck="false" placeholder="/資料夾/專輯/歌曲.flac">
+    </div>
+    <div class="grid" id="local-login-fields" hidden>
+      <div class="field"><label for="username">區域網路 OpenList 帳號</label><input id="username" autocomplete="username" placeholder="使用者名稱"></div>
+      <div class="field"><label for="password">區域網路 OpenList 密碼</label><input id="password" type="password" autocomplete="current-password" placeholder="密碼"></div>
+    </div>
+    <div class="actions">
+      <button class="btn" id="run-compare" disabled>至少選擇兩個來源後開始測試</button>
+      <button class="btn secondary" id="reset-selection" type="button">清除選擇</button>
+    </div>
+    <p class="notice safe">安全閘：載入頁面、讀取設定、勾選來源及輸入路徑都不會連接節點或中國移動雲盤。只有按下「開始測試」後，才會依序對勾選的 2～4 個來源發出 API 請求。</p>
+    <p class="notice">按下測試後，所選來源只在本次診斷中視為臨時活動來源，不會修改播放器上次保存的活動來源。未勾選的來源完全不會被測試。測試包含 /api/fs/get 和音訊 Range，雲盤可能看到已選來源涉及的節點／瀏覽器網路出口 IP。</p>
+    <p class="note">每個來源只測一個目錄列表、一個檔案資訊／下載連結及最多 64 KiB Range；不播放整首、不掃描曲庫、不寫入 D1／R2、不發送定時心跳。所有選取來源依序執行，避免多端同時搶頻寬。</p>
+  </section>
+
+  <section class="card">
+    <h2 style="font-size:15px;margin:0 0 12px">比較結果</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>測試階段</th><th id="result-heading-a" data-result-column="a">來源 1</th><th id="result-heading-b" data-result-column="b" hidden>來源 2</th><th id="result-heading-c" data-result-column="c" hidden>來源 3</th><th id="result-heading-d" data-result-column="d" hidden>來源 4</th></tr></thead>
+        <tbody>
+          <tr><td>目錄列表<br><span class="muted">/api/fs/list</span></td><td id="a-list" data-result-column="a" class="muted">尚未測試</td><td id="b-list" data-result-column="b" class="muted" hidden>尚未測試</td><td id="c-list" data-result-column="c" class="muted" hidden>尚未測試</td><td id="d-list" data-result-column="d" class="muted" hidden>尚未測試</td></tr>
+          <tr><td>檔案資訊／取鏈<br><span class="muted">/api/fs/get</span></td><td id="a-info" data-result-column="a" class="muted">尚未測試</td><td id="b-info" data-result-column="b" class="muted" hidden>尚未測試</td><td id="c-info" data-result-column="c" class="muted" hidden>尚未測試</td><td id="d-info" data-result-column="d" class="muted" hidden>尚未測試</td></tr>
+          <tr><td>服務端上游耗時<br><span class="muted">Pages → 節點</span></td><td id="a-upstream" data-result-column="a" class="muted">尚未測試</td><td id="b-upstream" data-result-column="b" class="muted" hidden>尚未測試</td><td id="c-upstream" data-result-column="c" class="muted" hidden>尚未測試</td><td id="d-upstream" data-result-column="d" class="muted" hidden>尚未測試</td></tr>
+          <tr><td>音訊 Range 標頭</td><td id="a-range-head" data-result-column="a" class="muted">尚未測試</td><td id="b-range-head" data-result-column="b" class="muted" hidden>尚未測試</td><td id="c-range-head" data-result-column="c" class="muted" hidden>尚未測試</td><td id="d-range-head" data-result-column="d" class="muted" hidden>尚未測試</td></tr>
+          <tr><td>首段資料<br><span class="muted">最多 64 KiB</span></td><td id="a-range-data" data-result-column="a" class="muted">尚未測試</td><td id="b-range-data" data-result-column="b" class="muted" hidden>尚未測試</td><td id="c-range-data" data-result-column="c" class="muted" hidden>尚未測試</td><td id="d-range-data" data-result-column="d" class="muted" hidden>尚未測試</td></tr>
+          <tr><td>總耗時</td><td id="a-total" data-result-column="a" class="muted">尚未測試</td><td id="b-total" data-result-column="b" class="muted" hidden>尚未測試</td><td id="c-total" data-result-column="c" class="muted" hidden>尚未測試</td><td id="d-total" data-result-column="d" class="muted" hidden>尚未測試</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="status" id="summary">尚未開始測試。</div>
+    <details><summary>展開測試事件</summary><div id="log" class="console">等待操作……</div></details>
+  </section>
 </div>
-<script>
-(()=>{"use strict";
-const $=id=>document.getElementById(id),audio=$("audio"),log=$("log"),summary=$("summary");
-let rawUrl="",fileInfo=null,timeoutTimer=null;
-function say(s,cls=""){const d=document.createElement("div");d.textContent=new Date().toLocaleTimeString()+"  "+s;if(cls)d.className=cls;log.append(d);log.scrollTop=log.scrollHeight}
-function result(s,cls=""){summary.textContent=s;summary.className="status "+cls}
-function input(){const path=$("path").value.trim();if(!path.startsWith("/"))throw Error("路徑必須以 / 開頭");return {path}}
-async function getInfo(){const x=input();say("POST 伺服器端 /api/openlist/get 開始");const c=new AbortController(),t=setTimeout(()=>c.abort(),20000);let r;try{r=await fetch("/api/openlist/get",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:x.path}),signal:c.signal})}finally{clearTimeout(t)}say("/api/openlist/get HTTP "+r.status);const p=await r.json();if(!r.ok||Number(p.code)!==200)throw Error("VPS Alist API "+(p.code||r.status)+": "+(p.error||p.message||r.statusText));if(!p.data||!p.data.raw_url)throw Error("回應缺少 data.raw_url");fileInfo=p.data;rawUrl=new URL(p.data.raw_url,location.origin+"/").href;say("檔案資訊取得成功；size="+p.data.size+"；raw_url host="+new URL(rawUrl).host,"ok");return {x,p}}
-$("probe").onclick=async()=>{ $("probe").disabled=true;log.textContent="";try{result("檢查中…");const {x}=await getInfo();const size=Number(fileInfo.size||0);if(!size)throw Error("檔案大小為 0");const end=Math.min(65535,size-1);say("GET raw_url Range bytes=0-"+end+"（最多 64 KiB）");const c=new AbortController(),t=setTimeout(()=>c.abort(),25000);let r;try{r=await fetch(rawUrl,{method:"GET",mode:"cors",credentials:"omit",redirect:"follow",headers:{Range:"bytes=0-"+end},signal:c.signal})}finally{clearTimeout(t)}const cr=r.headers.get("content-range")||"(未暴露)",ct=r.headers.get("content-type")||"(未暴露)",cl=r.headers.get("content-length")||"(未暴露)";say("音訊來源 HTTP "+r.status+"；Content-Type="+ct+"；Content-Length="+cl+"；Content-Range="+cr+"；最終 host="+new URL(r.url||rawUrl).host);let bytes=0;if(r.body&&r.status===206){const rd=r.body.getReader();try{while(bytes<65536){const z=await rd.read();if(z.done)break;bytes+=z.value.byteLength}}finally{await rd.cancel().catch(()=>{})}}else if(r.body)await r.body.cancel().catch(()=>{});say("實際讀取 "+bytes+" bytes（已停止串流）",bytes?"ok":"warn");result("API：成功\nHTTP： "+r.status+"\nContent-Type："+ct+"\nContent-Range："+cr+"\n讀取："+bytes+" bytes\n檔案大小："+size+" bytes\n來源主機："+new URL(r.url||rawUrl).host,bytes?"ok":"warn");}catch(e){say("FAIL："+(e.name==="AbortError"?"請求逾時":e.message),"err");result("FAIL："+(e.name==="AbortError"?"請求逾時":e.message),"err")}finally{$("probe").disabled=false}};
-$("play").onclick=async()=>{try{await getInfo();audio.pause();audio.removeAttribute("src");audio.load();audio.src=rawUrl;audio.load();say("raw_url 已交給 HTML5 Audio；等待 metadata/canplay/error");result("播放測試中…")}catch(e){say("FAIL："+e.message,"err");result("FAIL："+e.message,"err")}};
-$("stop").onclick=()=>{audio.pause();audio.removeAttribute("src");audio.load();say("已停止播放並清除 src")};
-audio.addEventListener("loadstart",()=>say("Audio loadstart"));audio.addEventListener("loadedmetadata",()=>say("Audio loadedmetadata：duration="+audio.duration,"ok"));audio.addEventListener("canplay",()=>say("Audio canplay：可開始播放","ok"));audio.addEventListener("playing",()=>say("Audio playing","ok"));audio.addEventListener("stalled",()=>say("Audio stalled：資料供應停滯","warn"));audio.addEventListener("waiting",()=>say("Audio waiting：等待更多資料","warn"));audio.addEventListener("ended",()=>say("Audio ended"));audio.addEventListener("error",()=>{const e=audio.error;const names={1:"MEDIA_ERR_ABORTED",2:"MEDIA_ERR_NETWORK",3:"MEDIA_ERR_DECODE",4:"MEDIA_ERR_SRC_NOT_SUPPORTED"};const msg="Audio error code="+(e?.code||"未知")+" "+(names[e?.code]||"")+"；message="+(e?.message||"瀏覽器未提供");say(msg,"err");result(msg,"err")});
+
+<script type="module">
+import {
+  configureOpenListConnection,
+  listOpenListDirectory,
+  getOpenListFileInfo,
+  openListNetworkFetchOptions,
+  loginOpenList
+} from "./assets/js/openlist-client.js?v=20261113-mobile-device-source1";
+
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const PROVIDER_KEY = "frame-audio-active-openlist-provider";
+  const LOCAL_KEY = "frame-audio-local-openlist-profile-v1";
+  const LABELS = { vps:"VPS Alist", worker:"OpenList Worker", "mobile-device":"Mobile Device Alist", local:"區域網路 OpenList" };
+  const state = { active:"vps", profiles:{}, local:{baseUrl:""}, loading:true, running:false };
+  const RESULT_COLUMNS = ["a","b","c","d"];
+  const RESULT_ROWS = ["list","info","upstream","range-head","range-data","total"];
+  const selected = () => [...document.querySelectorAll(".provider-choice:checked")].map(node=>node.value);
+  const fmt = ms => Number.isFinite(ms) ? Math.round(ms)+" ms" : "—";
+  const setCell = (id,value,tone="") => { const el=$(id); el.textContent=value; el.className="value "+tone; };
+  function say(message,tone="") {
+    const row=document.createElement("div");
+    row.textContent=new Date().toLocaleTimeString()+"  "+message;
+    if(tone)row.className=tone;
+    $("log").append(row);$("log").scrollTop=$("log").scrollHeight;
+  }
+  function setTag(id,value,tone="") { const el=$(id);el.textContent=value;el.className="tag "+tone; }
+  function readLocalProfile() {
+    try {
+      const saved=JSON.parse(localStorage.getItem(LOCAL_KEY)||"{}");
+      return {baseUrl:String(saved.baseUrl||"")};
+    } catch { return {baseUrl:""}; }
+  }
+  function refreshSelectionUI() {
+    const choices=selected();
+    $("selection-count").textContent="已選 "+choices.length+" / 4 個來源（至少 2 個）";
+    $("run-compare").textContent=choices.length>=2
+      ? "開始測試所選 "+choices.length+" 個來源"
+      : "至少選擇兩個來源後開始測試";
+    $("run-compare").disabled=state.loading||state.running||choices.length<2||choices.length>4||choices.some(id=>!isReady(id));
+    $("local-login-fields").hidden=!choices.includes("local");
+    for(const id of Object.keys(LABELS)) $("card-"+id).classList.toggle("selected",choices.includes(id));
+  }
+  function isReady(id) {
+    if(id==="local") return Boolean(state.local.baseUrl);
+    return Boolean(state.profiles[id]?.configured);
+  }
+  async function loadSettingsOnly() {
+    // This endpoint only reads Pages environment values and returns URL/boolean
+    // state; it does not make any request to an Alist/OpenList provider.
+    state.active=localStorage.getItem(PROVIDER_KEY)||"vps";
+    if(!Object.hasOwn(LABELS,state.active))state.active="vps";
+    state.local=readLocalProfile();
+    $("active-source").textContent=LABELS[state.active]+"（上次保存）";
+    let profilesLoaded=false;
+    try {
+      const response=await fetch("/api/settings/connections",{credentials:"same-origin"});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok||!data.ok) throw new Error(data.error||("設定狀態 HTTP "+response.status));
+      state.profiles=data.profiles||{};
+      profilesLoaded=true;
+    } catch(error) {
+      state.profiles={};
+      $("load-status").textContent="無法讀取 Pages 來源設定狀態："+(error.message||error)+"。沒有連接任何節點。";
+      $("load-status").className="status err";
+    }
+    for(const id of ["vps","worker","mobile-device"]) {
+      const p=state.profiles[id]||{};
+      const ready=Boolean(p.configured);
+      setTag("status-"+id,ready?"已配置":"未配置",ready?"":"warn");
+      $("detail-"+id).textContent=ready
+        ? "已配置伺服器端 API 地址："+(p.baseUrl||"")+"；Token 留在 Pages Secret。"
+        : "尚未配置完整 Pages Variable／Secret；不會自動嘗試連線。";
+      const checkbox=document.querySelector('.provider-choice[value="'+id+'"]');
+      checkbox.disabled=!ready;
+      if(state.active===id) setTag("status-"+id,ready?"目前活動 · 已配置":"目前活動 · 未配置",ready?"":"warn");
+    }
+    const lanReady=Boolean(state.local.baseUrl);
+    setTag("status-local",lanReady?(state.active==="local"?"目前活動 · 已保存地址":"已保存地址"):"尚未設定",lanReady?"":"warn");
+    $("detail-local").textContent=lanReady
+      ? "地址："+state.local.baseUrl+"。帳號密碼及 JWT 不保存，測試時才登入。"
+      : "尚未保存區域網路 OpenList 地址；不會發出登入或 API 請求。";
+    document.querySelector('.provider-choice[value="local"]').disabled=!lanReady;
+    if(profilesLoaded) {
+      $("load-status").textContent="設定狀態已載入。尚未對任何節點發出連線，未連接中國移動雲盤。";
+      $("load-status").className="status ok";
+    }
+    state.loading=false;
+    // Mark the previously saved active source as the default candidate only.
+    // This is a local checkbox state, not an activation or network request.
+    const activeCheckbox=document.querySelector('.provider-choice[value="'+state.active+'"]');
+    if(activeCheckbox&&!activeCheckbox.disabled) activeCheckbox.checked=true;
+    refreshSelectionUI();
+  }
+  function currentPath() {
+    const path=$("path").value.trim();
+    if(!path.startsWith("/")||path.length>4096||path.includes("\0")) throw new Error("請輸入以 / 開頭的音訊完整路徑。");
+    return path;
+  }
+  function parentPath(path) { const i=path.lastIndexOf("/");return i<=0?"/":path.slice(0,i); }
+  async function rangeProbe(rawUrl) {
+    const started=performance.now(),controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),25000);
+    let response;
+    try {
+      response=await fetch(rawUrl,{
+        method:"GET",mode:"cors",credentials:"omit",redirect:"follow",
+        headers:{Range:"bytes=0-65535"},signal:controller.signal,
+        ...openListNetworkFetchOptions(rawUrl)
+      });
+    } catch(error) {
+      if(error.name==="AbortError") throw new Error("音訊 Range 請求逾時（25 秒）。");
+      throw new Error("音訊來源不可讀，可能是 CORS／網路權限問題："+error.message);
+    } finally { clearTimeout(timeout); }
+    const headerMs=performance.now()-started;
+    const finalHost=(()=>{try{return new URL(response.url||rawUrl).host;}catch{return "未知";}})();
+    const contentRange=response.headers.get("content-range")||"未暴露";
+    if(response.status!==206) {
+      try{await response.body?.cancel();}catch{}
+      return {status:response.status,headerMs,firstByteMs:NaN,readMs:NaN,bytes:0,finalHost,contentRange};
+    }
+    let bytes=0,firstByteMs=NaN;
+    const reader=response.body?.getReader();
+    if(reader) {
+      try {
+        while(bytes<65536) {
+          const part=await reader.read();
+          if(part.done)break;
+          if(part.value?.byteLength) {
+            if(!Number.isFinite(firstByteMs))firstByteMs=performance.now()-started;
+            bytes+=Math.min(part.value.byteLength,65536-bytes);
+          }
+        }
+      } finally {
+        try{await reader.cancel();}catch{}
+        try{reader.releaseLock();}catch{}
+      }
+    }
+    return {status:response.status,headerMs,firstByteMs,readMs:performance.now()-started,bytes,finalHost,contentRange};
+  }
+  function resetResults(names) {
+    RESULT_COLUMNS.forEach((col,index)=>{
+      const visible=index<names.length;
+      const heading=$("result-heading-"+col);
+      heading.hidden=!visible;
+      if(visible)heading.textContent=LABELS[names[index]];
+      document.querySelectorAll('[data-result-column="'+col+'"]').forEach(node=>{node.hidden=!visible;});
+      if(visible)for(const row of RESULT_ROWS)setCell(col+"-"+row,"測試中…","muted");
+    });
+  }
+  async function testOne(provider,path,col) {
+    const started=performance.now(),label=LABELS[provider],folder=parentPath(path);
+    const result={provider,errors:[],listMs:NaN,infoMs:NaN,upstreamMs:NaN,totalMs:NaN};
+    let config;
+    try {
+      if(provider==="local") {
+        const username=$("username").value.trim(),password=$("password").value;
+        if(!username||!password) throw new Error("區域網路 OpenList 需要輸入帳號與密碼。");
+        say(label+"：正在登入（只有本次勾選的來源會登入）");
+        const token=await loginOpenList({baseUrl:state.local.baseUrl,username,password});
+        $("password").value="";
+        config={provider:"local",baseUrl:state.local.baseUrl,token};
+      } else {
+        if(!state.profiles[provider]?.configured) throw new Error(label+" 未配置；沒有向該節點發送請求。");
+        config={provider,baseUrl:location.origin,token:""};
+      }
+      configureOpenListConnection(config);
+    } catch(error) {
+      result.errors.push("登入／連線設定："+(error.message||error));
+      for(const row of ["list","info","range-head"])setCell(col+"-"+row,"失敗："+(error.message||error),"err");
+      setCell(col+"-upstream","未取得","muted");
+      setCell(col+"-range-data","未讀取","muted");
+      result.totalMs=performance.now()-started;
+      setCell(col+"-total",fmt(result.totalMs)+" · 來源未連線","warn-text");
+      say(label+"：登入／連線設定失敗："+(error.message||error),"err");
+      return result;
+    }
+    say(label+"：開始測試目錄 "+folder);
+    const listStarted=performance.now();
+    try {
+      const listing=await listOpenListDirectory({baseUrl:config.baseUrl,path:folder,page:1,perPage:5});
+      result.listMs=performance.now()-listStarted;
+      setCell(col+"-list",fmt(result.listMs)+" · "+listing.items.length+" 項目","ok");
+      say(label+"：目錄列表 "+fmt(result.listMs),"ok");
+    } catch(error) {
+      result.errors.push("目錄列表："+error.message);
+      setCell(col+"-list","失敗："+error.message,"err");
+      say(label+"：目錄列表失敗："+error.message,"err");
+    }
+    let info=null,timing=null;
+    const infoStarted=performance.now();
+    try {
+      info=await getOpenListFileInfo({
+        baseUrl:config.baseUrl,path,timeoutMs:55000,
+        onTiming:value=>{timing=value;}
+      });
+      result.infoMs=performance.now()-infoStarted;
+      if(!info.raw_url)throw new Error("API 沒有回傳 raw_url。");
+      setCell(col+"-info",fmt(result.infoMs)+" · "+(Number(info.size||0)/1048576).toFixed(1)+" MiB","ok");
+      const values=Object.fromEntries([...(timing?.serverTiming||"").matchAll(/([a-z_]+);dur=([\d.]+)/g)].map(m=>[m[1],Number(m[2])]));
+      result.upstreamMs=values.openlist_upstream;
+      const parts=[["上游",values.openlist_upstream],["讀設定",values.openlist_profile],["JSON",values.openlist_body],["重試",values.retry_wait],["Function",values.function_total]].filter(x=>Number.isFinite(x[1])).map(x=>x[0]+" "+fmt(x[1]));
+      setCell(col+"-upstream",provider==="local"?"瀏覽器直連，不經 Pages":parts.join(" · ")||"未提供 Server-Timing",parts.length?"ok":"muted");
+      say(label+"：檔案資訊 "+fmt(result.infoMs)+(Number.isFinite(result.upstreamMs)?"；上游 "+fmt(result.upstreamMs):""),"ok");
+    } catch(error) {
+      result.errors.push("檔案資訊："+error.message);
+      setCell(col+"-info","失敗："+error.message,"err");
+      setCell(col+"-upstream","未取得","muted");
+      say(label+"：檔案資訊失敗："+error.message,"err");
+    }
+    if(info?.raw_url) {
+      try {
+        const range=await rangeProbe(info.raw_url);
+        setCell(col+"-range-head","HTTP "+range.status+" · "+fmt(range.headerMs)+" · "+range.finalHost,range.status===206?"ok":"warn");
+        setCell(col+"-range-data",range.bytes?fmt(range.firstByteMs)+" 首段 · "+fmt(range.readMs)+" 讀取 "+range.bytes.toLocaleString()+" B":"Range 未通過 · "+range.contentRange,range.bytes?"ok":"warn");
+        if(range.status!==206||!range.bytes)result.errors.push("音訊來源 Range 未回傳有效的 206 資料。");
+        say(label+"：音訊 HTTP "+range.status+"；首段 "+fmt(range.firstByteMs)+"；讀取 "+range.bytes+" bytes",range.bytes?"ok":"warn");
+      } catch(error) {
+        result.errors.push("Range："+error.message);
+        setCell(col+"-range-head","失敗："+error.message,"err");
+        setCell(col+"-range-data","未讀取","muted");
+        say(label+"：Range 失敗："+error.message,"err");
+      }
+    } else {
+      setCell(col+"-range-head","略過：未取得 raw_url","muted");
+      setCell(col+"-range-data","略過","muted");
+    }
+    result.totalMs=performance.now()-started;
+    setCell(col+"-total",fmt(result.totalMs)+(result.errors.length?" · "+result.errors.length+" 項問題":" · 完成"),result.errors.length?"warn-text":"ok");
+    say(label+"：測試完成，總耗時 "+fmt(result.totalMs),result.errors.length?"warn-text":"ok");
+    return result;
+  }
+  async function runComparison() {
+    if(state.running)return;
+    const choices=selected();
+    if(choices.length<2||choices.length>4||choices.some(id=>!isReady(id)))return;
+    let path;
+    try{path=currentPath();}catch(error){$("summary").textContent=error.message;return;}
+    if(choices.includes("local")&&(!$("username").value.trim()||!$("password").value)) {
+      $("summary").textContent="請輸入區域網路 OpenList 帳號與密碼。尚未發出登入請求。";
+      return;
+    }
+    state.running=true;
+    $("run-compare").disabled=true;
+    $("reset-selection").disabled=true;
+    document.querySelectorAll(".provider-choice").forEach(node=>node.disabled=true);
+    $("log").textContent="";
+    resetResults(choices);
+    $("summary").textContent="測試已啟動。只會連接勾選的 "+choices.length+" 個來源，依序執行；其餘來源不會收到任何 API 請求。";
+    say("使用者明確啟動比較："+choices.map(x=>LABELS[x]).join(" ↔ "));
+    try {
+      const results=[];
+      for(let index=0;index<choices.length;index++) {
+        if(index)await new Promise(resolve=>setTimeout(resolve,350));
+        results.push(await testOne(choices[index],path,RESULT_COLUMNS[index]));
+      }
+      const compare=(key)=>{
+        const ranked=results.filter(item=>Number.isFinite(item[key])).sort((a,b)=>a[key]-b[key]);
+        if(!ranked.length)return "資料不足";
+        if(ranked.length===1)return "僅 "+LABELS[ranked[0].provider]+" 有有效資料（"+fmt(ranked[0][key])+"）";
+        return "最快 "+LABELS[ranked[0].provider]+" "+fmt(ranked[0][key])+
+          "；最慢 "+LABELS[ranked[ranked.length-1].provider]+" "+fmt(ranked[ranked.length-1][key]);
+      };
+      $("summary").textContent=choices.length+" 個來源比較完成。目錄列表："+compare("listMs")+
+        "；檔案資訊："+compare("infoMs")+"；總耗時："+compare("totalMs")+
+        "。本次只有勾選的來源被連接；播放器原本保存的活動來源沒有更改。";
+    } catch(error) {
+      $("summary").textContent="比較測試中止："+(error.message||error);
+      say("比較測試中止："+(error.message||error),"err");
+    } finally {
+      $("password").value="";
+      state.running=false;
+      $("reset-selection").disabled=false;
+      document.querySelectorAll(".provider-choice").forEach(node=>{
+        node.disabled=!isReady(node.value);
+      });
+      refreshSelectionUI();
+    }
+  }
+  document.querySelectorAll(".provider-choice").forEach(node=>node.addEventListener("change",()=>{
+    const choices=selected();
+    if(choices.length>4)node.checked=false;
+    if(choices.length>4)$("summary").textContent="最多可同時選擇四個來源。";
+    refreshSelectionUI();
+  }));
+  $("reset-selection").addEventListener("click",()=>{
+    if(state.running)return;
+    document.querySelectorAll(".provider-choice").forEach(node=>{node.checked=false;});
+    refreshSelectionUI();
+    $("summary").textContent="已清除選擇。尚未連接任何節點。";
+  });
+  $("run-compare").addEventListener("click",runComparison);
+  loadSettingsOnly().catch(error=>{
+    state.loading=false;
+    $("load-status").textContent="讀取設定失敗："+(error.message||error)+"。沒有連接任何 Alist／OpenList 節點。";
+    $("load-status").className="status err";
+    refreshSelectionUI();
+  });
 })();
-</script></body></html>
+</script>
+</body>
+</html>

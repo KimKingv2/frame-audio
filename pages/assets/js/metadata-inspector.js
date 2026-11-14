@@ -1,4 +1,4 @@
-import { openListNetworkFetchOptions } from "./openlist-client.js?v=20261112-multi-openlist2";
+import { openListNetworkFetchOptions } from "./openlist-client.js?v=20261114-response-body-timeout1";
 
 const PARSER_URL = "https://esm.sh/music-metadata@12.3.5?bundle";
 const CHUNK_SIZE = 256 * 1024;

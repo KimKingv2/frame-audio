@@ -7,26 +7,33 @@ FRAME Audio uses Pages Functions as its same-origin API, D1 for catalogue / scan
 - D1 database: `frame-audio-catalog`, binding `DB`
 - R2 bucket: `frame-audio-artwork`, binding `ARTWORKS`
 - Secret: `FRAME_AUDIO_API_ADMIN_TOKEN` (FRAME Audio internal API admin gate)
-- Secret: `ALIST_VPS_API_TOKEN`; Text: `ALIST_VPS_API_BASE_URL`
-- Secret: `ALIST_WORKER_API_TOKEN`; Text: `ALIST_WORKER_API_BASE_URL`
+- Shared KV namespace: `media-platform-auth-cache`; binding variable: `MEDIA_AUTH_TOKEN_CACHE` (short-lived upstream JWT cache shared by media apps)
+- Secrets: `ALIST_VPS_USERNAME`, `ALIST_VPS_PASSWORD`; Text: `ALIST_VPS_API_BASE_URL`
+- Secrets: `OPENLIST_WORKER_USERNAME`, `OPENLIST_WORKER_PASSWORD`; Text: `OPENLIST_WORKER_API_BASE_URL`
+- Secrets: `ALIST_MOBILE_DEVICE_USERNAME`, `ALIST_MOBILE_DEVICE_PASSWORD`; Text: `ALIST_MOBILE_DEVICE_API_BASE_URL`
 
-VPS / Worker settings are fixed in Cloudflare Pages **Variables and Secrets** and read only by Pages Functions. Their Tokens are never sent to the browser and are not stored in D1. The existing `FRAME_AUDIO_API_ADMIN_TOKEN` remains a separate application-level gate; do not replace it with an Alist Token or combine the values.
+VPS / Worker / Mobile Device service-account credentials are read only by Pages Functions. Functions obtain upstream JWTs through each provider login API. JWTs are cached in the optional `MEDIA_AUTH_TOKEN_CACHE` KV binding with an expiry TTL and in isolate memory; they are never sent to the browser or stored in D1/R2. Without KV, the application falls back to isolate-memory caching and re-authenticates after a cold start. The existing `FRAME_AUDIO_API_ADMIN_TOKEN` remains a separate application-level gate; do not replace it with an Alist Token or combine the values.
 
 ## Environment settings
 
-Open **Workers & Pages → frame-audio → Settings → Variables and Secrets**. Set the following independently for Preview and Production:
+Open **Workers & Pages → frame-audio → Settings → Variables and Secrets**. Apply the new automatic-login credentials to **Preview first**. Keep Production unchanged until all three Preview sources pass testing:
 
 | Name | Type | Value |
 |---|---|---|
 | `ALIST_VPS_API_BASE_URL` | Text | `https://drive.kimkingv2.top` |
-| `ALIST_VPS_API_TOKEN` | Secret | The read-only VPS Alist API Token |
-| `ALIST_WORKER_API_BASE_URL` | Text | Your OpenList Worker API base URL |
-| `ALIST_WORKER_API_TOKEN` | Secret | The OpenList Worker API Token |
+| `ALIST_VPS_USERNAME` | Secret | Dedicated read-only VPS Alist username |
+| `ALIST_VPS_PASSWORD` | Secret | Dedicated read-only VPS Alist password |
+| `OPENLIST_WORKER_API_BASE_URL` | Text | Your OpenList Worker API base URL |
+| `OPENLIST_WORKER_USERNAME` | Secret | Dedicated OpenList Worker username |
+| `OPENLIST_WORKER_PASSWORD` | Secret | Dedicated OpenList Worker password |
+| `ALIST_MOBILE_DEVICE_API_BASE_URL` | Text | `https://nas.kimkingv2.top` |
+| `ALIST_MOBILE_DEVICE_USERNAME` | Secret | Dedicated Mobile Device Alist username |
+| `ALIST_MOBILE_DEVICE_PASSWORD` | Secret | Dedicated Mobile Device Alist password |
 | `FRAME_AUDIO_API_ADMIN_TOKEN` | Secret | Existing FRAME Audio internal API admin Secret |
 
-Legacy VPS aliases `OPENLIST_BASE_URL` / `OPENLIST_API_TOKEN` and Worker URL alias `OPENLIST_WORKER_API_BASE_URL` remain supported. Prefer the `ALIST_*` names for new configuration. Never paste Secrets into the website, GitHub, URLs or chat. The site shows only whether a profile is configured and never reveals its Token.
+All three server-side providers now require their dedicated username/password Secrets for automatic login and renewal. Static API Token authentication and the `*_API_TOKEN` compatibility aliases have been removed from the application; old Token Secrets are ignored and may be deleted from Pages environment settings after the new deployment is verified. Never paste Secrets into the website, GitHub, URLs or chat. The site shows only whether a profile is configured and never reveals credentials or JWTs.
 
-Keep using the existing D1 and R2 resources. Preview and Production values are independent. After adding or changing environment values, redeploy the matching branch.
+Keep using the existing D1 and R2 resources. Under **Settings → Bindings → KV namespace bindings**, create or select the shared Preview namespace `media-platform-auth-cache` and bind it with variable name `MEDIA_AUTH_TOKEN_CACHE` in every media application's Preview project. This Preview namespace may be shared by trusted Preview media apps, but must remain separate from Production. The application still works without KV using per-isolate memory cache, but cold starts will perform a new login. To reuse a JWT across separate media applications, they must use the same namespace, identical provider identity/base URL/username cache-key derivation, the `media-platform:provider-auth:v1` key prefix, and matching `Client-Id: media-platform-server-{provider}` on both login and API requests. Production must have its own three provider username/password Secret pairs and a separate Production KV namespace binding before switching traffic to the password-only build. After adding or changing environment values or bindings, redeploy the matching branch.
 
 ## D1 migrations
 

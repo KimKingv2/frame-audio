@@ -20,7 +20,7 @@ FRAME Audio 是以 VPS Alist 為音訊來源的私人音訊平台，包含 **Mus
 - D1 以新增／更新方式寫入；部分掃描、失敗掃描與路徑修復不會清空整個曲庫。
 - R2 封面以 SHA-256 去重保存。
 - 修復路徑時，先成功建立新索引，再將舊路徑的收聽事件及續播資料移轉到新索引。
-- VPS Alist 與 OpenList Worker 的 API 網址由 Cloudflare Pages Variables 提供，Token 由 Pages Secrets 提供；Pages Functions 在伺服器端讀取，瀏覽器不會取得或保存這兩組 Token。區域網路 OpenList 則由手機瀏覽器直連，使用該裝置自己的 Token。所有私有 API 均由 Cloudflare Access 保護。
+- 四個互斥來源：VPS Alist、OpenList Worker、Mobile Device Alist（由 Pages Functions 使用 Pages Variables／Secrets）及區域網路 OpenList（瀏覽器直接以帳號密碼登入）。只有上次保存的活動來源會連線或測試；其他來源不會被探測。
 
 ## Cloudflare 資料表
 
@@ -30,7 +30,7 @@ FRAME Audio 是以 VPS Alist 為音訊來源的私人音訊平台，包含 **Mus
 | `0002_podcasts.sql` | Podcast 節目與單集 |
 | `0003_listening.sql` | 播放進度、Podcast 播放速度、收聽事件 |
 
-前三個 migration 建立曲庫、Podcast 與收聽資料。第四個檔案 `0004_connection_settings.sql` 已退役並改為 no-op，不需要執行；VPS／Worker 憑證不再寫入 D1。現有 D1 資料與 R2 封面應保留。
+前三個 migration 建立曲庫、Podcast 與收聽資料。第四個檔案 `0004_connection_settings.sql` 已退役並改為 no-op，不需要執行；VPS／Worker／Mobile Device 憑證不再寫入 D1。現有 D1 資料與 R2 封面應保留。
 
 ## 掃描規則
 
@@ -62,6 +62,21 @@ FRAME Audio 是以 VPS Alist 為音訊來源的私人音訊平台，包含 **Mus
 - Build command：留空
 - Build output directory：`pages`
 
-正式環境與 Preview 環境應各自設定 `DB`、`ARTWORKS` bindings、`FRAME_AUDIO_API_ADMIN_TOKEN`、`ALIST_VPS_API_TOKEN`、`ALIST_WORKER_API_TOKEN` Secrets，以及 `ALIST_VPS_API_BASE_URL`、`ALIST_WORKER_API_BASE_URL` Variables。Access 必須保護 `frame-audio.pages.dev` 與 `*.frame-audio.pages.dev`。詳細步驟見 [docs/CLOUDFLARE-STORAGE.md](docs/CLOUDFLARE-STORAGE.md)。
+正式環境與 Preview 環境各自保留 `DB`、`ARTWORKS` bindings。上游自動登入先在 Preview 部署：設定共用 KV namespace `media-platform-auth-cache`（binding `MEDIA_AUTH_TOKEN_CACHE`）、`FRAME_AUDIO_API_ADMIN_TOKEN` 及三個來源各自的帳密 Secrets／`*_API_BASE_URL` Variables；其他媒體專案可綁定同一 namespace，並遵循相同 Token 快取鍵與 `Client-Id` 規格。全部測試通過後才遷移 Production。Access 必須保護 `frame-audio.pages.dev` 與 `*.frame-audio.pages.dev`。詳細步驟見 [docs/CLOUDFLARE-STORAGE.md](docs/CLOUDFLARE-STORAGE.md)。
 
 新增或修改環境變數及 Secret 後，必須觸發一次新的 Pages 部署，新的設定才會注入該部署。請確認 Secret 設定在正確的環境（Production 或 Preview），再重新部署對應分支。
+
+
+## 播放延遲診斷
+
+- 保留 Alist／OpenList API 取得檔案資訊、瀏覽器直接播放 `raw_url` 的架構，不改成 WebDAV，也不加入雲盤心跳。
+- 播放診斷會分別記錄檔案資訊請求、Pages 上游 API 耗時、瀏覽器音訊載入里程碑，以及下一首預取緩衝狀態。
+- 操作與指標解讀見 [docs/PLAYBACK-LATENCY-DIAGNOSTICS.md](docs/PLAYBACK-LATENCY-DIAGNOSTICS.md)。
+
+## 連線速度測試
+
+- `/playback-diagnostic.html` 列出四個來源，可自由勾選 2～4 個（包含一次測試全部四個）；載入頁面、讀取設定與勾選不會連接任何來源或中國移動雲盤。
+- 只有按下「開始測試」後，才會依序測試被勾選的來源；未選的來源不會收到 API 請求。測試最多讀取 64 KiB，不播放歌曲、不掃描曲庫，也不寫入 D1／R2。
+
+
+- 四個來源設定、活動來源隔離、LAN 帳號密碼登入及 IP 可見性說明見 [docs/MULTI-OPENLIST-SOURCES.md](docs/MULTI-OPENLIST-SOURCES.md)。

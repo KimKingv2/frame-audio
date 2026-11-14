@@ -5,7 +5,7 @@ export async function onRequest({ request, env }) {
   const denied = await requireAdmin(request, env);
   if (denied) return denied;
   if (request.method !== "GET") {
-    return error("VPS Alist 與 OpenList Worker 憑證只能透過 Cloudflare Pages Variables and Secrets 管理；此端點僅提供唯讀狀態。", 405);
+    return error("VPS Alist、OpenList Worker 與 K40 Alist 憑證只能透過 Cloudflare Pages Variables and Secrets 管理；此端點僅提供唯讀狀態。", 405);
   }
   try {
     const state = await readConnectionProfiles(env);

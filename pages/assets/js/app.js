@@ -1,7 +1,7 @@
-import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo, configureOpenListConnection, normalizeOpenListUrl } from "./openlist-client.js?v=20261112-multi-openlist2";
-import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261112-multi-openlist2";
-import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js?v=20261112-multi-openlist2";
-import { initLibraryUI } from "./library-ui.js?v=20261112-multi-openlist2";
+import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo, configureOpenListConnection, normalizeOpenListUrl, loginOpenList } from "./openlist-client.js?v=20261114-auth-password-only1";
+import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261113-mobile-device-source1";
+import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js?v=20261114-podcast-full-rescan1";
+import { initLibraryUI } from "./library-ui.js?v=20261113-track-pages-500-cover-restore1";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
 (() => {
@@ -21,18 +21,26 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   const browseButton = $("#browse-root");
   const CONNECTION_PROVIDER_STORAGE_KEY = "frame-audio-active-openlist-provider";
   const LOCAL_OPENLIST_STORAGE_KEY = "frame-audio-local-openlist-profile-v1";
-  const PROVIDER_LABELS = { vps: "VPS Alist", worker: "OpenList Worker", local: "區域網路 OpenList" };
+  const LOCAL_OPENLIST_SESSION_STORAGE_KEY = "frame-audio-local-openlist-session-v1";
+  const DEFAULT_LOCAL_OPENLIST_BASE_URL = "http://127.0.0.1:5244";
+  const PROVIDER_LABELS = { vps: "VPS Alist", worker: "OpenList Worker", "mobile-device": "Mobile Device Alist", local: "區域網路 OpenList" };
   let serverProfiles = {
-    vps: { baseUrl: "", hasToken: false, configured: false },
-    worker: { baseUrl: "", hasToken: false, configured: false }
+    vps: { baseUrl: "", hasCredentials: false, configured: false },
+    worker: { baseUrl: "", hasCredentials: false, configured: false },
+    "mobile-device": { baseUrl: "", hasCredentials: false, configured: false }
   };
-  let localProfile = { baseUrl: "", token: "" };
-  let activeProvider = "vps";
-  let activeConnection = { provider: "vps", baseUrl: window.location.origin, token: "" };
+  let localProfile = { baseUrl: DEFAULT_LOCAL_OPENLIST_BASE_URL, username: "" };
+  let localSessionToken = "";
+  let localSessionPersisted = false;
+  let activeProvider = "mobile-device";
+  let activeConnection = { provider: "mobile-device", baseUrl: window.location.origin, token: "" };
   let activeBaseUrl = window.location.origin;
   let cloudflareStorageReady = false;
   let activePath = "/";
   let scanRunning = false;
+  // Reuse the global music retry queue across automatically chained batches.
+  // Queue writes keep this page-session cache synchronized.
+  let musicRetryPathCache = null;
   let scanPauseRequested = false;
   let connected = false;
   let activeCoverUrl = "";
@@ -43,6 +51,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   // component encounters an initialization problem.
   $("#test-connection")?.addEventListener("click", testConnection);
   $("#save-switch-openlist")?.addEventListener("click", saveAndSwitchOpenList);
+  $("#logout-local-openlist")?.addEventListener("click", logoutLocalOpenList);
   $("#test-storage")?.addEventListener("click", testCloudflareStorage);
   browseButton?.addEventListener("click", () => loadDirectory(pathInput.value.trim() || "/"));
 
@@ -51,7 +60,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     podcasts: ["Podcasts", "YOUR PODCAST LIBRARY", "好內容，<span>慢慢聽。</span>", "集中管理喜愛的節目，從上次停止的位置繼續收聽。", "PODCAST LIBRARY", "你的節目收藏", "▤", "Podcast 尚未連接", "接入節目資料後，節目封面、單集、收聽進度與播放速度控制就會出現在這裡。"],
     tracks: ["Music", "TRACKS", "音樂，<span>隨時入場。</span>", "整理你的收藏，讓每一次播放都回到自己的音樂世界。", "TRACKS", "所有歌曲", "♫", "歌曲索引尚未發布", "歌曲索引發布後，這裡會顯示完整曲庫。"],
     albums: ["Music", "ALBUMS", "音樂，<span>隨時入場。</span>", "整理你的收藏，讓每一次播放都回到自己的音樂世界。", "ALBUMS", "專輯", "▣", "專輯索引尚未發布", "專輯索引發布後，這裡會依照專輯資訊整理收藏。"],
-    artists: ["Music", "ARTISTS", "音樂，<span>隨時入場。</span>", "整理你的收藏，讓每一次播放都回到自己的音樂世界。", "ARTISTS", "歌手", "♙", "歌手索引尚未發布", "歌手索引發布後，這裡會整理歌曲與專輯關聯。"],
+    playlists: ["Music", "PLAYLISTS", "音樂，<span>隨時入場。</span>", "收藏喜愛的歌曲，建立自己的播放清單。", "PLAYLISTS", "收藏歌單", "♡", "還沒有自訂歌單", "收藏夾會固定置頂，你可以建立自己的歌單並從歌曲目錄加入曲目。"],
     folders: ["Music", "FOLDER PLAYLISTS", "音樂，<span>隨時入場。</span>", "整理你的收藏，讓每一次播放都回到自己的音樂世界。", "FOLDER PLAYLISTS", "資料夾歌單", "▰", "資料夾索引尚未發布", "索引器會保留 OpenList 原始目錄樹。每個資料夾都能成為播放清單，並可選擇包含子資料夾。"],
     shows: ["Podcasts", "SHOWS", "好內容，<span>慢慢聽。</span>", "集中管理喜愛的節目，從上次停止的位置繼續收聽。", "SHOWS", "所有節目", "▥", "節目索引尚未發布", "節目索引發布後，這裡會顯示你的 Podcast 節目與單集。"],
     continue: ["Podcasts", "CONTINUE LISTENING", "好內容，<span>慢慢聽。</span>", "集中管理喜愛的節目，從上次停止的位置繼續收聽。", "CONTINUE LISTENING", "繼續收聽", "◷", "目前沒有收聽紀錄", "Podcast 播放進度會獨立保存，之後可以從上次停止的位置繼續。"],
@@ -63,59 +72,136 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     return window.matchMedia ? window.matchMedia("(max-width: 760px)").matches : false;
   }
 
-  const DESKTOP_SIDEBAR_STORAGE_KEY = "frame-audio-desktop-sidebar-collapsed";
+  const MOBILE_SIDEBAR_CLOSE_FALLBACK_MS = 420;
+  let mobileSidebarCloseTimer = 0;
+  let lastSidebarViewportIsMobile = isMobileSidebarViewport();
 
-  function readDesktopSidebarCollapsed() {
-    try {
-      return localStorage.getItem(DESKTOP_SIDEBAR_STORAGE_KEY) === "1";
-    } catch {
-      return false;
-    }
-  }
-
-  function setSideNavigationExpanded(expanded, restoreFocus = false, persistDesktop = false) {
+  function updateSideNavigationControls(expanded, isMobile) {
     const sidebar = $("#site-sidebar");
     const trigger = $("#side-nav-toggle");
     const scrim = $("#mobile-nav-scrim");
-    const isMobile = isMobileSidebarViewport();
-    const wasMobileExpanded = document.body.classList.contains("mobile-sidebar-expanded");
-    const isExpanded = Boolean(expanded);
-
-    if (isMobile) {
-      document.body.classList.remove("desktop-sidebar-collapsed");
-      document.body.classList.toggle("mobile-sidebar-expanded", isExpanded);
-    } else {
-      document.body.classList.remove("mobile-sidebar-expanded");
-      document.body.classList.toggle("desktop-sidebar-collapsed", !isExpanded);
-      if (persistDesktop) {
-        try {
-          localStorage.setItem(DESKTOP_SIDEBAR_STORAGE_KEY, isExpanded ? "0" : "1");
-        } catch {}
-      }
-    }
 
     if (trigger) {
-      trigger.setAttribute("aria-expanded", String(isExpanded));
-      trigger.setAttribute("aria-label", isExpanded ? "收合導覽欄" : "展開導覽欄");
-      trigger.setAttribute("title", isExpanded ? "收合導覽" : "展開導覽");
+      trigger.setAttribute("aria-expanded", String(expanded));
+      trigger.setAttribute("aria-label", expanded
+        ? (isMobile ? "收合導覽欄" : "導覽欄固定展開")
+        : "展開導覽欄");
+      trigger.setAttribute("title", expanded
+        ? (isMobile ? "收合導覽" : "桌面版固定展開")
+        : "展開導覽");
       const icon = trigger.querySelector(".side-nav-toggle-icon");
-      if (icon) icon.textContent = isExpanded ? (isMobile ? "×" : "‹") : "☰";
+      if (icon) icon.textContent = expanded ? "×" : "☰";
     }
-    if (scrim) scrim.setAttribute("aria-hidden", String(!(isMobile && isExpanded)));
-    if (sidebar) sidebar.setAttribute("aria-label", isExpanded ? "已展開的主要導覽" : "主要導覽");
 
-    if (isMobile && isExpanded) {
-      requestAnimationFrame(() => sidebar?.querySelector(".nav button")?.focus({ preventScroll: true }));
-    } else if (restoreFocus && wasMobileExpanded) {
-      trigger?.focus({ preventScroll: true });
+    if (scrim) {
+      scrim.setAttribute("aria-hidden", String(!(isMobile && expanded)));
+    }
+    if (sidebar) {
+      sidebar.setAttribute("aria-label", expanded ? "已展開的主要導覽" : "主要導覽");
+      sidebar.setAttribute("aria-hidden", String(!expanded));
+      sidebar.inert = !expanded;
     }
   }
 
+  function finishMobileSidebarClose(restoreFocus = false) {
+    window.clearTimeout(mobileSidebarCloseTimer);
+    mobileSidebarCloseTimer = 0;
+    document.body.classList.remove("mobile-sidebar-expanded", "mobile-sidebar-closing");
+
+    const sidebar = $("#site-sidebar");
+    const trigger = $("#side-nav-toggle");
+    const scrim = $("#mobile-nav-scrim");
+    if (sidebar) {
+      sidebar.setAttribute("aria-hidden", "true");
+      sidebar.inert = true;
+      sidebar.setAttribute("aria-label", "主要導覽");
+    }
+    if (scrim) scrim.setAttribute("aria-hidden", "true");
+    if (trigger) {
+      trigger.setAttribute("aria-expanded", "false");
+      trigger.setAttribute("aria-label", "展開導覽欄");
+      trigger.setAttribute("title", "展開導覽");
+      const icon = trigger.querySelector(".side-nav-toggle-icon");
+      if (icon) icon.textContent = "☰";
+      if (restoreFocus) trigger.focus({ preventScroll: true });
+    }
+  }
+
+  function setSideNavigationExpanded(expanded, restoreFocus = false) {
+    const sidebar = $("#site-sidebar");
+    const isMobile = isMobileSidebarViewport();
+
+    // Desktop navigation is deliberately fixed open. The collapse control is
+    // available only on phones, so stale desktop preferences are ignored.
+    if (!isMobile) {
+      window.clearTimeout(mobileSidebarCloseTimer);
+      mobileSidebarCloseTimer = 0;
+      document.body.classList.remove(
+        "mobile-sidebar-expanded",
+        "mobile-sidebar-closing",
+        "desktop-sidebar-collapsed"
+      );
+      updateSideNavigationControls(true, false);
+      return;
+    }
+
+    const wasExpanded = document.body.classList.contains("mobile-sidebar-expanded");
+    const isClosing = document.body.classList.contains("mobile-sidebar-closing");
+
+    if (expanded) {
+      window.clearTimeout(mobileSidebarCloseTimer);
+      mobileSidebarCloseTimer = 0;
+      document.body.classList.remove("mobile-sidebar-closing");
+      document.body.classList.add("mobile-sidebar-expanded");
+      updateSideNavigationControls(true, true);
+      requestAnimationFrame(() => {
+        sidebar?.querySelector(".nav button")?.focus({ preventScroll: true });
+      });
+      return;
+    }
+
+    if (wasExpanded || isClosing) {
+      // Keep the panel mounted until its exit animation finishes. This avoids
+      // the previous abrupt display:none jump during close.
+      document.body.classList.add("mobile-sidebar-closing");
+      updateSideNavigationControls(false, false);
+      if (restoreFocus) $("#side-nav-toggle")?.focus({ preventScroll: true });
+
+      window.clearTimeout(mobileSidebarCloseTimer);
+      mobileSidebarCloseTimer = window.setTimeout(
+        () => finishMobileSidebarClose(false),
+        MOBILE_SIDEBAR_CLOSE_FALLBACK_MS
+      );
+      return;
+    }
+
+    finishMobileSidebarClose(restoreFocus);
+  }
+
+  // The panel's animationend event completes the close immediately; the
+  // timeout above is only a fallback for browsers that omit the event.
+  $("#site-sidebar")?.addEventListener("animationend", event => {
+    if (
+      event.target === $("#site-sidebar") &&
+      event.animationName === "mobile-sidebar-panel-exit" &&
+      document.body.classList.contains("mobile-sidebar-closing")
+    ) {
+      finishMobileSidebarClose(false);
+    }
+  });
+
   function syncSideNavigationViewport() {
-    if (isMobileSidebarViewport()) {
+    lastSidebarViewportIsMobile = isMobileSidebarViewport();
+    setSideNavigationExpanded(false);
+  }
+
+  function handleSidebarViewportResize() {
+    const isMobile = isMobileSidebarViewport();
+    if (isMobile !== lastSidebarViewportIsMobile) {
+      lastSidebarViewportIsMobile = isMobile;
       setSideNavigationExpanded(false);
-    } else {
-      setSideNavigationExpanded(!readDesktopSidebarCollapsed());
+    } else if (!isMobile) {
+      setSideNavigationExpanded(true);
     }
   }
 
@@ -202,36 +288,94 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     appendScanLog((prefix ? prefix + "｜" : "") + (event.message || String(event)), event.level || "info");
   }
 
-  // Remove the legacy credential record without reading or parsing its token values.
+  // Keep the LAN URL and username on this device. Never persist the password.
+  // The bearer token is limited to this tab's sessionStorage so a page refresh
+  // can reuse it without leaving a long-lived token in localStorage.
   try { localStorage.removeItem("frame-audio-credentials-v1"); } catch {}
-  // VPS/Worker credentials remain in Cloudflare Pages environment bindings.
-  // The LAN profile stays in this browser because direct requests need its token.
   function readLocalOpenListProfile() {
     try {
       const saved = JSON.parse(localStorage.getItem(LOCAL_OPENLIST_STORAGE_KEY) || "{}");
-      return { baseUrl: String(saved.baseUrl || ""), token: String(saved.token || "") };
-    } catch { return { baseUrl: "", token: "" }; }
+      const profile = {
+        baseUrl: String(saved.baseUrl || DEFAULT_LOCAL_OPENLIST_BASE_URL),
+        username: String(saved.username || "").trim()
+      };
+      localStorage.setItem(LOCAL_OPENLIST_STORAGE_KEY, JSON.stringify(profile));
+      return profile;
+    } catch {
+      return { baseUrl: DEFAULT_LOCAL_OPENLIST_BASE_URL, username: "" };
+    }
   }
   function writeLocalOpenListProfile(profile) {
     localStorage.setItem(LOCAL_OPENLIST_STORAGE_KEY, JSON.stringify({
-      baseUrl: String(profile.baseUrl || ""), token: String(profile.token || "")
+      baseUrl: String(profile.baseUrl || DEFAULT_LOCAL_OPENLIST_BASE_URL),
+      username: String(profile.username || "").trim()
     }));
+  }
+  function restoreLocalOpenListSession() {
+    localSessionToken = "";
+    localSessionPersisted = false;
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(LOCAL_OPENLIST_SESSION_STORAGE_KEY) || "null");
+      if (!saved?.token || !saved?.baseUrl) return false;
+      const savedBaseUrl = normalizeOpenListUrl(String(saved.baseUrl));
+      const profileBaseUrl = normalizeOpenListUrl(localProfile.baseUrl || DEFAULT_LOCAL_OPENLIST_BASE_URL);
+      if (savedBaseUrl !== profileBaseUrl) {
+        sessionStorage.removeItem(LOCAL_OPENLIST_SESSION_STORAGE_KEY);
+        return false;
+      }
+      localSessionToken = String(saved.token);
+      localSessionPersisted = true;
+      return true;
+    } catch {
+      try { sessionStorage.removeItem(LOCAL_OPENLIST_SESSION_STORAGE_KEY); } catch {}
+      return false;
+    }
+  }
+  function persistLocalOpenListSession(token, baseUrl) {
+    localSessionPersisted = false;
+    try {
+      sessionStorage.setItem(LOCAL_OPENLIST_SESSION_STORAGE_KEY, JSON.stringify({
+        token: String(token || ""),
+        baseUrl: String(baseUrl || DEFAULT_LOCAL_OPENLIST_BASE_URL)
+      }));
+      localSessionPersisted = true;
+    } catch {}
+    return localSessionPersisted;
+  }
+  function clearLocalOpenListSession() {
+    try { sessionStorage.removeItem(LOCAL_OPENLIST_SESSION_STORAGE_KEY); } catch {}
+    localSessionToken = "";
+    localSessionPersisted = false;
+  }
+  function updateLocalOpenListSessionUI() {
+    const button = $("#logout-local-openlist");
+    const status = $("#local-openlist-session-status");
+    const loggedIn = Boolean(localSessionToken);
+    if (button) button.disabled = !loggedIn;
+    if (status) {
+      status.textContent = loggedIn
+        ? (localSessionPersisted
+          ? "已登入 · 本分頁重新整理後會保留"
+          : "已登入 · 瀏覽器未允許暫存登入狀態")
+        : "尚未登入";
+      status.className = "hint" + (loggedIn ? " local-openlist-session-active" : "");
+    }
   }
   function selectedProviderFromStorage() {
     try {
       const value = localStorage.getItem(CONNECTION_PROVIDER_STORAGE_KEY);
-      return ["vps", "worker", "local"].includes(value) ? value : "vps";
-    } catch { return "vps"; }
+      return ["vps", "worker", "mobile-device", "local"].includes(value) ? value : "mobile-device";
+    } catch { return "mobile-device"; }
   }
   function applyActiveOpenListProvider(provider, persist = false) {
-    activeProvider = ["vps", "worker", "local"].includes(provider) ? provider : "vps";
+    activeProvider = ["vps", "worker", "mobile-device", "local"].includes(provider) ? provider : "mobile-device";
     const profile = activeProvider === "local" ? localProfile : (serverProfiles[activeProvider] || {});
-    const baseUrl = activeProvider === "vps" ? window.location.origin : String(profile.baseUrl || "");
+    const baseUrl = activeProvider === "local" ? String(profile.baseUrl || DEFAULT_LOCAL_OPENLIST_BASE_URL) : window.location.origin;
     activeBaseUrl = baseUrl || window.location.origin;
     activeConnection = {
       provider: activeProvider,
       baseUrl,
-      token: activeProvider === "local" ? String(profile.token || "") : ""
+      token: activeProvider === "local" ? localSessionToken : ""
     };
     configureOpenListConnection(activeConnection);
     const selector = $("#active-openlist-provider");
@@ -240,7 +384,11 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     const label = $("#connection-label");
     const openButton = $("#open-settings");
     if (openButton) openButton.textContent = "連線設定 · " + name;
-    if (label) label.textContent = name + " 尚未測試";
+    connected = activeProvider === "local" && Boolean(localSessionToken);
+    if (label) label.textContent = activeProvider === "local"
+      ? (localSessionToken ? name + " 已恢復登入" : name + " 等待登入")
+      : name + " 尚未測試";
+    updateLocalOpenListSessionUI();
     if (persist) {
       try { localStorage.setItem(CONNECTION_PROVIDER_STORAGE_KEY, activeProvider); } catch {}
     }
@@ -248,24 +396,30 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   function fillConnectionSettingsForm() {
     const vps = serverProfiles.vps || {};
     const worker = serverProfiles.worker || {};
+    const mobileDevice = serverProfiles["mobile-device"] || {};
     const setValue = (id, value) => { const node = $("#" + id); if (node) node.value = String(value || ""); };
-    setValue("local-openlist-base-url", localProfile.baseUrl);
-    setValue("local-openlist-token", localProfile.token);
+    setValue("local-openlist-base-url", localProfile.baseUrl || DEFAULT_LOCAL_OPENLIST_BASE_URL);
+    setValue("local-openlist-username", localProfile.username || "");
+    setValue("local-openlist-password", "");
+    updateLocalOpenListSessionUI();
     const renderServerStatus = (id, label, profile) => {
       const node = $("#" + id);
       if (!node) return;
+      const authLabel = profile.authMode === "automatic-login" ? " · 帳號密碼自動登入" : "";
       node.textContent = label + "：" + (profile.configured ? "已就緒" : "未完整設定") +
-        (profile.baseUrl ? " · " + profile.baseUrl : "");
+        authLabel + (profile.baseUrl ? " · " + profile.baseUrl : "");
     };
     renderServerStatus("vps-openlist-env-status", "VPS Alist", vps);
     renderServerStatus("worker-openlist-env-status", "OpenList Worker", worker);
+    renderServerStatus("mobile-device-openlist-env-status", "Mobile Device Alist", mobileDevice);
     const status = $("#provider-settings-status");
     if (status) {
       status.textContent = "VPS Alist：" + (vps.configured ? "已就緒" : "未設定完整") +
         "；OpenList Worker：" + (worker.configured ? "已就緒" : "未設定完整") +
-        "；區域網路 Token：" + (localProfile.token ? "已保存在此裝置" : "尚未設定") +
-        "。VPS／Worker 憑證只從 Cloudflare Pages Variables and Secrets 讀取，瀏覽器不會取得 Token。";
-      status.className = "statusbox" + ((vps.configured || worker.configured) ? " ok" : "");
+        "；Mobile Device Alist：" + (mobileDevice.configured ? "已就緒" : "未設定完整") +
+        "；區域網路 OpenList：" + (localSessionToken ? "本分頁已登入" : "地址及帳號已在本機保存") +
+        "。區域網路地址與帳號保存在此裝置；登入 Token 僅保存在目前分頁，密碼不保存。";
+      status.className = "statusbox" + ((vps.configured || worker.configured || mobileDevice.configured) ? " ok" : "");
     }
     const active = $("#active-openlist-provider");
     if (active) active.value = activeProvider;
@@ -273,77 +427,136 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
 
   async function loadConnectionSettings() {
     localProfile = readLocalOpenListProfile();
+    restoreLocalOpenListSession();
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+    let loadFailure = null;
+    const status = $("#provider-settings-status");
+    if (status) {
+      status.textContent = "正在向 Cloudflare Pages 讀取已保存的來源設定（逾時上限 15 秒）……";
+      status.className = "statusbox";
+    }
     try {
-      const response = await fetch("/api/settings/connections", { credentials: "same-origin" });
+      const response = await fetch("/api/settings/connections", {
+        credentials: "same-origin",
+        signal: controller.signal,
+        cache: "no-store"
+      });
       let data = {};
       try { data = await response.json(); } catch {}
       if (!response.ok || !data.ok) throw new Error(data.error || ("連線設定 HTTP " + response.status));
       serverProfiles = {
-        vps: data.profiles?.vps || { baseUrl: "", hasToken: false, configured: false },
-        worker: data.profiles?.worker || { baseUrl: "", hasToken: false, configured: false }
+        vps: data.profiles?.vps || { baseUrl: "", hasCredentials: false, configured: false },
+        worker: data.profiles?.worker || { baseUrl: "", hasCredentials: false, configured: false },
+        "mobile-device": data.profiles?.["mobile-device"] || { baseUrl: "", hasCredentials: false, configured: false }
       };
     } catch (cause) {
-      console.warn("[FRAME Audio] Could not load Cloudflare OpenList environment profiles", cause);
+      loadFailure = cause?.name === "AbortError"
+        ? new Error("讀取已保存的來源設定逾時（15 秒）。請重新載入頁面；若持續發生，請檢查 Pages Functions 的執行錯誤。")
+        : cause;
+      console.warn("[FRAME Audio] Could not load Cloudflare OpenList environment profiles", loadFailure);
       serverProfiles = {
-        vps: { baseUrl: "", hasToken: false, configured: false },
-        worker: { baseUrl: "", hasToken: false, configured: false }
+        vps: { baseUrl: "", hasCredentials: false, configured: false },
+        worker: { baseUrl: "", hasCredentials: false, configured: false },
+        "mobile-device": { baseUrl: "", hasCredentials: false, configured: false }
       };
-      const status = $("#provider-settings-status");
-      if (status) {
-        status.textContent = "無法讀取 Cloudflare 伺服器端來源狀態：" + (cause.message || cause);
-        status.className = "statusbox error";
-      }
+    } finally {
+      window.clearTimeout(timeoutId);
     }
+    // Restore the last explicitly saved source as-is. Never silently fall
+    // back to a different provider or probe an inactive endpoint.
     activeProvider = selectedProviderFromStorage();
-    if (activeProvider === "worker" && !serverProfiles.worker?.configured) {
-      activeProvider = serverProfiles.vps?.configured ? "vps" : (localProfile.baseUrl ? "local" : "vps");
-    }
-    if (activeProvider === "vps" && !serverProfiles.vps?.configured &&
-        !localProfile.baseUrl && serverProfiles.worker?.configured) activeProvider = "worker";
-    if (activeProvider === "local" && !localProfile.baseUrl) {
-      activeProvider = serverProfiles.vps?.configured ? "vps" :
-        (serverProfiles.worker?.configured ? "worker" : "vps");
-    }
     fillConnectionSettingsForm();
-    applyActiveOpenListProvider(activeProvider, true);
+    applyActiveOpenListProvider(activeProvider, false);
+    // fillConnectionSettingsForm() renders the profile summary, so restore a
+    // real request failure afterwards instead of masking it as a normal state.
+    if (loadFailure && status) {
+      status.textContent = "無法讀取 Cloudflare 伺服器端來源狀態：" + (loadFailure.message || loadFailure);
+      status.className = "statusbox error";
+    }
+    return !loadFailure;
+  }
+
+  function logoutLocalOpenList() {
+    if (!localSessionToken) {
+      updateLocalOpenListSessionUI();
+      return;
+    }
+    clearLocalOpenListSession();
+    if (activeProvider === "local") {
+      connected = false;
+      applyActiveOpenListProvider("local");
+      browser.hidden = true;
+      listBox.replaceChildren();
+      $("#connection-label").textContent = "區域網路 OpenList 等待登入";
+      $("#connection-dot").style.background = "#8b8294";
+      setResult("已登出區域網路 OpenList。網址與帳號仍保存在此裝置；下次使用時輸入密碼即可重新登入。");
+    }
+    updateLocalOpenListSessionUI();
+    const status = $("#provider-settings-status");
+    if (status) {
+      status.textContent = "已登出區域網路 OpenList；本機保存的網址與帳號沒有刪除。";
+      status.className = "statusbox";
+    }
   }
 
   async function saveAndSwitchOpenList() {
     const button = $("#save-switch-openlist");
     const status = $("#provider-settings-status");
-    const targetProvider = $("#active-openlist-provider")?.value || "vps";
+    const targetProvider = $("#active-openlist-provider")?.value || activeProvider;
     if (button) button.disabled = true;
     try {
-      const localBaseInput = String($("#local-openlist-base-url")?.value || "").trim();
-      const localToken = String($("#local-openlist-token")?.value || "").trim();
-      const localBaseUrl = localBaseInput ? normalizeOpenListUrl(localBaseInput) : "";
-      localProfile = { baseUrl: localBaseUrl, token: localToken };
-      writeLocalOpenListProfile(localProfile);
-      if (targetProvider === "local" && (!localProfile.baseUrl || !localProfile.token)) {
-        throw new Error("區域網路 OpenList 需要填寫網址與 API Token。");
-      }
-      if (targetProvider === "worker" && !serverProfiles.worker?.configured) {
-        throw new Error("OpenList Worker 尚未就緒。請在 Cloudflare Pages 的 Variables and Secrets 設定 ALIST_WORKER_API_BASE_URL 與 ALIST_WORKER_API_TOKEN，然後重新部署。");
-      }
-      if (targetProvider === "vps" && !serverProfiles.vps?.configured) {
-        throw new Error("VPS Alist 尚未就緒。請在 Cloudflare Pages 的 Variables and Secrets 設定 ALIST_VPS_API_BASE_URL 與 ALIST_VPS_API_TOKEN，然後重新部署。");
-      }
-      applyActiveOpenListProvider(targetProvider, true);
-      fillConnectionSettingsForm();
       if (targetProvider === "local") {
-        connected = false;
-        $("#connection-label").textContent = "區域網路 OpenList 等待測試";
-        $("#connection-dot").style.background = "#b78b75";
-        setResult("區域網路來源已保存在此裝置。請點擊「測試目前來源並讀取目錄」，授權瀏覽器存取區域網路 OpenList。");
+        const localBaseInput = String($("#local-openlist-base-url")?.value || "").trim();
+        const candidateBaseUrl = localBaseInput ? normalizeOpenListUrl(localBaseInput) : DEFAULT_LOCAL_OPENLIST_BASE_URL;
+        const username = String($("#local-openlist-username")?.value || localProfile.username || "").trim();
+        const password = String($("#local-openlist-password")?.value || "");
+        if (!username || !password) throw new Error("請輸入區域網路 OpenList 帳號與密碼。");
+        setResult("正在登入目前選取的區域網路 OpenList……");
+        const token = await loginOpenList({ baseUrl: candidateBaseUrl, username, password });
+        localProfile = { baseUrl: candidateBaseUrl, username };
+        writeLocalOpenListProfile(localProfile);
+        localSessionToken = token;
+        persistLocalOpenListSession(token, candidateBaseUrl);
+        updateLocalOpenListSessionUI();
+        $("#local-openlist-password").value = "";
+        applyActiveOpenListProvider("local", true);
+        fillConnectionSettingsForm();
       } else {
-        await testConnection();
+        if (!["vps", "worker", "mobile-device"].includes(targetProvider)) throw new Error("請選擇有效的音訊來源。");
+        if (!serverProfiles[targetProvider]?.configured) {
+          const names = {
+            vps: "ALIST_VPS_API_BASE_URL + ALIST_VPS_USERNAME / ALIST_VPS_PASSWORD",
+            worker: "OPENLIST_WORKER_API_BASE_URL + OPENLIST_WORKER_USERNAME / OPENLIST_WORKER_PASSWORD",
+            "mobile-device": "ALIST_MOBILE_DEVICE_API_BASE_URL + ALIST_MOBILE_DEVICE_USERNAME / ALIST_MOBILE_DEVICE_PASSWORD"
+          }[targetProvider];
+          throw new Error((PROVIDER_LABELS[targetProvider] || targetProvider) + " 尚未就緒。請在 Cloudflare Pages Preview 設定 " + names + "，然後重新部署。");
+        }
+        // Keep the LAN session for this tab when switching to another provider.
+        $("#local-openlist-password").value = "";
+        applyActiveOpenListProvider(targetProvider, true);
+        fillConnectionSettingsForm();
       }
       if (status) {
-        status.textContent = "目前使用：" + (PROVIDER_LABELS[targetProvider] || targetProvider) +
-          "。VPS／Worker 憑證由 Cloudflare Pages Variables and Secrets 固定管理；三種來源共用同一套 D1 曲庫與 R2 封面。";
-        status.className = "statusbox" + (targetProvider === "local" ? "" : " ok");
+        status.textContent = "已切換至 " + (PROVIDER_LABELS[targetProvider] || targetProvider) + "，正在測試活動來源……";
+        status.className = "statusbox";
+      }
+      const testPassed = await testConnection();
+      if (!testPassed) {
+        if (status) {
+          status.textContent = "來源已切換，但連線測試失敗：" + (resultBox.textContent || "請查看下方連線狀態。");
+          status.className = "statusbox error";
+        }
+        return;
+      }
+      if (status) {
+        status.textContent = "目前活動來源：" + (PROVIDER_LABELS[targetProvider] || targetProvider) +
+          "。連線測試成功；只有活動來源會執行 API 請求。";
+        status.className = "statusbox ok";
       }
     } catch (cause) {
+      $("#local-openlist-password").value = "";
+      fillConnectionSettingsForm();
       if (status) {
         status.textContent = "設定或切換失敗：" + (cause.message || cause);
         status.className = "statusbox error";
@@ -819,6 +1032,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   function scanProgressText(state, batch, finished = false) {
     const lines = [
       "掃描根目錄：" + state.rootPath,
+      "掃描模式：" + (state.forceReindex ? "完整重掃（不跳過未變更歌曲）" : "增量掃描"),
       "已寫入／更新：" + state.indexedCount + " 首",
       "未變更而跳過：" + state.skippedCount + " 首",
       "累計曾失敗：" + state.failedCount + " 首",
@@ -888,18 +1102,40 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   }
 
   async function loadRetryPathSet() {
-    const response = await fetch("/api/catalog/retries", {
-      method: "GET",
-      credentials: "same-origin",
-    });
-    let data = {};
-    try { data = await response.json(); } catch {}
-    if (!response.ok || !data.ok) {
-      throw new Error(data.error || ("讀取失敗重試佇列失敗（HTTP " + response.status + "）。"));
+    if (musicRetryPathCache instanceof Set) {
+      appendScanLog("使用本分頁快取的全域失敗重試佇列：" + musicRetryPathCache.size + " 個待重試路徑");
+      return new Set(musicRetryPathCache);
     }
-    return new Set((data.items || [])
-      .map(item => String(item?.path || ""))
-      .filter(path => path.startsWith("/")));
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 30000);
+    const startedAt = performance.now();
+    appendScanLog("全域失敗重試佇列讀取開始（逾時上限 30 秒）");
+    try {
+      const response = await fetch("/api/catalog/retries", {
+        method: "GET",
+        credentials: "same-origin",
+        signal: controller.signal
+      });
+      let data = {};
+      try { data = await response.json(); } catch {}
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || ("讀取失敗重試佇列失敗（HTTP " + response.status + "）。"));
+      }
+      musicRetryPathCache = new Set((data.items || [])
+        .map(item => String(item?.path || ""))
+        .filter(path => path.startsWith("/")));
+      appendScanLog("全域失敗重試佇列讀取完成：" + musicRetryPathCache.size +
+        " 個待重試路徑；耗時 " + Math.round(performance.now() - startedAt) + " ms", "success");
+      return new Set(musicRetryPathCache);
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        throw new Error("讀取全域失敗重試佇列逾時（30 秒）。掃描進度已保留，請檢查 Cloudflare D1 API 後再續掃。");
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
   }
 
   async function saveRetryPath(path, message) {
@@ -916,6 +1152,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     if (!response.ok || !data.ok) {
       throw new Error(data.error || ("保存失敗重試項目失敗（HTTP " + response.status + "）。"));
     }
+    if (musicRetryPathCache instanceof Set) musicRetryPathCache.add(path);
   }
 
   async function resolveRetryPath(path) {
@@ -932,13 +1169,15 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     if (!response.ok || !data.ok) {
       throw new Error(data.error || ("解除失敗重試項目失敗（HTTP " + response.status + "）。"));
     }
+    if (musicRetryPathCache instanceof Set) musicRetryPathCache.delete(path);
   }
 
-  function newScanState(rootPath, previousState = null) {
+  function newScanState(rootPath, previousState = null, forceReindex = false) {
     return {
       version: 1,
       folderQueueVersion: 2,
       rootPath,
+      forceReindex: forceReindex === true,
       pendingFolders: [rootPath],
       currentFolder: null,
       page: 1,
@@ -995,8 +1234,9 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     return { upgraded, restoredFolders };
   }
 
-  async function batchIndexCurrentTree() {
+  async function batchIndexCurrentTree({ forceReindex = false } = {}) {
     const startButton = $("#scan-music-batch");
+    const fullRescanButton = $("#scan-music-full");
     const pauseButton = $("#scan-pause");
     if (scanRunning) return;
     if (!connected) {
@@ -1014,15 +1254,19 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       setResult(error.message || "Music 根目錄路徑無效。", "error");
       return;
     }
-    if (!window.confirm(
-      "即將掃描 Music 根目錄：\n" + rootPath +
-      "\n\n每批最長執行 7,500 秒（2 小時 5 分鐘），最多檢查 500 個項目；單首索引最多嘗試 20 次（首次加 19 次重試）。會遞迴讀取子資料夾。原始音訊不會上傳或修改。確定開始／繼續？"
-    )) return;
+    const confirmText = forceReindex
+      ? "即將完整重掃 Music 根目錄：\n" + rootPath +
+        "\n\n這次會忽略既有 D1 的檔案大小／修改時間比對，重新讀取所有音訊的嵌入標籤並更新曲目索引。會遞迴讀取全部子資料夾，每批最多檢查 500 個項目，並在每批完成後自動接續；可隨時按「暫停」。\n\n會更新 D1 曲目資料；封面依內容雜湊去重後存入 R2。原始音訊不會上傳或修改，也不會清除收藏、歌單或收聽紀錄。確定開始完整重掃？"
+      : "即將掃描 Music 根目錄：\n" + rootPath +
+        "\n\n每批最長執行 7,500 秒（2 小時 5 分鐘），最多檢查 500 個項目；單首索引最多嘗試 20 次（首次加 19 次重試）。會遞迴讀取子資料夾。未變更歌曲會跳過。原始音訊不會上傳或修改。確定開始／繼續？";
+    if (!window.confirm(confirmText)) return;
 
     scanRunning = true;
     scanPauseRequested = false;
     startButton.disabled = true;
+    fullRescanButton.disabled = true;
     $("#scan-podcast-batch").disabled = true;
+    $("#scan-podcast-full").disabled = true;
     pauseButton.disabled = false;
     const fakeButton = { disabled: false };
     let prefetchedFileInfo = null;
@@ -1032,6 +1276,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       directoryListMs: 0, catalogLookupMs: 0
     };
     let state = null;
+    let batchFailed = false;
 
     try {
       appendScanLog("========== 批次索引開始 ==========");
@@ -1041,8 +1286,12 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       const stored = await scanStateRequest(key);
       appendScanLog("D1 讀取掃描進度完成：" + Math.round(performance.now() - stateReadStartedAt) + " ms", "success");
       state = stored.state;
-      if (!state) {
-        state = newScanState(rootPath);
+      if (forceReindex) {
+        state = newScanState(rootPath, state, true);
+        appendScanLog("已啟用完整重掃：重新從根目錄開始，所有音訊都會重新解析標籤；先前掃描進度由新進度取代。", "warning");
+        await saveScanState(key, state);
+      } else if (!state) {
+        state = newScanState(rootPath, null, false);
         await saveScanState(key, state);
       } else {
         const queueRepair = reconcileLegacyFolderQueue(state);
@@ -1060,14 +1309,12 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
           if (!window.confirm(
             "這個目錄的上一輪掃描與資料夾階層索引都已完成。重新執行會跳過未變更歌曲，只索引新增或變更項目，不會刪除任何資料。要開始新一輪嗎？"
           )) return;
-          state = newScanState(rootPath, state);
+          state = newScanState(rootPath, state, false);
           await saveScanState(key, state);
         }
       }
 
       const retryPaths = await loadRetryPathSet();
-      appendScanLog("全域失敗重試佇列讀取完成：" + retryPaths.size + " 個待重試路徑",
-        retryPaths.size ? "warning" : "success");
       setScanProgress("批量索引已啟動。\n" + scanProgressText(state, batch), "ok");
       const startedAt = Date.now();
       const maxIndexedPerBatch = 500;
@@ -1113,7 +1360,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
 
           const failureMessage = String(indexed.error || "未知索引錯誤").slice(0, 700);
           if (/管理金鑰不正確|尚未設定 FRAME_AUDIO_ADMIN_TOKEN|HTTP 401|HTTP 403|驗證失敗|沒有.*權限/i.test(failureMessage)) {
-            throw new Error(failureMessage + " 請重新測試 Cloudflare 儲存連線或檢查 VPS Alist Token 後再繼續。");
+            throw new Error(failureMessage + " 請檢查對應來源的專用帳號 Secrets 及資料夾權限後再繼續。");
           }
           if (attempt < maxFileAttempts) {
             const retryDelayMs = 1500 * attempt;
@@ -1181,7 +1428,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         }
 
         batch.phase = "正在讀取目錄列表：" + state.currentFolder +
-          "（第 " + state.page + " 頁；單次最長 45 秒，最多自動重試 1 次）";
+          "（第 " + state.page + " 頁；單次最長 45 秒，遇到暫時性錯誤最多自動重試 3 次）";
         setScanProgress(scanProgressText(state, batch), "ok");
         const directoryListStartedAt = performance.now();
         const listing = await listOpenListDirectory({
@@ -1243,7 +1490,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
             const listedModified = item.modified || null;
             const queuedForRetry = retryPaths.has(fullPath);
             const alreadyRecovered = recoveredPaths.has(fullPath);
-            const unchanged = alreadyRecovered || (!queuedForRetry && existing &&
+            const unchanged = alreadyRecovered || (!state.forceReindex && !queuedForRetry && existing &&
               Number(existing.sizeBytes) === Number(item.size) &&
               !!listedModified &&
               existing.modifiedAt === listedModified);
@@ -1268,7 +1515,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
                   const candidatePath = joinOpenListPath(state.currentFolder, candidate.name);
                   const existingCandidate = existingByPath.get(candidatePath);
                   const candidateModified = candidate.modified || null;
-                  const candidateUnchanged = !retryPaths.has(candidatePath) && existingCandidate &&
+                  const candidateUnchanged = !state.forceReindex && !retryPaths.has(candidatePath) && existingCandidate &&
                     Number(existingCandidate.sizeBytes) === Number(candidate.size) &&
                     !!candidateModified &&
                     existingCandidate.modifiedAt === candidateModified;
@@ -1318,7 +1565,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
 
                 const failureMessage = String(indexed.error || "未知索引錯誤").slice(0, 700);
                 if (/管理金鑰不正確|尚未設定 FRAME_AUDIO_ADMIN_TOKEN|HTTP 401|HTTP 403|驗證失敗|沒有.*權限/i.test(failureMessage)) {
-                  throw new Error(failureMessage + " 請重新測試 Cloudflare 儲存連線或檢查 VPS Alist Token 後再繼續。");
+                  throw new Error(failureMessage + " 請檢查對應來源的專用帳號 Secrets 及資料夾權限後再繼續。");
                 }
                 if (attempt < maxFileAttempts) {
                   const retryDelayMs = 1500 * attempt;
@@ -1454,6 +1701,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       appendScanLog("========== 本批結束：" + batch.stopReason + " ==========", state.completed ? "success" : "warning");
       setScanProgress(scanProgressText(state, batch, true), "ok");
     } catch (error) {
+      batchFailed = true;
       appendScanLog("批次索引發生錯誤：" + (error.message || error), "error");
       if (state) {
         state.lastError = String(error.message || error).slice(0, 700);
@@ -1466,23 +1714,51 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       );
     } finally {
       scanRunning = false;
+      const shouldAutoContinue = !!state?.forceReindex && !state.completed &&
+        !scanPauseRequested && !batchFailed;
+      if (shouldAutoContinue) {
+        startButton.disabled = true;
+        fullRescanButton.disabled = true;
+        $("#scan-podcast-batch").disabled = true;
+        $("#scan-podcast-full").disabled = true;
+        pauseButton.disabled = false;
+        setScanProgress("本批已完成，完整重掃將自動接續下一批。你可以按「暫停」停止後續批次。", "ok");
+        window.setTimeout(() => {
+          if (scanPauseRequested) {
+            scanPauseRequested = false;
+            startButton.disabled = false;
+            fullRescanButton.disabled = false;
+            $("#scan-podcast-batch").disabled = false;
+            $("#scan-podcast-full").disabled = false;
+            pauseButton.disabled = true;
+            setScanProgress("完整重掃已暫停；目前進度已保存，可再按「掃描／續掃音樂」繼續。", "ok");
+            return;
+          }
+          void batchIndexCurrentTree();
+        }, 350);
+        return;
+      }
       startButton.disabled = false;
+      fullRescanButton.disabled = false;
       $("#scan-podcast-batch").disabled = false;
+      $("#scan-podcast-full").disabled = false;
       pauseButton.disabled = true;
     }
   }
 
-  async function batchIndexPodcastTree() {
+  async function batchIndexPodcastTree({ forceReindex = false, continuation = false } = {}) {
     const startButton = $("#scan-podcast-batch");
+    const fullRescanButton = $("#scan-podcast-full");
     const musicButton = $("#scan-music-batch");
+    const musicFullButton = $("#scan-music-full");
     const pauseButton = $("#scan-pause");
     if (scanRunning) return;
     if (!connected) {
-      setResult("請先測試 VPS Alist 連線，並確認 Podcast 根目錄可讀取。", "error");
+      setResult("請先測試目前活動來源連線，並確認 Podcast 根目錄可讀取。", "error");
       return;
     }
     if (!cloudflareStorageReady) {
-      setResult("請先輸入 Cloudflare 管理金鑰並成功測試 D1 / R2。", "error");
+      setResult("請先成功測試 Cloudflare D1 / R2。", "error");
       return;
     }
     let rootPath;
@@ -1492,22 +1768,32 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       setResult(error.message || "Podcast 根目錄路徑無效。", "error");
       return;
     }
-    if (!window.confirm(
-      "即將掃描 Podcast 根目錄：\n" + rootPath +
-      "\n\n第一層每個資料夾視為一個節目；其下所有子資料夾中的音訊檔視為單集。每批最多檢查 500 個項目，單集最多嘗試 20 次。原始音訊不會上傳或修改。確定開始／繼續？"
-    )) return;
+    if (!continuation) {
+      const confirmText = forceReindex
+        ? "即將完整重掃 Podcast 根目錄：\\n" + rootPath +
+          "\\n\\n這次會忽略既有 D1 的檔案大小／修改時間比對，重新遍歷第一層節目資料夾及所有子資料夾，重新解析每一個音訊單集的嵌入標籤。每批最多檢查 500 個項目，完成後自動接續下一批，可隨時暫停。\\n\\n會更新既有 Podcast 節目與單集索引；封面依內容雜湊去重後存入 R2。原始音訊不會上傳或修改，也不會刪除節目、單集、收藏或收聽紀錄。相同路徑的單集識別碼保持不變，因此既有收聽進度與報表關聯會保留。確定開始完整重掃？"
+        : "即將掃描 Podcast 根目錄：\\n" + rootPath +
+          "\\n\\n第一層每個資料夾視為一個節目；其下所有子資料夾中的音訊檔視為單集。每批最多檢查 500 個項目，單集最多嘗試 20 次。若上次完整重掃曾暫停，會沿用 D1 保存的完整重掃模式續作。原始音訊不會上傳或修改。確定開始／繼續？";
+      if (!window.confirm(confirmText)) return;
+    }
 
     scanRunning = true;
     scanPauseRequested = false;
     startButton.disabled = true;
+    fullRescanButton.disabled = true;
     musicButton.disabled = true;
+    musicFullButton.disabled = true;
     pauseButton.disabled = false;
-    appendScanLog("========== Podcast 獨立掃描入口 ==========");
+    appendScanLog(forceReindex
+      ? "========== Podcast 完整重掃入口 =========="
+      : "========== Podcast 掃描／續掃入口 ==========");
     appendScanLog("節目規則：Podcast 根目錄第一層資料夾 = 一個節目；子資料夾仍屬於該節目。");
+    let autoContinue = false;
     try {
       const result = await runPodcastBatch({
         baseUrl: activeBaseUrl,
         rootPath,
+        forceReindex,
         onLog: appendScanLog,
         onProgress: setScanProgress,
         shouldPause: () => scanPauseRequested
@@ -1515,23 +1801,54 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       if (result?.cancelled) {
         appendScanLog("Podcast 已完成掃描；使用者取消新一輪掃描。", "warning");
       } else if (result?.ok) {
+        const fullMode = result.state?.forceReindex === true;
+        const completed = result.completed === true;
         setResult(
-          "Podcast 掃描本批完成。\n根目錄：" + rootPath +
-          "\n節目資料夾：" + (result.state?.showFolders || []).length +
-          "\n本批新增／更新：" + (result.batch?.indexed || 0) +
+          (fullMode ? "Podcast 完整重掃" : "Podcast 掃描") + (completed ? "已完成。" : "本批完成。") +
+          "\\n根目錄：" + rootPath +
+          "\\n節目資料夾：" + (result.state?.showFolders || []).length +
+          "\\n本批新增／更新：" + (result.batch?.indexed || 0) +
           " 集；跳過：" + (result.batch?.skipped || 0) +
           " 集；失敗：" + (result.batch?.failed || 0) + " 集。",
-          "ok"
+          result.batch?.failed ? "error" : "ok"
         );
+        autoContinue = fullMode && !completed && !scanPauseRequested;
+      } else if (result?.error) {
+        setResult("Podcast 掃描中止：" + result.error, "error");
       }
     } catch (error) {
       appendScanLog("Podcast 掃描入口錯誤：" + (error.message || error), "error");
       setScanProgress(error.message || "Podcast 掃描失敗。", "error");
+      setResult(error.message || "Podcast 掃描失敗。", "error");
     } finally {
       scanRunning = false;
-      startButton.disabled = false;
-      musicButton.disabled = false;
-      pauseButton.disabled = true;
+      if (autoContinue) {
+        startButton.disabled = true;
+        fullRescanButton.disabled = true;
+        musicButton.disabled = true;
+        musicFullButton.disabled = true;
+        pauseButton.disabled = false;
+        setScanProgress("本批已完成，Podcast 完整重掃將自動接續下一批。你可以按「暫停」停止後續批次。", "ok");
+        window.setTimeout(() => {
+          if (scanPauseRequested) {
+            scanPauseRequested = false;
+            startButton.disabled = false;
+            fullRescanButton.disabled = false;
+            musicButton.disabled = false;
+            musicFullButton.disabled = false;
+            pauseButton.disabled = true;
+            setScanProgress("Podcast 完整重掃已暫停；進度已保存，可再按「掃描／續掃 Podcast」繼續。", "ok");
+            return;
+          }
+          void batchIndexPodcastTree({ continuation: true });
+        }, 350);
+      } else {
+        startButton.disabled = false;
+        fullRescanButton.disabled = false;
+        musicButton.disabled = false;
+        musicFullButton.disabled = false;
+        pauseButton.disabled = true;
+      }
     }
   }
 
@@ -1738,7 +2055,9 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   async function testConnection() {
     const button = $("#test-connection");
     const path = pathInput.value.trim() || "/";
-    applyActiveOpenListProvider($("#active-openlist-provider")?.value || activeProvider);
+    // The Test button always tests the saved active provider, never a pending
+    // dropdown selection that has not been explicitly activated.
+    applyActiveOpenListProvider(activeProvider);
     activeBaseUrl = activeConnection.baseUrl || window.location.origin;
     button.disabled = true;
     browseButton.disabled = true;
@@ -1748,25 +2067,39 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     $("#connection-label").textContent = "正在連接 " + name;
     $("#connection-dot").style.background = "#b78b75";
     setResult(activeProvider === "local"
-      ? "正在由手機瀏覽器直接連接本機 OpenList……"
-      : "正在透過 Cloudflare Pages Functions 連接 " + name + "……");
+      ? (activeConnection.token ? "正在由手機瀏覽器直接連接區域網路 OpenList……" : "區域網路 OpenList 尚未登入。請輸入帳號密碼並保存切換。")
+      : "正在透過 Cloudflare Pages Functions 連接目前活動來源 " + name + "……");
     try {
-      const result = await listOpenListDirectory({ baseUrl: activeBaseUrl, path, page: 1, perPage: 100 });
+      if (activeProvider === "local" && !activeConnection.token) throw new Error("區域網路 OpenList 尚未登入，請先輸入帳號密碼。");
+      if (activeProvider !== "local" && !serverProfiles[activeProvider]?.configured) {
+        throw new Error(name + " 尚未配置完成；沒有向該來源發出請求。");
+      }
+      const result = await listOpenListDirectory({
+        baseUrl: activeBaseUrl, path, page: 1, perPage: 100,
+        timeoutMs: 15000, maxAttempts: 1
+      });
       renderDirectory(result);
+      return true;
     } catch (cause) {
+      const errorMessage = String(cause?.message || cause);
+      if (activeProvider === "local" && /登入已失效|HTTP\\s*(?:401|403)|API\\s*(?:401|403)/i.test(errorMessage)) {
+        clearLocalOpenListSession();
+        applyActiveOpenListProvider("local");
+      }
       $("#connection-label").textContent = name + " 尚未連線";
       $("#connection-dot").style.background = "#b78b75";
-      setResult(cause.message || (name + " 連線失敗。"), "error");
+      setResult(errorMessage || (name + " 連線失敗。"), "error");
+      return false;
     } finally {
       button.disabled = false;
     }
   }
 
   $("#side-nav-toggle")?.addEventListener("click", () => {
-    const expanded = isMobileSidebarViewport()
-      ? document.body.classList.contains("mobile-sidebar-expanded")
-      : !document.body.classList.contains("desktop-sidebar-collapsed");
-    setSideNavigationExpanded(!expanded, true, !isMobileSidebarViewport());
+    if (!isMobileSidebarViewport()) return;
+    const expanded = document.body.classList.contains("mobile-sidebar-expanded")
+      && !document.body.classList.contains("mobile-sidebar-closing");
+    setSideNavigationExpanded(!expanded, true);
   });
   $("#mobile-nav-scrim")?.addEventListener("click", () => setSideNavigationExpanded(false, true));
   document.addEventListener("keydown", event => {
@@ -1774,15 +2107,15 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       setSideNavigationExpanded(false, true);
     }
   });
-  window.addEventListener("resize", () => {
-    setSideNavigationExpanded(false);
-  });
+  window.addEventListener("resize", handleSidebarViewportResize);
   syncSideNavigationViewport();
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => showView(button.dataset.view));
   });
   $("#scan-music-batch").addEventListener("click", batchIndexCurrentTree);
-  $("#scan-podcast-batch").addEventListener("click", batchIndexPodcastTree);
+  $("#scan-music-full").addEventListener("click", () => batchIndexCurrentTree({ forceReindex: true }));
+  $("#scan-podcast-batch").addEventListener("click", () => batchIndexPodcastTree());
+  $("#scan-podcast-full").addEventListener("click", () => batchIndexPodcastTree({ forceReindex: true }));
   $("#scan-log-copy").addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(scanLogEntries.join("\n"));
@@ -1884,14 +2217,16 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   });
 
   showView("music");
-  setResult("Cloudflare Access 已驗證，正在載入已保存的 OpenList 來源……");
+  setResult("Cloudflare Access 已驗證，正在恢復上次保存的活動來源……");
   setStorageResult("正在檢查伺服器端 D1 / R2 Secrets 與資料庫綁定……");
   (async () => {
     await loadConnectionSettings();
     if (activeProvider === "local") {
       // Chrome's loopback-network permission must be requested from a user gesture.
       // Never probe the phone's local OpenList automatically on page load.
-      setResult("已選取區域網路 OpenList。請在連線設定中點擊「測試目前來源並讀取目錄」，並允許瀏覽器存取本機服務。");
+      setResult(localSessionToken
+        ? "已恢復區域網路 OpenList 的本分頁登入狀態。重新整理無需重新登入；首次連線仍會在你操作播放或手動測試時進行。"
+        : "已恢復上次保存的活動來源：區域網路 OpenList。網址與帳號已保留，請輸入密碼登入。");
       await Promise.allSettled([testCloudflareStorage()]);
     } else {
       await Promise.allSettled([testConnection(), testCloudflareStorage()]);

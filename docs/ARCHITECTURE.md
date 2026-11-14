@@ -9,6 +9,7 @@
 - Store metadata and resumable scan checkpoints in D1.
 - Indexing is user-triggered; normal page load never scans the library.
 - Incremental scan skips unchanged files using path, file size and modification time when available.
+- A separate full Music re-scan mode ignores the unchanged-file check and re-parses embedded metadata for every audio file; it automatically chains bounded batches and remains resumable/pausable.
 - Resumable scan checkpoints reconcile legacy discovered-folder lists with pending work once, rechecking known directories without re-indexing unchanged audio.
 - The Folder Playlists view lists only immediate child folders of the configured Music root; each tile queues all indexed tracks below that folder.
 - A partial or failed scan never deletes existing catalogue rows.
@@ -17,6 +18,9 @@
 - Dedicated root: `/中國移動雲盤/Kim King/13 喜马拉雅`.
 - Every immediate child directory is one show; nested directories remain part of that show; each supported audio file is one episode.
 - Dedicated D1 tables, scan checkpoints and retry queue, independent from Music.
+- Incremental Podcast scans skip unchanged episodes using path, file size and modification time when available.
+- A separate full Podcast re-scan mode ignores the unchanged-file check, re-parses every episode, and automatically chains bounded batches while remaining resumable and pausable.
+- Re-indexing updates existing episode rows by stable path-derived ID; it does not delete show or episode catalogue rows or listening history.
 - Show cards, show detail, episode lists and ordered show playback.
 - Resume position is saved per episode.
 - Playback speed ranges from 0.5× to 2.0× and is saved per episode.
@@ -66,4 +70,4 @@ Podcast uses the same bounded browser Range approach but a separate state namesp
 - `listening_events`: per-session plays, active listening time and completion state.
 
 ## Deployment boundary
-Cloudflare Pages serves the static application and same-origin Functions API. Cloudflare Access protects Production and Preview hostnames. Pages middleware rejects API requests without an Access assertion and injects the `FRAME_AUDIO_API_ADMIN_TOKEN` application-level admin Secret server-side. Pages Functions read `ALIST_VPS_API_BASE_URL` / `ALIST_VPS_API_TOKEN` and `ALIST_WORKER_API_BASE_URL` / `ALIST_WORKER_API_TOKEN` server-side. Production and Preview require their own environment settings and existing D1/R2 bindings. The browser never receives either server-side Token; only the LAN-direct profile remains on the device.
+Cloudflare Pages serves the static application and same-origin Functions API. Cloudflare Access protects Production and Preview hostnames. Pages middleware rejects API requests without an Access assertion and injects the `FRAME_AUDIO_API_ADMIN_TOKEN` application-level admin Secret server-side. Pages Functions read `ALIST_VPS_API_BASE_URL`, `OPENLIST_WORKER_API_BASE_URL` and `ALIST_MOBILE_DEVICE_API_BASE_URL` together with the corresponding dedicated username/password Secrets. They obtain short-lived upstream JWTs through `/api/auth/login` and cache them in the environment-specific `MEDIA_AUTH_TOKEN_CACHE` KV namespace (with an isolate-memory fallback). Static API Token authentication is not supported. Production and Preview require their own environment settings and existing D1/R2 bindings. The browser never receives server-side credentials or JWTs; only the LAN-direct profile remains on the device.
