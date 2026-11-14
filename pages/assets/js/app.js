@@ -1,4 +1,4 @@
-import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo, configureOpenListConnection, normalizeOpenListUrl, loginOpenList } from "./openlist-client.js?v=20261113-default-mobile-device1";
+import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo, configureOpenListConnection, normalizeOpenListUrl, loginOpenList } from "./openlist-client.js?v=20261114-response-body-timeout1";
 import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261113-mobile-device-source1";
 import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js?v=20261113-mobile-device-source1";
 import { initLibraryUI } from "./library-ui.js?v=20261113-track-pages-500-cover-restore1";
@@ -428,10 +428,17 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     restoreLocalOpenListSession();
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+    let loadFailure = null;
+    const status = $("#provider-settings-status");
+    if (status) {
+      status.textContent = "正在向 Cloudflare Pages 讀取已保存的來源設定（逾時上限 15 秒）……";
+      status.className = "statusbox";
+    }
     try {
       const response = await fetch("/api/settings/connections", {
         credentials: "same-origin",
-        signal: controller.signal
+        signal: controller.signal,
+        cache: "no-store"
       });
       let data = {};
       try { data = await response.json(); } catch {}
@@ -442,20 +449,15 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         "mobile-device": data.profiles?.["mobile-device"] || { baseUrl: "", hasToken: false, configured: false }
       };
     } catch (cause) {
-      const failure = cause?.name === "AbortError"
-        ? new Error("讀取已保存的來源設定逾時（15 秒）。請檢查網路與 Cloudflare Access，重新整理後再試。")
+      loadFailure = cause?.name === "AbortError"
+        ? new Error("讀取已保存的來源設定逾時（15 秒）。請重新載入頁面；若持續發生，請檢查 Pages Functions 的執行錯誤。")
         : cause;
-      console.warn("[FRAME Audio] Could not load Cloudflare OpenList environment profiles", failure);
+      console.warn("[FRAME Audio] Could not load Cloudflare OpenList environment profiles", loadFailure);
       serverProfiles = {
         vps: { baseUrl: "", hasToken: false, configured: false },
         worker: { baseUrl: "", hasToken: false, configured: false },
         "mobile-device": { baseUrl: "", hasToken: false, configured: false }
       };
-      const status = $("#provider-settings-status");
-      if (status) {
-        status.textContent = "無法讀取 Cloudflare 伺服器端來源狀態：" + (failure.message || failure);
-        status.className = "statusbox error";
-      }
     } finally {
       window.clearTimeout(timeoutId);
     }
@@ -464,6 +466,13 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     activeProvider = selectedProviderFromStorage();
     fillConnectionSettingsForm();
     applyActiveOpenListProvider(activeProvider, false);
+    // fillConnectionSettingsForm() renders the profile summary, so restore a
+    // real request failure afterwards instead of masking it as a normal state.
+    if (loadFailure && status) {
+      status.textContent = "無法讀取 Cloudflare 伺服器端來源狀態：" + (loadFailure.message || loadFailure);
+      status.className = "statusbox error";
+    }
+    return !loadFailure;
   }
 
   function logoutLocalOpenList() {
@@ -529,8 +538,20 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         await testConnection();
       }
       if (status) {
+        status.textContent = "已切換至 " + (PROVIDER_LABELS[targetProvider] || targetProvider) + "，正在測試活動來源……";
+        status.className = "statusbox";
+      }
+      const testPassed = await testConnection();
+      if (!testPassed) {
+        if (status) {
+          status.textContent = "來源已切換，但連線測試失敗：" + (resultBox.textContent || "請查看下方連線狀態。");
+          status.className = "statusbox error";
+        }
+        return;
+      }
+      if (status) {
         status.textContent = "目前活動來源：" + (PROVIDER_LABELS[targetProvider] || targetProvider) +
-          "。只有活動來源會執行 API 請求；其他來源僅保留設定狀態，不會自動連線或測試。";
+          "。連線測試成功；只有活動來源會執行 API 請求。";
         status.className = "statusbox ok";
       }
     } catch (cause) {
@@ -1984,8 +2005,12 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       if (activeProvider !== "local" && !serverProfiles[activeProvider]?.configured) {
         throw new Error(name + " 尚未配置完成；沒有向該來源發出請求。");
       }
-      const result = await listOpenListDirectory({ baseUrl: activeBaseUrl, path, page: 1, perPage: 100 });
+      const result = await listOpenListDirectory({
+        baseUrl: activeBaseUrl, path, page: 1, perPage: 100,
+        timeoutMs: 15000, maxAttempts: 1
+      });
       renderDirectory(result);
+      return true;
     } catch (cause) {
       const errorMessage = String(cause?.message || cause);
       if (activeProvider === "local" && /登入已失效|HTTP\\s*(?:401|403)|API\\s*(?:401|403)/i.test(errorMessage)) {
@@ -1995,6 +2020,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       $("#connection-label").textContent = name + " 尚未連線";
       $("#connection-dot").style.background = "#b78b75";
       setResult(errorMessage || (name + " 連線失敗。"), "error");
+      return false;
     } finally {
       button.disabled = false;
     }

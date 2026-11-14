@@ -62,6 +62,7 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000, provi
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     let upstream;
+    let responseBodyText = "";
     const upstreamStartedAt = performance.now();
     try {
       upstream = await fetch(target.href, {
@@ -76,12 +77,19 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000, provi
         signal: controller.signal
       });
       upstreamMs += performance.now() - upstreamStartedAt;
+      // Keep the timeout active through body consumption. fetch() resolving
+      // only guarantees response headers, not that the JSON body has arrived.
+      if (!(upstream.status >= 300 && upstream.status < 400)) {
+        const bodyStartedAt = performance.now();
+        responseBodyText = await upstream.text();
+        bodyMs += performance.now() - bodyStartedAt;
+      }
     } catch (cause) {
       upstreamMs += performance.now() - upstreamStartedAt;
       if (cause?.name === "AbortError") {
         const elapsedMs = Math.round((performance.now() - startedAt) * 10) / 10;
         console.warn("[FRAME Audio] OpenList provider API timeout", {
-          provider: source, endpoint, timeoutMs, elapsedMs, profileMs, upstreamMs
+          provider: source, endpoint, timeoutMs, elapsedMs, profileMs, upstreamMs, bodyMs
         });
         return {
           response: error(label + " API 請求逾時（" + Math.round(elapsedMs / 1000) + " 秒）。", 504)
@@ -123,12 +131,9 @@ export async function postOpenList(env, endpoint, body, timeoutMs = 20000, provi
     }
 
     let payload;
-    const bodyStartedAt = performance.now();
     try {
-      payload = await upstream.json();
-      bodyMs += performance.now() - bodyStartedAt;
+      payload = JSON.parse(responseBodyText);
     } catch {
-      bodyMs += performance.now() - bodyStartedAt;
       return {
         response: error(label + " API 回應不是有效 JSON（HTTP " + upstream.status + "）。", upstream.status === 401 ? 401 : 502),
         upstream,
