@@ -520,7 +520,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         $("#local-openlist-password").value = "";
         applyActiveOpenListProvider("local", true);
         fillConnectionSettingsForm();
-        await testConnection();
       } else {
         if (!["vps", "worker", "mobile-device"].includes(targetProvider)) throw new Error("請選擇有效的音訊來源。");
         if (!serverProfiles[targetProvider]?.configured) {
@@ -535,7 +534,6 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         $("#local-openlist-password").value = "";
         applyActiveOpenListProvider(targetProvider, true);
         fillConnectionSettingsForm();
-        await testConnection();
       }
       if (status) {
         status.textContent = "已切換至 " + (PROVIDER_LABELS[targetProvider] || targetProvider) + "，正在測試活動來源……";
@@ -556,11 +554,11 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       }
     } catch (cause) {
       $("#local-openlist-password").value = "";
+      fillConnectionSettingsForm();
       if (status) {
         status.textContent = "設定或切換失敗：" + (cause.message || cause);
         status.className = "statusbox error";
       }
-      fillConnectionSettingsForm();
       setResult(cause.message || "保存或切換 OpenList 來源失敗。", "error");
     } finally { if (button) button.disabled = false; }
   }
