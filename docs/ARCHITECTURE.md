@@ -9,6 +9,7 @@
 - Store metadata and resumable scan checkpoints in D1.
 - Indexing is user-triggered; normal page load never scans the library.
 - Incremental scan skips unchanged files using path, file size and modification time when available.
+- A separate full Music re-scan mode ignores the unchanged-file check and re-parses embedded metadata for every audio file; it automatically chains bounded batches and remains resumable/pausable.
 - Resumable scan checkpoints reconcile legacy discovered-folder lists with pending work once, rechecking known directories without re-indexing unchanged audio.
 - The Folder Playlists view lists only immediate child folders of the configured Music root; each tile queues all indexed tracks below that folder.
 - A partial or failed scan never deletes existing catalogue rows.

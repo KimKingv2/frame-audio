@@ -1001,6 +1001,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   function scanProgressText(state, batch, finished = false) {
     const lines = [
       "掃描根目錄：" + state.rootPath,
+      "掃描模式：" + (state.forceReindex ? "完整重掃（不跳過未變更歌曲）" : "增量掃描"),
       "已寫入／更新：" + state.indexedCount + " 首",
       "未變更而跳過：" + state.skippedCount + " 首",
       "累計曾失敗：" + state.failedCount + " 首",
@@ -1116,11 +1117,12 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     }
   }
 
-  function newScanState(rootPath, previousState = null) {
+  function newScanState(rootPath, previousState = null, forceReindex = false) {
     return {
       version: 1,
       folderQueueVersion: 2,
       rootPath,
+      forceReindex: forceReindex === true,
       pendingFolders: [rootPath],
       currentFolder: null,
       page: 1,
@@ -1177,8 +1179,9 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     return { upgraded, restoredFolders };
   }
 
-  async function batchIndexCurrentTree() {
+  async function batchIndexCurrentTree({ forceReindex = false } = {}) {
     const startButton = $("#scan-music-batch");
+    const fullRescanButton = $("#scan-music-full");
     const pauseButton = $("#scan-pause");
     if (scanRunning) return;
     if (!connected) {
@@ -1196,14 +1199,17 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       setResult(error.message || "Music 根目錄路徑無效。", "error");
       return;
     }
-    if (!window.confirm(
-      "即將掃描 Music 根目錄：\n" + rootPath +
-      "\n\n每批最長執行 7,500 秒（2 小時 5 分鐘），最多檢查 500 個項目；單首索引最多嘗試 20 次（首次加 19 次重試）。會遞迴讀取子資料夾。原始音訊不會上傳或修改。確定開始／繼續？"
-    )) return;
+    const confirmText = forceReindex
+      ? "即將完整重掃 Music 根目錄：\n" + rootPath +
+        "\n\n這次會忽略既有 D1 的檔案大小／修改時間比對，重新讀取所有音訊的嵌入標籤並更新曲目索引。會遞迴讀取全部子資料夾，每批最多檢查 500 個項目，並在每批完成後自動接續；可隨時按「暫停」。\n\n會更新 D1 曲目資料；封面依內容雜湊去重後存入 R2。原始音訊不會上傳或修改，也不會清除收藏、歌單或收聽紀錄。確定開始完整重掃？
+      : "即將掃描 Music 根目錄：\n" + rootPath +
+        "\n\n每批最長執行 7,500 秒（2 小時 5 分鐘），最多檢查 500 個項目；單首索引最多嘗試 20 次（首次加 19 次重試）。會遞迴讀取子資料夾。未變更歌曲會跳過。原始音訊不會上傳或修改。確定開始／繼續？";
+    if (!window.confirm(confirmText)) return;
 
     scanRunning = true;
     scanPauseRequested = false;
     startButton.disabled = true;
+    fullRescanButton.disabled = true;
     $("#scan-podcast-batch").disabled = true;
     pauseButton.disabled = false;
     const fakeButton = { disabled: false };
@@ -1214,6 +1220,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       directoryListMs: 0, catalogLookupMs: 0
     };
     let state = null;
+    let batchFailed = false;
 
     try {
       appendScanLog("========== 批次索引開始 ==========");
@@ -1223,8 +1230,12 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       const stored = await scanStateRequest(key);
       appendScanLog("D1 讀取掃描進度完成：" + Math.round(performance.now() - stateReadStartedAt) + " ms", "success");
       state = stored.state;
-      if (!state) {
-        state = newScanState(rootPath);
+      if (forceReindex) {
+        state = newScanState(rootPath, state, true);
+        appendScanLog("已啟用完整重掃：重新從根目錄開始，所有音訊都會重新解析標籤；先前掃描進度由新進度取代。", "warning");
+        await saveScanState(key, state);
+      } else if (!state) {
+        state = newScanState(rootPath, null, false);
         await saveScanState(key, state);
       } else {
         const queueRepair = reconcileLegacyFolderQueue(state);
@@ -1242,7 +1253,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
           if (!window.confirm(
             "這個目錄的上一輪掃描與資料夾階層索引都已完成。重新執行會跳過未變更歌曲，只索引新增或變更項目，不會刪除任何資料。要開始新一輪嗎？"
           )) return;
-          state = newScanState(rootPath, state);
+          state = newScanState(rootPath, state, false);
           await saveScanState(key, state);
         }
       }
@@ -1425,7 +1436,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
             const listedModified = item.modified || null;
             const queuedForRetry = retryPaths.has(fullPath);
             const alreadyRecovered = recoveredPaths.has(fullPath);
-            const unchanged = alreadyRecovered || (!queuedForRetry && existing &&
+            const unchanged = alreadyRecovered || (!state.forceReindex && !queuedForRetry && existing &&
               Number(existing.sizeBytes) === Number(item.size) &&
               !!listedModified &&
               existing.modifiedAt === listedModified);
@@ -1450,7 +1461,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
                   const candidatePath = joinOpenListPath(state.currentFolder, candidate.name);
                   const existingCandidate = existingByPath.get(candidatePath);
                   const candidateModified = candidate.modified || null;
-                  const candidateUnchanged = !retryPaths.has(candidatePath) && existingCandidate &&
+                  const candidateUnchanged = !state.forceReindex && !retryPaths.has(candidatePath) && existingCandidate &&
                     Number(existingCandidate.sizeBytes) === Number(candidate.size) &&
                     !!candidateModified &&
                     existingCandidate.modifiedAt === candidateModified;
@@ -1636,6 +1647,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       appendScanLog("========== 本批結束：" + batch.stopReason + " ==========", state.completed ? "success" : "warning");
       setScanProgress(scanProgressText(state, batch, true), "ok");
     } catch (error) {
+      batchFailed = true;
       appendScanLog("批次索引發生錯誤：" + (error.message || error), "error");
       if (state) {
         state.lastError = String(error.message || error).slice(0, 700);
@@ -1648,7 +1660,30 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       );
     } finally {
       scanRunning = false;
+      const shouldAutoContinue = !!state?.forceReindex && !state.completed &&
+        !scanPauseRequested && !batchFailed;
+      if (shouldAutoContinue) {
+        startButton.disabled = true;
+        fullRescanButton.disabled = true;
+        $("#scan-podcast-batch").disabled = true;
+        pauseButton.disabled = false;
+        setScanProgress("本批已完成，完整重掃將自動接續下一批。你可以按「暫停」停止後續批次。", "ok");
+        window.setTimeout(() => {
+          if (scanPauseRequested) {
+            scanPauseRequested = false;
+            startButton.disabled = false;
+            fullRescanButton.disabled = false;
+            $("#scan-podcast-batch").disabled = false;
+            pauseButton.disabled = true;
+            setScanProgress("完整重掃已暫停；目前進度已保存，可再按「掃描／續掃音樂」繼續。", "ok");
+            return;
+          }
+          void batchIndexCurrentTree();
+        }, 350);
+        return;
+      }
       startButton.disabled = false;
+      fullRescanButton.disabled = false;
       $("#scan-podcast-batch").disabled = false;
       pauseButton.disabled = true;
     }
@@ -1973,6 +2008,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     button.addEventListener("click", () => showView(button.dataset.view));
   });
   $("#scan-music-batch").addEventListener("click", batchIndexCurrentTree);
+  $("#scan-music-full").addEventListener("click", () => batchIndexCurrentTree({ forceReindex: true }));
   $("#scan-podcast-batch").addEventListener("click", batchIndexPodcastTree);
   $("#scan-log-copy").addEventListener("click", async () => {
     try {
