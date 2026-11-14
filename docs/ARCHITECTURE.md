@@ -18,6 +18,9 @@
 - Dedicated root: `/中國移動雲盤/Kim King/13 喜马拉雅`.
 - Every immediate child directory is one show; nested directories remain part of that show; each supported audio file is one episode.
 - Dedicated D1 tables, scan checkpoints and retry queue, independent from Music.
+- Incremental Podcast scans skip unchanged episodes using path, file size and modification time when available.
+- A separate full Podcast re-scan mode ignores the unchanged-file check, re-parses every episode, and automatically chains bounded batches while remaining resumable and pausable.
+- Re-indexing updates existing episode rows by stable path-derived ID; it does not delete show or episode catalogue rows or listening history.
 - Show cards, show detail, episode lists and ordered show playback.
 - Resume position is saved per episode.
 - Playback speed ranges from 0.5× to 2.0× and is saved per episode.

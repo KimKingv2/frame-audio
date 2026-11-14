@@ -1,6 +1,6 @@
 import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo, configureOpenListConnection, normalizeOpenListUrl, loginOpenList } from "./openlist-client.js?v=20261114-response-body-timeout1";
 import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261113-mobile-device-source1";
-import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js?v=20261113-mobile-device-source1";
+import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js?v=20261114-podcast-full-rescan1";
 import { initLibraryUI } from "./library-ui.js?v=20261113-track-pages-500-cover-restore1";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
@@ -1240,6 +1240,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
     startButton.disabled = true;
     fullRescanButton.disabled = true;
     $("#scan-podcast-batch").disabled = true;
+    $("#scan-podcast-full").disabled = true;
     pauseButton.disabled = false;
     const fakeButton = { disabled: false };
     let prefetchedFileInfo = null;
@@ -1695,6 +1696,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
         startButton.disabled = true;
         fullRescanButton.disabled = true;
         $("#scan-podcast-batch").disabled = true;
+        $("#scan-podcast-full").disabled = true;
         pauseButton.disabled = false;
         setScanProgress("本批已完成，完整重掃將自動接續下一批。你可以按「暫停」停止後續批次。", "ok");
         window.setTimeout(() => {
@@ -1703,6 +1705,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
             startButton.disabled = false;
             fullRescanButton.disabled = false;
             $("#scan-podcast-batch").disabled = false;
+            $("#scan-podcast-full").disabled = false;
             pauseButton.disabled = true;
             setScanProgress("完整重掃已暫停；目前進度已保存，可再按「掃描／續掃音樂」繼續。", "ok");
             return;
@@ -1714,21 +1717,24 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       startButton.disabled = false;
       fullRescanButton.disabled = false;
       $("#scan-podcast-batch").disabled = false;
+      $("#scan-podcast-full").disabled = false;
       pauseButton.disabled = true;
     }
   }
 
-  async function batchIndexPodcastTree() {
+  async function batchIndexPodcastTree({ forceReindex = false, continuation = false } = {}) {
     const startButton = $("#scan-podcast-batch");
+    const fullRescanButton = $("#scan-podcast-full");
     const musicButton = $("#scan-music-batch");
+    const musicFullButton = $("#scan-music-full");
     const pauseButton = $("#scan-pause");
     if (scanRunning) return;
     if (!connected) {
-      setResult("請先測試 VPS Alist 連線，並確認 Podcast 根目錄可讀取。", "error");
+      setResult("請先測試目前活動來源連線，並確認 Podcast 根目錄可讀取。", "error");
       return;
     }
     if (!cloudflareStorageReady) {
-      setResult("請先輸入 Cloudflare 管理金鑰並成功測試 D1 / R2。", "error");
+      setResult("請先成功測試 Cloudflare D1 / R2。", "error");
       return;
     }
     let rootPath;
@@ -1738,22 +1744,32 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       setResult(error.message || "Podcast 根目錄路徑無效。", "error");
       return;
     }
-    if (!window.confirm(
-      "即將掃描 Podcast 根目錄：\n" + rootPath +
-      "\n\n第一層每個資料夾視為一個節目；其下所有子資料夾中的音訊檔視為單集。每批最多檢查 500 個項目，單集最多嘗試 20 次。原始音訊不會上傳或修改。確定開始／繼續？"
-    )) return;
+    if (!continuation) {
+      const confirmText = forceReindex
+        ? "即將完整重掃 Podcast 根目錄：\\n" + rootPath +
+          "\\n\\n這次會忽略既有 D1 的檔案大小／修改時間比對，重新遍歷第一層節目資料夾及所有子資料夾，重新解析每一個音訊單集的嵌入標籤。每批最多檢查 500 個項目，完成後自動接續下一批，可隨時暫停。\\n\\n會更新既有 Podcast 節目與單集索引；封面依內容雜湊去重後存入 R2。原始音訊不會上傳或修改，也不會刪除節目、單集、收藏或收聽紀錄。相同路徑的單集識別碼保持不變，因此既有收聽進度與報表關聯會保留。確定開始完整重掃？"
+        : "即將掃描 Podcast 根目錄：\\n" + rootPath +
+          "\\n\\n第一層每個資料夾視為一個節目；其下所有子資料夾中的音訊檔視為單集。每批最多檢查 500 個項目，單集最多嘗試 20 次。若上次完整重掃曾暫停，會沿用 D1 保存的完整重掃模式續作。原始音訊不會上傳或修改。確定開始／繼續？";
+      if (!window.confirm(confirmText)) return;
+    }
 
     scanRunning = true;
     scanPauseRequested = false;
     startButton.disabled = true;
+    fullRescanButton.disabled = true;
     musicButton.disabled = true;
+    musicFullButton.disabled = true;
     pauseButton.disabled = false;
-    appendScanLog("========== Podcast 獨立掃描入口 ==========");
+    appendScanLog(forceReindex
+      ? "========== Podcast 完整重掃入口 =========="
+      : "========== Podcast 掃描／續掃入口 ==========");
     appendScanLog("節目規則：Podcast 根目錄第一層資料夾 = 一個節目；子資料夾仍屬於該節目。");
+    let autoContinue = false;
     try {
       const result = await runPodcastBatch({
         baseUrl: activeBaseUrl,
         rootPath,
+        forceReindex,
         onLog: appendScanLog,
         onProgress: setScanProgress,
         shouldPause: () => scanPauseRequested
@@ -1761,23 +1777,54 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       if (result?.cancelled) {
         appendScanLog("Podcast 已完成掃描；使用者取消新一輪掃描。", "warning");
       } else if (result?.ok) {
+        const fullMode = result.state?.forceReindex === true;
+        const completed = result.completed === true;
         setResult(
-          "Podcast 掃描本批完成。\n根目錄：" + rootPath +
-          "\n節目資料夾：" + (result.state?.showFolders || []).length +
-          "\n本批新增／更新：" + (result.batch?.indexed || 0) +
+          (fullMode ? "Podcast 完整重掃" : "Podcast 掃描") + (completed ? "已完成。" : "本批完成。") +
+          "\\n根目錄：" + rootPath +
+          "\\n節目資料夾：" + (result.state?.showFolders || []).length +
+          "\\n本批新增／更新：" + (result.batch?.indexed || 0) +
           " 集；跳過：" + (result.batch?.skipped || 0) +
           " 集；失敗：" + (result.batch?.failed || 0) + " 集。",
-          "ok"
+          result.batch?.failed ? "error" : "ok"
         );
+        autoContinue = fullMode && !completed && !scanPauseRequested;
+      } else if (result?.error) {
+        setResult("Podcast 掃描中止：" + result.error, "error");
       }
     } catch (error) {
       appendScanLog("Podcast 掃描入口錯誤：" + (error.message || error), "error");
       setScanProgress(error.message || "Podcast 掃描失敗。", "error");
+      setResult(error.message || "Podcast 掃描失敗。", "error");
     } finally {
       scanRunning = false;
-      startButton.disabled = false;
-      musicButton.disabled = false;
-      pauseButton.disabled = true;
+      if (autoContinue) {
+        startButton.disabled = true;
+        fullRescanButton.disabled = true;
+        musicButton.disabled = true;
+        musicFullButton.disabled = true;
+        pauseButton.disabled = false;
+        setScanProgress("本批已完成，Podcast 完整重掃將自動接續下一批。你可以按「暫停」停止後續批次。", "ok");
+        window.setTimeout(() => {
+          if (scanPauseRequested) {
+            scanPauseRequested = false;
+            startButton.disabled = false;
+            fullRescanButton.disabled = false;
+            musicButton.disabled = false;
+            musicFullButton.disabled = false;
+            pauseButton.disabled = true;
+            setScanProgress("Podcast 完整重掃已暫停；進度已保存，可再按「掃描／續掃 Podcast」繼續。", "ok");
+            return;
+          }
+          void batchIndexPodcastTree({ continuation: true });
+        }, 350);
+      } else {
+        startButton.disabled = false;
+        fullRescanButton.disabled = false;
+        musicButton.disabled = false;
+        musicFullButton.disabled = false;
+        pauseButton.disabled = true;
+      }
     }
   }
 
@@ -2043,7 +2090,8 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
   });
   $("#scan-music-batch").addEventListener("click", batchIndexCurrentTree);
   $("#scan-music-full").addEventListener("click", () => batchIndexCurrentTree({ forceReindex: true }));
-  $("#scan-podcast-batch").addEventListener("click", batchIndexPodcastTree);
+  $("#scan-podcast-batch").addEventListener("click", () => batchIndexPodcastTree());
+  $("#scan-podcast-full").addEventListener("click", () => batchIndexPodcastTree({ forceReindex: true }));
   $("#scan-log-copy").addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(scanLogEntries.join("\n"));
