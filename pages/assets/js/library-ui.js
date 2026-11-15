@@ -2687,7 +2687,7 @@ export function initLibraryUI(options = {}) {
         try{await ensureFullCatalog();}
         catch(error){message(error?.message||"完整曲庫同步失敗，請稍後重試。","error");return;}
       }
-      if(state.loaded||state.homeReady)render();
+      // load() and ensureFullCatalog() render when their data is ready.
       return;
     }
     render();
