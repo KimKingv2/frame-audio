@@ -702,8 +702,8 @@ export function initLibraryUI(options = {}) {
     })();
     try{await catalogBootstrapPromise;}
     catch(error){
+      console.warn("[FRAME Audio] Catalogue bootstrap failed.",error);
       message(error?.message||"曲庫讀取失敗。請確認 Cloudflare D1 與 Access 連線。","error");
-      throw error;
     }finally{
       state.busy=false;
       catalogBootstrapPromise=null;
@@ -817,7 +817,7 @@ export function initLibraryUI(options = {}) {
           counts:nextCounts,
           revision:String(snapshot.revision||""),
           syncedAt:Date.now(),
-          home:{recentTracks:state.recentTracks}
+          home:{recentTrackRefs:makeRecentTrackRefs(state.recentTracks)}
         };
         if(catalogCacheDb){
           try{await writeCatalogMeta(catalogCacheDb,catalogMeta);}
