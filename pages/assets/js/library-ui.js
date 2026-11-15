@@ -603,15 +603,38 @@ export function initLibraryUI(options = {}) {
     state.recentTracks=Array.isArray(snapshot?.recentTracks)?snapshot.recentTracks:[];
     if(!state.loaded)state.shows=Array.isArray(snapshot?.shows)?snapshot.shows:[];
   }
+  function makeRecentTrackRefs(items) {
+    return (Array.isArray(items)?items:[]).slice(0,8).map(item=>({
+      id:String(item?.id||item?.item_id||""),
+      path:String(item?.file?.path||item?.path||""),
+      title:String(item?.title||""),
+      recentlyPlayedAt:String(item?.recentlyPlayedAt||item?.updated_at||"")
+    })).filter(item=>item.id||item.path);
+  }
+  function restoreRecentTrackRefs(refs,tracks) {
+    const byId=new Map(),byPath=new Map();
+    for(const item of tracks||[]){
+      const id=String(item?.id||item?.item_id||"");
+      const path=String(item?.file?.path||item?.path||"");
+      if(id&&!byId.has(id))byId.set(id,item);
+      if(path&&!byPath.has(path))byPath.set(path,item);
+    }
+    return (Array.isArray(refs)?refs:[]).map(ref=>{
+      if(ref&&typeof ref==="object"&&Array.isArray(ref.artists))return ref;
+      const id=String(ref?.id||ref?.item_id||"");
+      const path=String(ref?.path||"");
+      const item=(id&&byId.get(id))||(path&&byPath.get(path));
+      return item?{...item,recentlyPlayedAt:ref.recentlyPlayedAt||""}:
+        {id,path,title:String(ref?.title||path.split("/").pop()||"未命名音訊"),recentlyPlayedAt:ref?.recentlyPlayedAt||""};
+    });
+  }
   function makeCatalogMeta(snapshot,homeSnapshot,complete=true) {
     return {
       complete,
       revision:String(snapshot?.revision||""),
       counts:normalizeCatalogCounts(snapshot?.counts),
       syncedAt:Date.now(),
-      home:{
-        recentTracks:Array.isArray(homeSnapshot?.recentTracks)?homeSnapshot.recentTracks:[],
-      }
+      home:{recentTrackRefs:makeRecentTrackRefs(homeSnapshot?.recentTracks)}
     };
   }
   function mergeCatalogRows(current,updates,manifestIds) {
@@ -658,7 +681,9 @@ export function initLibraryUI(options = {}) {
         state.episodes=cached.episodes;
         state.catalogCounts=normalizeCatalogCounts(cached.meta.counts);
         state.catalogRevision=String(cached.meta.revision||"");
-        state.recentTracks=Array.isArray(cached.meta.home?.recentTracks)?cached.meta.home.recentTracks:[];
+        state.recentTracks=restoreRecentTrackRefs(
+          cached.meta.home?.recentTrackRefs||cached.meta.home?.recentTracks,cached.tracks
+        );
         state.homeReady=true;
         state.loaded=true;
         state.loadedAt=Date.now();
@@ -776,7 +801,7 @@ export function initLibraryUI(options = {}) {
           catalogMeta={
             ...(catalogMeta||makeCatalogMeta({revision:previousRevision,counts:previousCounts},snapshot,true)),
             syncedAt:Date.now(),
-            home:{recentTracks:state.recentTracks}
+            home:{recentTrackRefs:makeRecentTrackRefs(state.recentTracks)}
           };
         }
         if(catalogCacheDb){

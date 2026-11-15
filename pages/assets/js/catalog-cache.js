@@ -94,13 +94,24 @@ export async function clearCatalogData(db) {
   await done;
 }
 
+function compactCatalogItem(storeName, item) {
+  if (!item || typeof item !== "object") return item;
+  if (storeName !== "tracks" || !item.metadata?.common ||
+      !Object.prototype.hasOwnProperty.call(item.metadata.common, "lyrics")) return item;
+  const common = { ...item.metadata.common };
+  delete common.lyrics;
+  return { ...item, metadata: { ...item.metadata, common } };
+}
+
 export async function putCatalogBatch(db, storeName, items) {
   if (!db || !DATA_STORES.includes(storeName) || !Array.isArray(items) || !items.length) return;
   const transaction = db.transaction(storeName, "readwrite");
   const done = transactionDone(transaction);
   const store = transaction.objectStore(storeName);
   for (const item of items) {
-    if (item && typeof item.id === "string" && item.id) store.put(item);
+    if (item && typeof item.id === "string" && item.id) {
+      store.put(compactCatalogItem(storeName, item));
+    }
   }
   await done;
 }
