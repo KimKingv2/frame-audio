@@ -1,5 +1,6 @@
 import { getOpenListFileInfo } from "./openlist-client.js?v=20261112-four-source-login1";
 import { parseSynchronizedLyrics } from "./player-effects.js?v=20261111-sylt-ms1";
+import { readCatalogCache, openCatalogCache, clearCatalogData, putCatalogBatch, pruneCatalogCache, writeCatalogMeta } from "./catalog-cache.js?v=20261115-idb-sync1";
 
 const PERIODS = [["week","近 7 日"],["month","近 30 日"],["year","近 365 日"],["all","全部時間"]];
 const PLAYBACK_QUEUE_STORAGE_KEY = "frame-audio-playback-queue-v1";
@@ -30,7 +31,7 @@ export function initLibraryUI(options = {}) {
     preloadEntry:null,preloadAudio:null,preloadGeneration:0,restoredPlaybackPending:false,lastLocalPositionSaveAt:0,
     playMode:"sequential",shuffleEnabled:false,shuffleOrder:[],shufflePosition:-1,
     lyricsCues:[],lyricsPlainLines:[],lyricsActiveIndex:-1,
-    lyricsScrollPause:new WeakMap()
+    lyricsScrollPause:new WeakMap(),homeReady:false,catalogCounts:{tracks:0,folders:0,shows:0,episodes:0},catalogRevision:"",homeReady:false,catalogCounts:{tracks:0,folders:0,shows:0,episodes:0},catalogRevision:""
   };
   const PLAY_MODES=["sequential","repeat-one","repeat-all"];
   const TRACKS_PAGE_SIZE=500;
@@ -42,6 +43,13 @@ export function initLibraryUI(options = {}) {
     list:null,canvas:null,pool:[],queue:null,order:null,itemType:"",total:0,
     rowHeight:0,poolSize:0,start:0,emptyNode:null
   };
+  let catalogBootstrapPromise=null;
+  let catalogInitPromise=null;
+  let catalogSyncPromise=null;
+  let catalogCacheDb=null;
+  let catalogMeta=null;
+  let coverObserver=null;
+  let coverGeneration=0;
   const esc = value => String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const duration = value => {
     const n=Math.max(0,Math.floor(Number(value||0)/1000)),h=Math.floor(n/3600),m=Math.floor(n%3600/60),s=n%60;
@@ -545,12 +553,17 @@ export function initLibraryUI(options = {}) {
     if(!response.ok||data.ok===false)throw new Error(data.error||("API HTTP "+response.status));
     return data;
   }
-  async function all(url) {
+  async function all(url,storeName="",cacheContext=null) {
     const result=[];let offset=0;
     while(true){
       const sep=url.includes("?")?"&":"?";
       const page=await api(url+sep+"limit=500&offset="+offset);
-      result.push(...(page.items||[]));
+      const items=page.items||[];
+      result.push(...items);
+      if(cacheContext?.db&&storeName&&items.length){
+        try{await putCatalogBatch(cacheContext.db,storeName,items);}
+        catch(error){console.warn("[FRAME Audio] IndexedDB page write failed; continuing without local cache.",error);cacheContext.db=null;}
+      }
       if(page.nextOffset==null||page.nextOffset<=offset)break;
       offset=page.nextOffset;
     }
@@ -572,28 +585,227 @@ export function initLibraryUI(options = {}) {
     }
     root.innerHTML='<div class="library-message '+(type?"is-"+type:"")+'">'+esc(text)+'</div>';
   }
+  function normalizeCatalogCounts(value={}) {
+    return {
+      tracks:Math.max(0,Number(value.tracks)||0),
+      folders:Math.max(0,Number(value.folders)||0),
+      shows:Math.max(0,Number(value.shows)||0),
+      episodes:Math.max(0,Number(value.episodes)||0)
+    };
+  }
+  function sameCatalogCounts(a={},b={}) {
+    return ["tracks","folders","shows","episodes"].every(key=>Number(a[key]||0)===Number(b[key]||0));
+  }
+  function applyHomeSnapshot(snapshot) {
+    state.homeReady=true;
+    state.catalogCounts=normalizeCatalogCounts(snapshot?.counts);
+    state.catalogRevision=String(snapshot?.revision||"");
+    state.recentTracks=Array.isArray(snapshot?.recentTracks)?snapshot.recentTracks:[];
+    if(!state.loaded)state.shows=Array.isArray(snapshot?.shows)?snapshot.shows:[];
+  }
+  function makeCatalogMeta(snapshot,homeSnapshot,complete=true) {
+    return {
+      complete,
+      revision:String(snapshot?.revision||""),
+      counts:normalizeCatalogCounts(snapshot?.counts),
+      syncedAt:Date.now(),
+      home:{
+        recentTracks:Array.isArray(homeSnapshot?.recentTracks)?homeSnapshot.recentTracks:[],
+      }
+    };
+  }
+  function mergeCatalogRows(current,updates,manifestIds) {
+    const records=new Map((current||[]).map(item=>[String(item?.id||""),item]).filter(([id])=>id));
+    for(const item of updates||[]){
+      const id=String(item?.id||"");
+      if(id)records.set(id,item);
+    }
+    if(!Array.isArray(manifestIds))return [...records.values()];
+    const allowed=new Set(manifestIds.map(String));
+    return [...records.values()].filter(item=>allowed.has(String(item?.id||"")));
+  }
+  function cacheMatchesCounts(cache) {
+    if(!cache?.meta?.complete||!cache.meta.counts)return false;
+    const counts=normalizeCatalogCounts(cache.meta.counts);
+    return cache.tracks.length===counts.tracks&&cache.folders.length===counts.folders&&
+      cache.shows.length===counts.shows&&cache.episodes.length===counts.episodes;
+  }
+  async function optionalPodcastAll(url,storeName,cacheContext) {
+    try{return await all(url,storeName,cacheContext);}
+    catch(error){
+      if(/Podcast.*(?:初始化|資料表)|migrations\/0002_podcasts/i.test(String(error?.message||error)))return [];
+      throw error;
+    }
+  }
   async function load(force=false) {
-    if(state.busy)return;
-    if(!force&&state.loaded&&Date.now()-state.loadedAt<30000){render();return;}
-    state.busy=true;message("正在讀取 Music 與 Podcast 曲庫……");
-    try {
-      const [tracks,folders,shows,episodes,recentResult]=await Promise.all([
-        all("/api/catalog?kind=tracks"),all("/api/catalog?kind=folders"),
-        all("/api/catalog/podcasts?kind=shows"),all("/api/catalog/podcasts?kind=episodes"),
-        api("/api/listening?view=recent&itemType=track&limit=8").catch(()=>({items:[]}))
-      ]);
-      const sortedTracks=tracks.slice().sort(compareTrackFileNames);
-      Object.assign(state,{tracks:sortedTracks,folders,shows,episodes,loaded:true,loadedAt:Date.now()});
-      const tracksById=new Map(sortedTracks.map(item=>[String(item.id||""),item]).filter(([id])=>id));
-      const tracksByPath=new Map(sortedTracks.map(item=>[String(pathOf(item)||""),item]).filter(([path])=>path));
-      state.recentTracks=(recentResult.items||[]).map(record=>{
-        const item=tracksById.get(String(record.item_id||""))||tracksByPath.get(String(record.path||""));
-        return item?{...item,recentlyPlayedAt:record.updated_at}:{...record,id:record.item_id,path:record.path,recentlyPlayedAt:record.updated_at};
+    if(state.loaded){
+      if(force)await syncCatalogInBackground();
+      else render();
+      return;
+    }
+    if(catalogBootstrapPromise)return catalogBootstrapPromise;
+    state.busy=true;
+    catalogBootstrapPromise=(async()=>{
+      let cached=null;
+      try{cached=await readCatalogCache();}
+      catch(error){console.warn("[FRAME Audio] IndexedDB unavailable; using server bootstrap.",error);}
+      if(cacheMatchesCounts(cached)){
+        catalogCacheDb=cached.db;
+        catalogMeta=cached.meta;
+        state.tracks=cached.tracks.slice().sort(compareTrackFileNames);
+        state.folders=cached.folders;
+        state.shows=cached.shows;
+        state.episodes=cached.episodes;
+        state.catalogCounts=normalizeCatalogCounts(cached.meta.counts);
+        state.catalogRevision=String(cached.meta.revision||"");
+        state.recentTracks=Array.isArray(cached.meta.home?.recentTracks)?cached.meta.home.recentTracks:[];
+        state.homeReady=true;
+        state.loaded=true;
+        state.loadedAt=Date.now();
+        restoreSavedPlaybackState();
+        render();
+        void syncCatalogInBackground();
+        return;
+      }
+
+      const homeSnapshot=await api("/api/catalog/home");
+      applyHomeSnapshot(homeSnapshot);
+      render();
+      void ensureFullCatalog(homeSnapshot).catch(error=>{
+        console.warn("[FRAME Audio] Initial catalogue sync failed.",error);
+        if(state.view!=="music")message(error?.message||"曲庫首次同步失敗，請稍後重試。","error");
       });
+    })();
+    try{await catalogBootstrapPromise;}
+    catch(error){
+      message(error?.message||"曲庫讀取失敗。請確認 Cloudflare D1 與 Access 連線。","error");
+      throw error;
+    }finally{
+      state.busy=false;
+      catalogBootstrapPromise=null;
+    }
+  }
+  async function ensureFullCatalog(homeSnapshot=null) {
+    if(state.loaded)return;
+    if(catalogInitPromise)return catalogInitPromise;
+    catalogInitPromise=(async()=>{
+      let snapshot=homeSnapshot;
+      if(!snapshot)snapshot=await api("/api/catalog/home");
+      const cacheContext={db:null};
+      try{
+        cacheContext.db=await openCatalogCache();
+        if(cacheContext.db)await clearCatalogData(cacheContext.db);
+      }catch(error){
+        console.warn("[FRAME Audio] Could not prepare IndexedDB; loading the catalogue in memory only.",error);
+        cacheContext.db=null;
+      }
+      const [tracks,folders,shows,episodes]=await Promise.all([
+        all("/api/catalog?kind=tracks","tracks",cacheContext),
+        all("/api/catalog?kind=folders","folders",cacheContext),
+        optionalPodcastAll("/api/catalog/podcasts?kind=shows","shows",cacheContext),
+        optionalPodcastAll("/api/catalog/podcasts?kind=episodes","episodes",cacheContext)
+      ]);
+      state.tracks=tracks.slice().sort(compareTrackFileNames);
+      state.folders=folders;
+      state.shows=shows;
+      state.episodes=episodes;
+      state.homeReady=true;
+      state.loaded=true;
+      state.loadedAt=Date.now();
+      state.catalogCounts=normalizeCatalogCounts(snapshot?.counts);
+      state.catalogRevision=String(snapshot?.revision||"");
+      catalogCacheDb=cacheContext.db;
+      catalogMeta=makeCatalogMeta(snapshot,snapshot,true);
+      if(catalogCacheDb){
+        try{await writeCatalogMeta(catalogCacheDb,catalogMeta);}
+        catch(error){console.warn("[FRAME Audio] Could not save IndexedDB sync metadata.",error);catalogCacheDb=null;}
+      }
       restoreSavedPlaybackState();
       render();
-    } catch(e){message(e.message||"曲庫讀取失敗。請確認資料庫初始化狀態。","error");}
-    finally{state.busy=false;}
+      console.info("[FRAME Audio] Full catalogue sync completed",{
+        tracks:state.tracks.length,folders:state.folders.length,shows:state.shows.length,
+        episodes:state.episodes.length,indexedDB:!!catalogCacheDb
+      });
+      // Re-check the revision after the long initial import so records indexed
+      // while pagination was running are not missed until the next visit.
+      void syncCatalogInBackground();
+    })();
+    try{return await catalogInitPromise;}
+    finally{catalogInitPromise=null;}
+  }
+  async function syncCatalogInBackground() {
+    if(catalogSyncPromise)return catalogSyncPromise;
+    if(!state.loaded)return ensureFullCatalog();
+    catalogSyncPromise=(async()=>{
+      const snapshot=await api("/api/catalog/home");
+      const previousRevision=String(catalogMeta?.revision??state.catalogRevision??"");
+      const previousCounts=normalizeCatalogCounts(catalogMeta?.counts||state.catalogCounts);
+      const nextCounts=normalizeCatalogCounts(snapshot.counts);
+      const hasChanges=String(snapshot.revision||"")!==previousRevision||!sameCatalogCounts(previousCounts,nextCounts);
+      state.recentTracks=Array.isArray(snapshot.recentTracks)?snapshot.recentTracks:[];
+      state.catalogCounts=nextCounts;
+
+      if(hasChanges){
+        const parsedRevision=Date.parse(previousRevision);
+        const changedSince=new Date(Math.max(0,(Number.isFinite(parsedRevision)?parsedRevision:0)-2500)).toISOString();
+        const cacheContext={db:catalogCacheDb};
+        const [trackChanges,folderChanges,showChanges,episodeChanges]=await Promise.all([
+          all("/api/catalog?kind=tracks&changedSince="+encodeURIComponent(changedSince),"tracks",cacheContext),
+          all("/api/catalog?kind=folders&changedSince="+encodeURIComponent(changedSince),"folders",cacheContext),
+          optionalPodcastAll("/api/catalog/podcasts?kind=shows&changedSince="+encodeURIComponent(changedSince),"shows",cacheContext),
+          optionalPodcastAll("/api/catalog/podcasts?kind=episodes&changedSince="+encodeURIComponent(changedSince),"episodes",cacheContext)
+        ]);
+        let manifest=null;
+        try{manifest=(await api("/api/catalog/manifest")).manifest||null;}
+        catch(error){console.warn("[FRAME Audio] Catalogue manifest unavailable; retaining existing rows.",error);}
+        state.tracks=mergeCatalogRows(state.tracks,trackChanges,manifest?.tracks).sort(compareTrackFileNames);
+        state.folders=mergeCatalogRows(state.folders,folderChanges,manifest?.folders);
+        state.shows=mergeCatalogRows(state.shows,showChanges,manifest?.shows)
+          .sort((a,b)=>String(a.title||"").localeCompare(String(b.title||""),"zh-Hant"));
+        state.episodes=mergeCatalogRows(state.episodes,episodeChanges,manifest?.episodes);
+        catalogCacheDb=cacheContext.db;
+        if(catalogCacheDb&&manifest){
+          try{await pruneCatalogCache(catalogCacheDb,manifest);}
+          catch(error){console.warn("[FRAME Audio] IndexedDB prune failed.",error);catalogCacheDb=null;}
+        }
+        if(manifest){
+          state.catalogRevision=String(snapshot.revision||"");
+          catalogMeta=makeCatalogMeta(snapshot,snapshot,true);
+        }else{
+          // Keep the previous sync cursor until the manifest succeeds, so deletions are retried next time.
+          catalogMeta={
+            ...(catalogMeta||makeCatalogMeta({revision:previousRevision,counts:previousCounts},snapshot,true)),
+            syncedAt:Date.now(),
+            home:{recentTracks:state.recentTracks}
+          };
+        }
+        if(catalogCacheDb){
+          try{await writeCatalogMeta(catalogCacheDb,catalogMeta);}
+          catch(error){console.warn("[FRAME Audio] Could not update IndexedDB metadata.",error);catalogCacheDb=null;}
+        }
+        console.info("[FRAME Audio] Incremental catalogue sync completed",{
+          tracks:trackChanges.length,folders:folderChanges.length,shows:showChanges.length,
+          episodes:episodeChanges.length,manifest:!!manifest
+        });
+      }else{
+        catalogMeta={
+          ...(catalogMeta||makeCatalogMeta(snapshot,snapshot,true)),
+          counts:nextCounts,
+          revision:String(snapshot.revision||""),
+          syncedAt:Date.now(),
+          home:{recentTracks:state.recentTracks}
+        };
+        if(catalogCacheDb){
+          try{await writeCatalogMeta(catalogCacheDb,catalogMeta);}
+          catch(error){console.warn("[FRAME Audio] Could not refresh IndexedDB home snapshot.",error);catalogCacheDb=null;}
+        }
+      }
+      state.loadedAt=Date.now();
+      if(state.view==="music"||hasChanges)render();
+    })().catch(error=>{
+      console.warn("[FRAME Audio] Background catalogue sync failed; local catalogue remains available.",error);
+    }).finally(()=>{catalogSyncPromise=null;});
+    return catalogSyncPromise;
   }
   function cover(hash,title,extra="") {
     const letter=esc(String(title||"F").trim().slice(0,1).toUpperCase()||"F");
@@ -602,20 +814,61 @@ export function initLibraryUI(options = {}) {
   }
   function loadCovers(){
     revokeCovers();
-    root.querySelectorAll("img[data-art-hash]").forEach(async img=>{
-      const hash=img.dataset.artHash;
-      if(!/^[a-f0-9]{64}$/i.test(String(hash||"")))return;
-      try{
-        const res=await fetch("/api/artwork/"+hash,{credentials:"same-origin"});
-        if(!res.ok)return;
-        const url=URL.createObjectURL(await res.blob());
-        state.artworkUrls.add(url);
-        img.src=url;
-        img.parentElement?.classList.add("has-artwork");
-      }catch{}
+    const generation=coverGeneration;
+    const groups=new Map();
+    root.querySelectorAll("img[data-art-hash]").forEach(img=>{
+      const hash=String(img.dataset.artHash||"").toLowerCase();
+      if(!/^[a-f0-9]{64}$/.test(hash))return;
+      if(!groups.has(hash))groups.set(hash,[]);
+      groups.get(hash).push(img);
     });
+    const queue=[];
+    const scheduled=new Set();
+    let active=0;
+    const pump=()=>{
+      while(active<4&&queue.length){
+        const task=queue.shift();
+        active+=1;
+        task().catch(()=>{}).finally(()=>{active-=1;pump();});
+      }
+    };
+    const schedule=(hash,images)=>{
+      if(scheduled.has(hash))return;
+      scheduled.add(hash);
+      queue.push(async()=>{
+        if(generation!==coverGeneration)return;
+        const response=await fetch("/api/artwork/"+hash,{credentials:"same-origin"});
+        if(!response.ok)return;
+        const blob=await response.blob();
+        if(generation!==coverGeneration)return;
+        const url=URL.createObjectURL(blob);
+        state.artworkUrls.add(url);
+        for(const img of images){
+          if(!root.contains(img))continue;
+          img.src=url;
+          img.parentElement?.classList.add("has-artwork");
+        }
+      });
+      pump();
+    };
+    if(typeof IntersectionObserver==="undefined"){
+      for(const [hash,images] of groups)schedule(hash,images);
+      return;
+    }
+    coverObserver=new IntersectionObserver(entries=>{
+      for(const entry of entries){
+        if(!entry.isIntersecting)continue;
+        const img=entry.target;
+        coverObserver?.unobserve(img);
+        const hash=String(img.dataset.artHash||"").toLowerCase();
+        schedule(hash,groups.get(hash)||[img]);
+      }
+    },{root:null,rootMargin:"240px 0px",threshold:0.01});
+    for(const images of groups.values())for(const img of images)coverObserver.observe(img);
   }
   function revokeCovers(){
+    coverGeneration+=1;
+    if(coverObserver){coverObserver.disconnect();coverObserver=null;}
     for(const url of state.artworkUrls)URL.revokeObjectURL(url);
     state.artworkUrls.clear();
   }
@@ -899,7 +1152,7 @@ export function initLibraryUI(options = {}) {
     const recentMarkup=recent.length?trackRows(recent,"track"):
       '<div class="library-empty"><div class="library-empty-mark">♫</div><h3>還沒有播放紀錄</h3><p>開始播放音樂後，最近播放的歌曲就會出現在這裡。</p></div>';
     if(!recent.length){state.items=[];state.itemType="track";}
-    root.innerHTML=stats([["MUSIC TRACKS",state.tracks.length.toLocaleString()],["PODCAST SHOWS",state.shows.length.toLocaleString()],["PODCAST EPISODES",state.episodes.length.toLocaleString()]])+
+    root.innerHTML=stats([["MUSIC TRACKS",state.catalogCounts.tracks.toLocaleString()],["PODCAST SHOWS",state.catalogCounts.shows.toLocaleString()],["PODCAST EPISODES",state.catalogCounts.episodes.toLocaleString()]])+
       sectionHead("RECENTLY PLAYED","最近播放的音樂",'<button class="secondary" data-action="navigate" data-view="tracks">查看全部歌曲</button>')+
       recentMarkup+
       sectionHead("PODCASTS","你的節目",'<button class="secondary" data-action="navigate" data-view="shows">查看全部</button>')+
@@ -1042,8 +1295,7 @@ export function initLibraryUI(options = {}) {
       (failures.length?"\n失敗 "+failures.length+" 首：\n"+failures.slice(0,5).map(item=>item.path+"（"+item.error+"）").join("\n"):"");
     state.selectedAlbum=null;
     state.view="albums";
-    state.loaded=false;
-    await load(true);
+    await refresh();
     const notice=document.createElement("div");
     notice.className="library-message "+(failures.length?"is-error":"is-success");
     notice.textContent=summary;
@@ -1238,7 +1490,7 @@ export function initLibraryUI(options = {}) {
     const counts=new Map();for(const e of state.episodes)counts.set(e.showId,(counts.get(e.showId)||0)+1);
     return '<div class="show-grid">'+shows.map(show=>'<button class="show-card" data-action="open-show" data-id="'+esc(show.id)+'">'+
       cover(show.coverHash,show.title,"show-cover")+'<span class="show-card-copy"><strong>'+esc(show.title)+'</strong><small>'+esc(show.author||"Podcast")+
-      '</small><em>'+(counts.get(show.id)||0)+' 集單集</em></span></button>').join("")+'</div>';
+      '</small><em>'+(counts.has(show.id)?counts.get(show.id):Math.max(0,Number(show.episodeCount)||0))+' 集單集</em></span></button>').join("")+'</div>';
   }
   function renderShows() {
     const shows=state.shows.filter(s=>!state.search||[s.title,s.author,s.description].join(" ").toLocaleLowerCase().includes(state.search.toLocaleLowerCase()));
@@ -1307,7 +1559,8 @@ export function initLibraryUI(options = {}) {
       root.classList.remove("view-enter");
       return;
     }
-    if(!state.loaded){message("正在讀取曲庫……");void load(true);return;}
+    if(!state.loaded&&state.view!=="music"){message("正在建立本機曲庫索引，完成後即可瀏覽完整清單……");void ensureFullCatalog().catch(error=>message(error?.message||"曲庫同步失敗。","error"));return;}
+    if(!state.loaded&&!state.homeReady){message("正在讀取首頁曲庫摘要……");void load(true);return;}
     switch(state.view){
       case "music":renderHome();break;
       case "tracks":renderTracks();break;
@@ -2009,7 +2262,7 @@ export function initLibraryUI(options = {}) {
       await options.resolveRetry?.(entry.itemType,entry.path);
       if(newPath!==entry.path)await options.resolveRetry?.(entry.itemType,newPath);
       if(status)status.textContent="PASS：已更新索引「"+(result.title||newPath)+"」，錯誤已解除。";
-      state.loaded=false;await load(true);await renderErrors();
+      await refresh();await renderErrors();
     }catch(e){if(status)status.textContent="更新失敗："+(e.message||e);if(button)button.disabled=false;}
   }
   async function handleClick(event) {
@@ -2078,7 +2331,7 @@ export function initLibraryUI(options = {}) {
         try{
           const result=await options.reindexMusic(pathOf(item));
           if(!result?.ok)throw new Error(result?.error||"單首重新索引失敗。");
-          state.loaded=false;await load(true);
+          await refresh();
           const updated=state.tracks.find(track=>track.id===item.id||pathOf(track)===pathOf(item));
           if(updated)state.currentItem=playable(updated,"track");
           setDock(state.currentItem);
@@ -2427,9 +2680,32 @@ export function initLibraryUI(options = {}) {
     state.view=target;
     if(target!=="now-playing"&&!returningFromNowPlaying)state.search="";
     if(returningFromNowPlaying){render();return;}
-    if(!state.loaded)await load(true);else render();
+    if(!state.loaded){
+      if(target==="music"&&state.homeReady){render();return;}
+      await load(true);
+      if(!state.loaded&&target!=="music"&&state.homeReady){
+        try{await ensureFullCatalog();}
+        catch(error){message(error?.message||"完整曲庫同步失敗，請稍後重試。","error");return;}
+      }
+      if(state.loaded||state.homeReady)render();
+      return;
+    }
+    render();
   }
-  async function refresh(){state.loaded=false;await load(true);}
+  async function refresh(){
+    try{
+      if(catalogBootstrapPromise)await catalogBootstrapPromise;
+      if(!state.loaded){
+        if(!state.homeReady)await load(true);
+        if(!state.loaded)await ensureFullCatalog();
+        return;
+      }
+      await syncCatalogInBackground();
+    }catch(error){
+      console.warn("[FRAME Audio] Catalogue refresh failed.",error);
+      if(!state.homeReady)message(error?.message||"曲庫更新失敗。","error");
+    }
+  }
   loadUserPlaylists();
   loadPlayerPreferences();updatePlayerModeButton();updateShuffleButton();
   setDock(null);void showView("music");
