@@ -64,7 +64,9 @@ export async function openCatalogCache() {
         resolve(db);
       };
       request.onerror = () => reject(request.error || new Error("Unable to open IndexedDB."));
-      request.onblocked = () => reject(new Error("IndexedDB upgrade is blocked by another open tab."));
+      request.onblocked = () => {
+        console.warn("[FRAME Audio] IndexedDB version upgrade is waiting for another tab to close.");
+      };
     }).catch(error => {
       databasePromise = null;
       throw error;
