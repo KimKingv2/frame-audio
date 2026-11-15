@@ -38,6 +38,10 @@ export function initLibraryUI(options = {}) {
   const QUEUE_ROW_HEIGHT_MOBILE=54;
   const QUEUE_OVERSCAN=8;
   let queueRenderFrame=0;
+  const queueVirtualState={
+    list:null,canvas:null,pool:[],queue:null,order:null,itemType:"",total:0,
+    rowHeight:0,poolSize:0,start:0,emptyNode:null
+  };
   const esc = value => String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const duration = value => {
     const n=Math.max(0,Math.floor(Number(value||0)/1000)),h=Math.floor(n/3600),m=Math.floor(n%3600/60),s=n%60;
@@ -1326,119 +1330,240 @@ export function initLibraryUI(options = {}) {
     animateLibraryContent();
   }
 
+  function createPlayerQueueVirtualRow() {
+    const wrapper=document.createElement("div");
+    wrapper.className="player-queue-virtual-row";
+    wrapper.setAttribute("role","listitem");
+    wrapper.style.position="absolute";
+    wrapper.style.top="0";
+    wrapper.style.left="0";
+    wrapper.style.right="0";
+
+    const row=document.createElement("button");
+    row.type="button";
+    row.className="player-queue-item";
+
+    const number=document.createElement("span");
+    number.className="player-queue-number";
+
+    const copy=document.createElement("span");
+    copy.className="player-queue-copy";
+    const title=document.createElement("strong");
+    title.className="player-queue-title";
+    const subtitle=document.createElement("small");
+    subtitle.className="player-queue-subtitle";
+    copy.append(title,subtitle);
+
+    const status=document.createElement("span");
+    status.className="player-queue-status";
+    row.append(number,copy,status);
+    wrapper.append(row);
+    return {wrapper,row,number,title,subtitle,status};
+  }
+
+  function bindPlayerQueueVirtualRow(entry,visibleIndex) {
+    const virtual=queueVirtualState;
+    const queueIndex=virtual.order?Number(virtual.order[visibleIndex]):visibleIndex;
+    const raw=virtual.queue[queueIndex];
+    if(!raw){
+      entry.wrapper.hidden=true;
+      entry.row.removeAttribute("data-queue-index");
+      return;
+    }
+    const item=playable(raw,virtual.itemType);
+    const current=queueIndex===state.queueIndex;
+    entry.wrapper.hidden=false;
+    entry.wrapper.style.height=virtual.rowHeight+"px";
+    entry.wrapper.style.transform="translate3d(0,"+(visibleIndex*virtual.rowHeight)+"px,0)";
+    entry.wrapper.dataset.visibleIndex=String(visibleIndex);
+    entry.wrapper.setAttribute("aria-posinset",String(visibleIndex+1));
+    entry.wrapper.setAttribute("aria-setsize",String(virtual.total));
+
+    entry.row.dataset.queueIndex=String(queueIndex);
+    entry.row.className="player-queue-item"+(current?" is-current":"");
+    entry.row.setAttribute("aria-label",(visibleIndex+1)+" · "+item.title+(current?" · 正在播放":" · 待播"));
+    if(current)entry.row.setAttribute("aria-current","true");
+    else entry.row.removeAttribute("aria-current");
+    entry.number.textContent=String(visibleIndex+1).padStart(2,"0");
+    entry.title.textContent=item.title;
+    entry.subtitle.textContent=item.subtitle||(item.itemType==="episode"?"Podcast 單集":"音樂曲目");
+    entry.status.textContent=current?"正在播放":"待播";
+  }
+
+  function updatePlayerQueueVirtualWindow() {
+    const virtual=queueVirtualState;
+    const list=virtual.list;
+    if(!list||!virtual.canvas||!virtual.total||!virtual.pool.length)return;
+
+    const scrollTop=Math.max(0,Number(list.scrollTop)||0);
+    const firstVisible=Math.min(virtual.total-1,Math.max(0,Math.floor(scrollTop/virtual.rowHeight)));
+    const maxStart=Math.max(0,virtual.total-virtual.pool.length);
+    const nextStart=Math.max(0,Math.min(firstVisible-QUEUE_OVERSCAN,maxStart));
+    const delta=nextStart-virtual.start;
+    if(!delta)return;
+
+    if(Math.abs(delta)>=virtual.pool.length){
+      virtual.start=nextStart;
+      virtual.pool.forEach((entry,index)=>bindPlayerQueueVirtualRow(entry,nextStart+index));
+      return;
+    }
+
+    if(delta>0){
+      for(let step=0;step<delta;step+=1){
+        const entry=virtual.pool.shift();
+        virtual.pool.push(entry);
+        virtual.start+=1;
+        bindPlayerQueueVirtualRow(entry,virtual.start+virtual.pool.length-1);
+      }
+      return;
+    }
+
+    for(let step=0;step>delta;step-=1){
+      const entry=virtual.pool.pop();
+      virtual.pool.unshift(entry);
+      virtual.start-=1;
+      bindPlayerQueueVirtualRow(entry,virtual.start);
+    }
+  }
+
+  function updatePlayerQueueCurrentState() {
+    const virtual=queueVirtualState;
+    for(const entry of virtual.pool){
+      if(entry.wrapper.hidden)continue;
+      const queueIndex=Number(entry.row.dataset.queueIndex);
+      if(!Number.isInteger(queueIndex))continue;
+      const current=queueIndex===state.queueIndex;
+      entry.row.classList.toggle("is-current",current);
+      if(current)entry.row.setAttribute("aria-current","true");
+      else entry.row.removeAttribute("aria-current");
+      entry.row.setAttribute(
+        "aria-label",
+        (Number(entry.wrapper.dataset.visibleIndex)+1)+" · "+entry.title.textContent+(current?" · 正在播放":" · 待播")
+      );
+      entry.status.textContent=current?"正在播放":"待播";
+    }
+  }
+
   function renderPlayerQueue(options={}) {
-    const list = $("#player-queue-list");
-    const summary = $("#player-queue-summary");
-    const count = $("#player-queue-count");
-    const toggle = $("#player-queue-toggle");
-    if (!list) return;
+    const list=$("#player-queue-list");
+    const summary=$("#player-queue-summary");
+    const count=$("#player-queue-count");
+    const toggle=$("#player-queue-toggle");
+    if(!list)return;
 
     if(list.dataset.virtualScrollBound!=="true"){
       list.addEventListener("scroll",()=>{
         if(queueRenderFrame)return;
         queueRenderFrame=window.requestAnimationFrame(()=>{
           queueRenderFrame=0;
-          renderPlayerQueue({preserveScroll:true});
+          updatePlayerQueueVirtualWindow();
         });
       },{passive:true});
       list.dataset.virtualScrollBound="true";
     }
+    if(list.dataset.virtualResizeBound!=="true"){
+      window.addEventListener("resize",()=>{
+        if(queueVirtualState.list===list&&queueVirtualState.total)renderPlayerQueue();
+      },{passive:true});
+      list.dataset.virtualResizeBound="true";
+    }
 
-    const queue = Array.isArray(state.queue) ? state.queue : [];
-    const total = queue.length;
-    const previousScrollTop=Number(list.scrollTop)||0;
-    if (count) count.textContent = total.toLocaleString();
-    if (toggle) {
-      toggle.setAttribute("aria-label", total ? "播放列表，" + total.toLocaleString() + " 首" : "播放列表，尚無待播項目");
-      toggle.title = total ? "播放列表 · " + total.toLocaleString() + " 首" : "播放列表";
-      toggle.classList.toggle("has-queue", total > 0);
+    const queue=Array.isArray(state.queue)?state.queue:[];
+    const total=queue.length;
+    if(count)count.textContent=total.toLocaleString();
+    if(toggle){
+      toggle.setAttribute("aria-label",total?"播放列表，"+total.toLocaleString()+" 首":"播放列表，尚無待播項目");
+      toggle.title=total?"播放列表 · "+total.toLocaleString()+" 首":"播放列表";
+      toggle.classList.toggle("has-queue",total>0);
     }
     const heading=$("#player-queue-heading");
     const queueLabel=String(state.queueLabel||"播放列表");
     if(heading){heading.textContent=total?queueLabel:"播放列表";heading.title=total?queueLabel:"播放列表";}
-    if (summary) {
-      summary.textContent = total
-        ? total.toLocaleString() + " 首 · " + (state.shuffleEnabled ? "隨機播放順序" : "目前播放順序") + " · 虛擬列表"
-        : "尚未建立播放佇列";
+    if(summary){
+      summary.textContent=total
+        ?total.toLocaleString()+" 首 · "+(state.shuffleEnabled?"隨機播放順序":"目前播放順序")+" · 虛擬列表"
+        :"尚未建立播放佇列";
     }
 
-    list.replaceChildren();
-    if (!total) {
-      const empty = document.createElement("div");
-      empty.className = "player-queue-empty";
-      empty.textContent = "從歌曲、專輯、資料夾、收藏歌單或 Podcast 節目開始播放，這裡就會顯示待播項目。";
-      list.append(empty);
+    if(!total){
+      if(!queueVirtualState.emptyNode||queueVirtualState.emptyNode.parentNode!==list){
+        const empty=document.createElement("div");
+        empty.className="player-queue-empty";
+        empty.textContent="從歌曲、專輯、歌手、資料夾、收藏歌單或 Podcast 節目開始播放，這裡就會顯示待播項目。";
+        list.replaceChildren(empty);
+        queueVirtualState.emptyNode=empty;
+      }
+      Object.assign(queueVirtualState,{
+        list,canvas:null,pool:[],queue,order:null,itemType:"",total:0,
+        rowHeight:0,poolSize:0,start:0
+      });
       return;
     }
 
-    const order = state.shuffleEnabled && state.shuffleOrder.length === total
-      ? state.shuffleOrder
-      : null;
-    const itemType = state.currentItem?.itemType || "track";
+    const order=state.shuffleEnabled&&state.shuffleOrder.length===total?state.shuffleOrder:null;
+    const itemType=state.currentItem?.itemType||"track";
     const rowHeight=window.matchMedia("(max-width:760px)").matches?QUEUE_ROW_HEIGHT_MOBILE:QUEUE_ROW_HEIGHT_DESKTOP;
-    const viewportHeight=Math.max(180,list.clientHeight||400);
-    const maxScrollTop=Math.max(0,total*rowHeight-viewportHeight);
-    let scrollTop=Math.min(previousScrollTop,maxScrollTop);
+    const viewportHeight=Math.max(rowHeight,list.clientHeight||400);
+    const visibleCount=Math.ceil(viewportHeight/rowHeight)+1;
+    const poolSize=Math.min(total,visibleCount+QUEUE_OVERSCAN*2);
+    const previousScrollTop=Math.max(0,Number(list.scrollTop)||0);
+    const structuralChange=
+      queueVirtualState.list!==list||
+      !queueVirtualState.canvas||
+      !queueVirtualState.canvas.isConnected||
+      queueVirtualState.queue!==queue||
+      queueVirtualState.order!==order||
+      queueVirtualState.itemType!==itemType||
+      queueVirtualState.total!==total||
+      queueVirtualState.rowHeight!==rowHeight||
+      queueVirtualState.poolSize!==poolSize;
+
+    if(structuralChange){
+      const canvas=document.createElement("div");
+      canvas.className="player-queue-virtual-canvas";
+      canvas.style.height=(total*rowHeight)+"px";
+      const fragment=document.createDocumentFragment();
+      const pool=[];
+      for(let index=0;index<poolSize;index+=1){
+        const entry=createPlayerQueueVirtualRow();
+        pool.push(entry);
+        fragment.append(entry.wrapper);
+      }
+      canvas.append(fragment);
+      list.replaceChildren(canvas);
+      Object.assign(queueVirtualState,{
+        list,canvas,pool,queue,order,itemType,total,rowHeight,poolSize,start:0,emptyNode:null
+      });
+
+      const maxScrollTop=Math.max(0,list.scrollHeight-list.clientHeight);
+      let targetScrollTop=Math.min(previousScrollTop,maxScrollTop);
+      if(options.focusCurrent&&state.queueIndex>=0&&state.queueIndex<total){
+        const visibleCurrent=order?order.indexOf(state.queueIndex):state.queueIndex;
+        if(visibleCurrent>=0){
+          targetScrollTop=Math.min(maxScrollTop,Math.max(0,visibleCurrent*rowHeight-(viewportHeight-rowHeight)/2));
+        }
+      }
+      // Only restore or focus the position after a structural change, never
+      // during ordinary touch scrolling.
+      list.scrollTop=targetScrollTop;
+      const firstVisible=Math.min(total-1,Math.max(0,Math.floor((Number(list.scrollTop)||0)/rowHeight)));
+      const maxStart=Math.max(0,total-poolSize);
+      const start=Math.max(0,Math.min(firstVisible-QUEUE_OVERSCAN,maxStart));
+      queueVirtualState.start=start;
+      pool.forEach((entry,index)=>bindPlayerQueueVirtualRow(entry,start+index));
+      return;
+    }
+
     if(options.focusCurrent&&state.queueIndex>=0&&state.queueIndex<total){
       const visibleCurrent=order?order.indexOf(state.queueIndex):state.queueIndex;
-      if(visibleCurrent>=0)scrollTop=Math.min(maxScrollTop,Math.max(0,visibleCurrent*rowHeight-(viewportHeight-rowHeight)/2));
+      if(visibleCurrent>=0){
+        const maxScrollTop=Math.max(0,list.scrollHeight-list.clientHeight);
+        const targetScrollTop=Math.min(maxScrollTop,Math.max(0,visibleCurrent*rowHeight-(viewportHeight-rowHeight)/2));
+        list.scrollTop=targetScrollTop;
+      }
     }
-    const firstVisible=Math.min(total-1,Math.max(0,Math.floor(scrollTop/rowHeight)));
-    const start=Math.max(0,firstVisible-QUEUE_OVERSCAN);
-    const visibleCount=Math.ceil(viewportHeight/rowHeight)+QUEUE_OVERSCAN*2;
-    const end=Math.min(total,start+visibleCount);
-    const spacer=(height)=>{
-      const node=document.createElement("div");
-      node.className="player-queue-virtual-spacer";
-      node.setAttribute("aria-hidden","true");
-      node.style.height=Math.max(0,height)+"px";
-      return node;
-    };
-    if(start>0)list.append(spacer(start*rowHeight));
-
-    for(let visibleIndex=start;visibleIndex<end;visibleIndex+=1){
-      const queueIndex=order?order[visibleIndex]:visibleIndex;
-      const raw=queue[queueIndex];
-      if(!raw)continue;
-      const item=playable(raw,itemType);
-      const current=queueIndex===state.queueIndex;
-      const row=document.createElement("button");
-      row.type="button";
-      row.className="player-queue-item"+(current?" is-current":"");
-      row.dataset.queueIndex=String(queueIndex);
-      row.setAttribute("aria-label",(visibleIndex+1)+" · "+item.title+(current?" · 正在播放":" · 待播"));
-      if(current)row.setAttribute("aria-current","true");
-
-      const listItem=document.createElement("div");
-      listItem.className="player-queue-virtual-row";
-      listItem.setAttribute("role","listitem");
-      listItem.setAttribute("aria-posinset",String(visibleIndex+1));
-      listItem.setAttribute("aria-setsize",String(total));
-      listItem.style.height=rowHeight+"px";
-
-      const number=document.createElement("span");
-      number.className="player-queue-number";
-      number.textContent=String(visibleIndex+1).padStart(2,"0");
-
-      const copy=document.createElement("span");
-      copy.className="player-queue-copy";
-      const title=document.createElement("strong");
-      title.className="player-queue-title";
-      title.textContent=item.title;
-      const subtitle=document.createElement("small");
-      subtitle.className="player-queue-subtitle";
-      subtitle.textContent=item.subtitle||(item.itemType==="episode"?"Podcast 單集":"音樂曲目");
-      copy.append(title,subtitle);
-
-      const status=document.createElement("span");
-      status.className="player-queue-status";
-      status.textContent=current?"正在播放":"待播";
-      row.append(number,copy,status);
-      listItem.append(row);
-      list.append(listItem);
-    }
-    if(end<total)list.append(spacer((total-end)*rowHeight));
-    list.scrollTop=scrollTop;
+    updatePlayerQueueVirtualWindow();
+    updatePlayerQueueCurrentState();
   }
   function setDock(item) {
     syncMediaSessionMetadata(item);
