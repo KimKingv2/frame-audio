@@ -81,7 +81,7 @@ export async function onRequest({ request, env }) {
         const countStatement = env.DB.prepare("SELECT COUNT(*) AS count FROM podcast_shows" + where);
         const rowsStatement = env.DB.prepare(
           "SELECT data_json,cover_hash FROM podcast_shows" + where +
-          " ORDER BY indexed_at,title COLLATE NOCASE LIMIT ? OFFSET ?"
+          " ORDER BY title COLLATE NOCASE LIMIT ? OFFSET ?"
         );
         const [count, rows] = await Promise.all([
           changedSince ? countStatement.bind(changedSince).first() : countStatement.first(),
@@ -103,7 +103,7 @@ export async function onRequest({ request, env }) {
       const countStatement = env.DB.prepare("SELECT COUNT(*) AS count FROM podcast_episodes" + where);
       const rowsStatement = env.DB.prepare(
         "SELECT data_json FROM podcast_episodes" + where +
-        " ORDER BY indexed_at,COALESCE(published_at,''),title COLLATE NOCASE LIMIT ? OFFSET ?"
+        " ORDER BY COALESCE(published_at,''),title COLLATE NOCASE,path LIMIT ? OFFSET ?"
       );
       const [count, rows] = await Promise.all([
         (bindings.length ? countStatement.bind(...bindings) : countStatement).first(),

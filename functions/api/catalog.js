@@ -56,7 +56,7 @@ export async function onRequest({ request, env }) {
     try {
       const countStatement = env.DB.prepare("SELECT COUNT(*) AS count FROM "+table+where);
       const rowsStatement = env.DB.prepare(
-        "SELECT data_json FROM "+table+where+" ORDER BY indexed_at,path LIMIT ? OFFSET ?"
+        "SELECT data_json FROM "+table+where+" ORDER BY path LIMIT ? OFFSET ?"
       );
       const [count, rows] = await Promise.all([
         changedSince ? countStatement.bind(changedSince).first() : countStatement.first(),
