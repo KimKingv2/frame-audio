@@ -620,7 +620,6 @@ export function initLibraryUI(options = {}) {
       if(path&&!byPath.has(path))byPath.set(path,item);
     }
     return (Array.isArray(refs)?refs:[]).map(ref=>{
-      if(ref&&typeof ref==="object"&&Array.isArray(ref.artists))return ref;
       const id=String(ref?.id||ref?.item_id||"");
       const path=String(ref?.path||"");
       const item=(id&&byId.get(id))||(path&&byPath.get(path));

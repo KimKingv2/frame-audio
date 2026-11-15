@@ -1,5 +1,5 @@
 const DB_NAME = "frame-audio-catalog";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const DATA_STORES = ["tracks", "folders", "shows", "episodes"];
 const ALL_STORES = [...DATA_STORES, "meta"];
 
@@ -31,12 +31,22 @@ export async function openCatalogCache() {
         reject(error);
         return;
       }
-      request.onupgradeneeded = () => {
+      request.onupgradeneeded = event => {
         const db = request.result;
         for (const name of DATA_STORES) {
           if (!db.objectStoreNames.contains(name)) db.createObjectStore(name, { keyPath: "id" });
         }
         if (!db.objectStoreNames.contains("meta")) db.createObjectStore("meta", { keyPath: "key" });
+        if (event.oldVersion < 2) {
+          const store = event.target.transaction.objectStore("tracks");
+          const cursorRequest = store.openCursor();
+          cursorRequest.onsuccess = () => {
+            const cursor = cursorRequest.result;
+            if (!cursor) return;
+            cursor.update(compactCatalogItem("tracks", cursor.value));
+            cursor.continue();
+          };
+        }
       };
       request.onsuccess = () => {
         const db = request.result;
