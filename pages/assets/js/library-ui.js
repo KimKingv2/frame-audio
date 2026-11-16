@@ -1,6 +1,6 @@
 import { getOpenListFileInfo } from "./openlist-client.js?v=20261112-four-source-login1";
 import { parseSynchronizedLyrics } from "./player-effects.js?v=20261111-sylt-ms1";
-import { readCatalogCache, openCatalogCache, clearCatalogStore, putCatalogBatch, writeCatalogMeta } from "./catalog-cache.js?v=20261116-resume-lazy2";
+import { readCatalogCache, openCatalogCache, clearCatalogStore, putCatalogBatch, writeCatalogMeta } from "./catalog-cache.js?v=20261116-cache-v3-async1";
 
 const PERIODS = [["week","近 7 日"],["month","近 30 日"],["year","近 365 日"],["all","全部時間"]];
 const PLAYBACK_QUEUE_STORAGE_KEY = "frame-audio-playback-queue-v1";
@@ -26,7 +26,7 @@ export function initLibraryUI(options = {}) {
   const state = {
     view:"music",lastLibraryView:"music",tracks:[],folders:[],shows:[],episodes:[],recentTracks:[],playlists:[],selectedFolder:null,selectedPlaylistId:"",playlistDialogItem:null,loaded:false,loadedAt:0,busy:false,trackPage:0,
     selectedShowId:"",selectedAlbum:null,search:"",searchComposing:false,items:[],itemType:"track",reportPeriod:"week",reportType:"episode",
-    errors:[],currentItem:null,queue:[],queueIndex:-1,queueLabel:"播放列表",session:null,tickAt:0,speed:1,
+    errors:[],currentItem:null,queue:[],queueIndex:-1,queueLabel:"播放列表",queueSyncToken:0,queueSyncPending:false,session:null,tickAt:0,speed:1,
     lastProgressSave:0,restorePositionMs:0,playRequestId:0,
     preloadEntry:null,preloadAudio:null,preloadGeneration:0,restoredPlaybackPending:false,lastLocalPositionSaveAt:0,
     playMode:"sequential",shuffleEnabled:false,shuffleOrder:[],shufflePosition:-1,
@@ -1051,23 +1051,31 @@ export function initLibraryUI(options = {}) {
       (path&&String(pathOf(item)||"")===path)
     );
   }
-  function syncAllTracksQueueAfterLoad(catalogPromise,searchQuery,selectedItem,queueLabel){
-    const selectedId=String(selectedItem?.id||selectedItem?.item_id||"");
-    const selectedPath=String(pathOf(selectedItem)||"");
+  function syncAllTracksQueueAfterLoad(catalogPromise,searchQuery,queueLabel,syncToken){
     void catalogPromise.then(()=>{
-      const currentId=String(state.currentItem?.id||state.currentItem?.item_id||"");
-      const currentPath=String(pathOf(state.currentItem)||"");
-      if(!state.currentItem||state.currentItem.itemType!=="track"||state.queueLabel!==queueLabel||
-        !((selectedId&&currentId===selectedId)||(selectedPath&&currentPath===selectedPath)))return;
+      if(syncToken!==state.queueSyncToken)return;
+      const currentItem=state.currentItem;
+      const currentId=String(currentItem?.id||currentItem?.item_id||"");
+      const currentPath=String(pathOf(currentItem)||"");
+      if(!currentItem||currentItem.itemType!=="track"||state.queueLabel!==queueLabel){
+        state.queueSyncPending=false;
+        renderPlayerQueue();
+        return;
+      }
       const query=String(searchQuery||"").toLocaleLowerCase();
       const completeQueue=state.tracks.filter(track=>!query||
         [track.title,track.album,track.albumArtist,pathOf(track),...(track.artists||[]),...(track.genres||[])]
           .join(" ").toLocaleLowerCase().includes(query)
       );
-      const index=findPlaybackItemIndex(completeQueue,selectedId,selectedPath);
-      if(index<0)return;
+      const index=findPlaybackItemIndex(completeQueue,currentId,currentPath);
+      if(index<0){
+        state.queueSyncPending=false;
+        renderPlayerQueue();
+        return;
+      }
       state.queue=completeQueue.map(track=>({...track}));
       state.queueIndex=index;
+      state.queueSyncPending=false;
       if(state.shuffleEnabled)rebuildShuffleOrder(index);
       else{state.shuffleOrder=[];state.shufflePosition=-1;}
       savePlaybackQueueState();
@@ -1076,6 +1084,9 @@ export function initLibraryUI(options = {}) {
         count:state.queue.length,selectedIndex:index,complete:true
       });
     }).catch(error=>{
+      if(syncToken!==state.queueSyncToken)return;
+      state.queueSyncPending=false;
+      renderPlayerQueue();
       appendPlaybackLog("完整歌曲列表同步失敗，播放將維持目前已載入的曲目 · "+(error?.message||error),"warning");
     });
   }
@@ -1277,14 +1288,14 @@ export function initLibraryUI(options = {}) {
     const knownTotal=Math.max(rows.length,Number(state.catalogCounts.tracks)||0);
     const cachedTrackCount=state.tracks.length;
     const pageControls=!complete
-      ?'<div class="library-pagination library-pagination-single">本機已載入 '+cachedTrackCount.toLocaleString()+' / '+knownTotal.toLocaleString()+' 首 · 背景續讀中'+(state.search?' · 篩選結果 '+rows.length.toLocaleString()+' 首':'')+'</div>'
+      ?'<div class="library-pagination library-pagination-single">本機已載入 '+cachedTrackCount.toLocaleString()+' / '+knownTotal.toLocaleString()+' 首 · 背景續讀中 · 目前為暫時排序'+(state.search?' · 篩選結果 '+rows.length.toLocaleString()+' 首':'')+'</div>'
       :rows.length>TRACKS_PAGE_SIZE
         ?'<nav class="library-pagination" aria-label="歌曲分頁">'+
           '<button class="secondary" type="button" data-action="tracks-page" data-page="'+(page-1)+'"'+(page===0?' disabled':'')+'>上一頁</button>'+
           '<span>第 '+(page+1)+' / '+pageCount+' 頁 · '+(start+1)+'–'+Math.min(start+visibleRows.length,rows.length)+' / '+rows.length.toLocaleString()+' 首</span>'+
           '<button class="secondary" type="button" data-action="tracks-page" data-page="'+(page+1)+'"'+(page>=pageCount-1?' disabled':'')+'>下一頁</button></nav>'
         :'<div class="library-pagination library-pagination-single">完整曲庫 · '+rows.length.toLocaleString()+' 首</div>';
-    const countLabel=complete?rows.length.toLocaleString()+" 首":"本機 "+cachedTrackCount.toLocaleString()+" / "+knownTotal.toLocaleString()+" 首";
+    const countLabel=complete?rows.length.toLocaleString()+" 首":"本機 "+cachedTrackCount.toLocaleString()+" / "+knownTotal.toLocaleString()+" 首 · 暫時排序";
     root.innerHTML=searchBar("搜尋曲名、歌手、專輯或路徑")+
       sectionHead("ALL TRACKS","所有歌曲",'<span class="library-muted">'+countLabel+' · 每頁 '+TRACKS_PAGE_SIZE+' 首</span>')+
       trackRows(visibleRows,"track",rows,start)+pageControls;
@@ -1869,7 +1880,8 @@ export function initLibraryUI(options = {}) {
     if(heading){heading.textContent=total?queueLabel:"播放列表";heading.title=total?queueLabel:"播放列表";}
     if(summary){
       summary.textContent=total
-        ?total.toLocaleString()+" 首 · "+(state.shuffleEnabled?"隨機播放順序":"目前播放順序")+" · 虛擬列表"
+        ?total.toLocaleString()+" 首 · "+(state.shuffleEnabled?"隨機播放順序":"目前播放順序")+" · 虛擬列表"+
+          (state.queueSyncPending?" · 曲庫同步中，完成後自動擴充":"")
         :"尚未建立播放佇列";
     }
 
@@ -2295,6 +2307,10 @@ export function initLibraryUI(options = {}) {
         if(state.shuffleOrder.length!==state.queue.length)rebuildShuffleOrder(index);
         state.shufflePosition=state.shuffleOrder.indexOf(index);
       }else{
+        if(!Number.isInteger(playOptions.queueSyncToken)){
+          state.queueSyncToken+=1;
+          state.queueSyncPending=false;
+        }
         state.queue=queue.map(x=>({...x}));
         state.queueIndex=index;
         state.queueLabel=String(playOptions.queueLabel||defaultQueueLabel(type,item)).slice(0,240);
@@ -2536,8 +2552,11 @@ export function initLibraryUI(options = {}) {
             // the background after all catalogue pages have been restored.
             const catalogPromise=ensureCatalogKind("tracks");
             const query=state.search;
-            await playItem(type,item,queue,selectedIndex,{queueLabel});
-            syncAllTracksQueueAfterLoad(catalogPromise,query,item,queueLabel);
+            const syncToken=++state.queueSyncToken;
+            state.queueSyncPending=true;
+            renderPlayerQueue();
+            await playItem(type,item,queue,selectedIndex,{queueLabel,queueSyncToken:syncToken});
+            syncAllTracksQueueAfterLoad(catalogPromise,query,queueLabel,syncToken);
           }else{
             if(type==="track"&&catalogKindsForView(state.view).includes("tracks")&&!state.catalogKindsLoaded.tracks){
               const expectedView=state.view;
@@ -2738,6 +2757,8 @@ export function initLibraryUI(options = {}) {
   $("#player-next")?.addEventListener("click",()=>next(1));
   $("#player-stop")?.addEventListener("click",()=>{
     state.playRequestId+=1;
+    state.queueSyncToken+=1;
+    state.queueSyncPending=false;
     appendPlaybackLog("使用者停止播放。");
     setPlaybackConnectionStatus("已停止播放。","idle",state.playRequestId,1400);
     clearNextPreload();

@@ -1,9 +1,10 @@
 const DB_NAME = "frame-audio-catalog";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const DATA_STORES = ["tracks", "folders", "shows", "episodes"];
 const ALL_STORES = [...DATA_STORES, "meta"];
 
 let databasePromise = null;
+let trackCompactionScheduled = false;
 
 function requestValue(request) {
   return new Promise((resolve, reject) => {
@@ -37,16 +38,9 @@ export async function openCatalogCache() {
           if (!db.objectStoreNames.contains(name)) db.createObjectStore(name, { keyPath: "id" });
         }
         if (!db.objectStoreNames.contains("meta")) db.createObjectStore("meta", { keyPath: "key" });
-        if (event.oldVersion < 2) {
-          const store = event.target.transaction.objectStore("tracks");
-          const cursorRequest = store.openCursor();
-          cursorRequest.onsuccess = () => {
-            const cursor = cursorRequest.result;
-            if (!cursor) return;
-            cursor.update(compactCatalogItem("tracks", cursor.value));
-            cursor.continue();
-          };
-        }
+        // Legacy track records are compacted in the background after cache
+        // restoration. Do not rewrite every song inside the blocking
+        // version-change transaction, which can delay the first library view.
       };
       request.onsuccess = () => {
         const db = request.result;
@@ -76,8 +70,10 @@ export async function openCatalogCache() {
 }
 
 export async function readCatalogCache(storeNames = DATA_STORES) {
+  const startedAt = performance.now();
   const db = await openCatalogCache();
   if (!db) return null;
+  const openedAt = performance.now();
   const selected = DATA_STORES.filter(name => Array.isArray(storeNames) && storeNames.includes(name));
   const transaction = db.transaction([...selected, "meta"], "readonly");
   const done = transactionDone(transaction);
@@ -87,7 +83,17 @@ export async function readCatalogCache(storeNames = DATA_STORES) {
   await done;
   const result = { db, meta: metaRow?.value || null };
   for (const name of DATA_STORES) result[name] = [];
-  selected.forEach((name, index) => { result[name] = rows[index] || []; });
+  selected.forEach((name, index) => {
+    result[name] = (rows[index] || []).map(item => compactCatalogItem(name, item));
+  });
+  if (selected.includes("tracks")) scheduleLegacyTrackCompaction(db);
+  console.info("[FRAME Audio] IndexedDB catalogue cache restored", {
+    stores: selected,
+    rowCounts: Object.fromEntries(selected.map((name, index) => [name, rows[index]?.length || 0])),
+    openMs: Math.round(openedAt - startedAt),
+    readMs: Math.round(performance.now() - openedAt),
+    totalMs: Math.round(performance.now() - startedAt)
+  });
   return result;
 }
 
@@ -114,6 +120,38 @@ function compactCatalogItem(storeName, item) {
   const common = { ...item.metadata.common };
   delete common.lyrics;
   return { ...item, metadata: { ...item.metadata, common } };
+}
+
+function scheduleLegacyTrackCompaction(db) {
+  if (!db || trackCompactionScheduled || !db.objectStoreNames.contains("tracks")) return;
+  trackCompactionScheduled = true;
+  const compact = () => {
+    let transaction;
+    try {
+      transaction = db.transaction("tracks", "readwrite");
+      transaction.onabort = () => { trackCompactionScheduled = false; };
+      transaction.onerror = () => { trackCompactionScheduled = false; };
+      const request = transaction.objectStore("tracks").openCursor();
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) return;
+        const compacted = compactCatalogItem("tracks", cursor.value);
+        if (compacted !== cursor.value) cursor.update(compacted);
+        cursor.continue();
+      };
+      request.onerror = () => {
+        try { transaction.abort(); } catch {}
+      };
+    } catch (error) {
+      trackCompactionScheduled = false;
+      console.warn("[FRAME Audio] Background cache compaction could not start.", error);
+    }
+  };
+  if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(compact, { timeout: 3000 });
+  } else {
+    setTimeout(compact, 1200);
+  }
 }
 
 export async function putCatalogBatch(db, storeName, items) {
