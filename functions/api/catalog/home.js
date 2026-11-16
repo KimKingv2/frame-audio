@@ -12,7 +12,7 @@ export async function onRequestGet({ request, env }) {
     const meta = new Map((metaResult.results || []).map(row => [row.kind, row]));
     const requiredKinds = ["tracks","folders","shows","episodes"];
     if (requiredKinds.some(kind => !meta.has(kind))) {
-      return error("D1 目錄摘要尚未初始化，請先執行 migrations/0004_catalog_meta.sql。",503);
+      return error("D1 目錄摘要尚未初始化，請先執行 migrations/0005_catalog_meta.sql。",503);
     }
 
     const counts = {
@@ -85,6 +85,6 @@ export async function onRequestGet({ request, env }) {
 
     return json({ok:true,counts,revision,revisions,podcastSchemaReady,recentTracks,shows});
   } catch {
-    return error("讀取首頁曲庫摘要失敗，請確認 D1 資料表及 migrations/0004_catalog_meta.sql 已初始化。", 503);
+    return error("讀取首頁曲庫摘要失敗，請確認 D1 資料表及 migrations/0005_catalog_meta.sql 已初始化。", 503);
   }
 }
