@@ -432,7 +432,7 @@ const INLINE_WORD_TIMESTAMP = /<\s*((?:\d{1,3}:)?\d{1,3}:[0-5]\d(?:[.,]\d{1,3})?
 function normalizeInlineWordTimedLyrics(value, candidate) {
   const id = String(candidate?.id || "").toUpperCase();
   // SYLT is an actual ID3 synchronized-lyrics frame. Never flatten its cues.
-  if (/SYLT|SLT/.test(id) || typeof value !== "string" ||
+  if (/SYLT/.test(id) || /(?:^|[:\\s])SLT(?:$|[:\\s])/.test(id) || typeof value !== "string" ||
       !/<\s*(?:\d{1,3}:)?\d{1,3}:[0-5]\d(?:[.,]\d{1,3})?\s*>/.test(value)) {
     return value;
   }
@@ -460,7 +460,7 @@ function selectLyrics(metadata, common) {
     const id = String(candidate.id || "").toUpperCase();
     const timed = containsTimedLyrics(candidate.value);
     const vorbis = type === "vorbis";
-    const sylt = /SYLT|SLT/.test(id);
+    const sylt = /SYLT/.test(id) || /(?:^|[:\\s])SLT(?:$|[:\\s])/.test(id);
     const uslt = /USLT/.test(id);
     // Keep native synchronized ID3 lyrics intact. SYLT is a real timed-text
     // frame, unlike word timestamps embedded inside a TXXX LYRICS string.
