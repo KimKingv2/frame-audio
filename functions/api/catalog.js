@@ -68,7 +68,7 @@ export async function onRequest({ request, env }) {
       const meta = await env.DB.prepare(
         "SELECT item_count FROM catalog_meta WHERE kind=?"
       ).bind(kind).first();
-      if (!meta) return error("D1 目錄摘要尚未初始化，請先執行 migrations/0004_catalog_meta.sql。",503);
+      if (!meta) return error("D1 目錄摘要尚未初始化，請先執行 migrations/0005_catalog_meta.sql。",503);
 
       let total = Number(meta.item_count || 0);
       if (changedSince) {
@@ -143,5 +143,5 @@ export async function onRequest({ request, env }) {
       return json({ok:true,saved:items.length,kind});
     }
     return error("kind 只能是 tracks 或 folders。");
-  } catch { return error("寫入 D1 失敗。請確認已執行 migrations/0004_catalog_meta.sql。",503); }
+  } catch { return error("寫入 D1 失敗。請確認已執行 migrations/0005_catalog_meta.sql。",503); }
 }
