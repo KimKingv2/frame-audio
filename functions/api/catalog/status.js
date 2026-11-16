@@ -22,7 +22,7 @@ export async function onRequestGet({request,env}) {
     ).all();
     const meta = new Map((metaResult.results || []).map(row => [row.kind,row]));
     if (["tracks","folders","shows","episodes"].some(kind => !meta.has(kind))) {
-      return error("請先在此環境的 D1 執行 migrations/0004_catalog_meta.sql。",503);
+      return error("請先在此環境的 D1 執行 migrations/0005_catalog_meta.sql。",503);
     }
 
     let podcastSchemaReady = false;
@@ -56,6 +56,6 @@ export async function onRequestGet({request,env}) {
       listeningSchemaReady
     });
   } catch {
-    return error("D1 已綁定，但目錄摘要尚未初始化。請執行 migrations/0004_catalog_meta.sql。",503);
+    return error("D1 已綁定，但目錄摘要尚未初始化。請執行 migrations/0005_catalog_meta.sql。",503);
   }
 }
