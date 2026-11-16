@@ -630,8 +630,9 @@ export function initLibraryUI(options = {}) {
   }
   function catalogKindsForView(view) {
     switch(view){
-      case "tracks":case "albums":case "album-detail":case "playlists":return ["tracks"];
-      case "folders":return ["folders","tracks"];
+      case "tracks":case "albums":case "album-detail":return ["tracks"];
+      case "playlists":return state.selectedPlaylistId?["tracks"]:[];
+      case "folders":return state.selectedFolder?["folders","tracks"]:["folders"];
       case "shows":return ["shows"];
       case "show-detail":return ["shows","episodes"];
       default:return [];
@@ -751,6 +752,9 @@ export function initLibraryUI(options = {}) {
         state[kind]=[];
       }else if(cachedRows.length){
         state[kind]=mergeCatalogKindItems(kind,state[kind],cachedRows);
+      }
+      if(!options.force&&state[kind].length&&catalogKindsForView(state.view).includes(kind)){
+        render();
       }
 
       const savedProgress=catalogMeta?.progress?.[kind]||{};
@@ -2360,7 +2364,10 @@ export function initLibraryUI(options = {}) {
       }
       if(action==="open-playlist"){
         const playlist=findPlaylist(b.dataset.playlistId);if(!playlist)return;
-        state.selectedPlaylistId=playlist.id;renderPlaylistDetail();animateLibraryContent();return;
+        state.selectedPlaylistId=playlist.id;render();
+        await ensureCatalogKind("tracks");
+        if(state.view==="playlists"&&state.selectedPlaylistId===playlist.id){renderPlaylistDetail();animateLibraryContent();}
+        return;
       }
       if(action==="back-playlists"){state.selectedPlaylistId="";renderPlaylists();animateLibraryContent();return;}
       if(action==="delete-playlist"){
@@ -2375,7 +2382,11 @@ export function initLibraryUI(options = {}) {
       }
       if(action==="back-folders"){state.selectedFolder=null;renderFolders();animateLibraryContent();return;}
       if(action==="open-folder"){
-        const folder=state.items[i];if(!folder)return;state.selectedFolder=folder;renderFolderDetail();animateLibraryContent();return;
+        const folder=state.items[i];if(!folder)return;
+        state.selectedFolder=folder;render();
+        await ensureCatalogKind("tracks");
+        if(state.view==="folders"&&state.selectedFolder?.id===folder.id){renderFolderDetail();animateLibraryContent();}
+        return;
       }
       if(action==="play-folder"){
         const folder=state.selectedFolder,list=folderTracks(folder);
