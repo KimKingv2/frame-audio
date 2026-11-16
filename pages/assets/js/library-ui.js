@@ -1319,9 +1319,7 @@ export function initLibraryUI(options = {}) {
       const artistKey=normalizeAlbumName(identityArtist);
       const key=albumKey
         ?"album:"+albumKey+"|artist:"+(artistKey||"__unknown__")
-        :artistKey
-          ?"unassigned:"+artistKey
-          :"unassigned-track:"+String(track.id||pathOf(track)||offset+index);
+        :"unassigned-track:"+String(track.id||pathOf(track)||offset+index);
       if(!groups.has(key)){
         groups.set(key,{
           key,title:albumTitle||"未分類專輯",
