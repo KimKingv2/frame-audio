@@ -763,7 +763,7 @@ export function initLibraryUI(options = {}) {
       const expectedCount=Math.max(0,Number(state.catalogCounts[kind])||0);
       const revisionChanged=!!(state.catalogRevision&&savedRevision&&state.catalogRevision!==savedRevision);
       const legacyComplete=(catalogMeta?.legacyComplete===true||catalogMeta?.complete===true)&&cacheCount===expectedCount;
-      let reset=options.force===true||revisionChanged||
+      let reset=options.force===true||revisionChanged||cacheCount>expectedCount||
         (savedProgress.complete===true&&cacheCount!==expectedCount);
       if(reset&&!options.force){
         if(catalogCacheDb){
@@ -1549,7 +1549,9 @@ export function initLibraryUI(options = {}) {
   }
   function renderShows() {
     const shows=state.shows.filter(s=>!state.search||[s.title,s.author,s.description].join(" ").toLocaleLowerCase().includes(state.search.toLocaleLowerCase()));
-    root.innerHTML=searchBar("搜尋節目名稱或作者")+sectionHead("PODCAST SHOWS","所有節目",'<span class="library-muted">'+shows.length+' 個節目</span>')+showCards(shows);
+    const showCountLabel=state.catalogKindsLoaded.shows?shows.length+" 個節目":
+      "本機已載入 "+state.shows.length+" / "+Math.max(state.shows.length,Number(state.catalogCounts.shows)||0)+" 個節目";
+    root.innerHTML=searchBar("搜尋節目名稱或作者")+sectionHead("PODCAST SHOWS","所有節目",'<span class="library-muted">'+showCountLabel+'</span>')+showCards(shows);
     loadCovers();
   }
   function renderShowDetail() {
