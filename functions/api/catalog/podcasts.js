@@ -70,51 +70,105 @@ export async function onRequest({ request, env }) {
 
   if (request.method === "GET") {
     if (!["shows", "episodes"].includes(kind)) return error("kind 只能是 shows 或 episodes。");
-    const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit") || 100)));
-    const offset = Math.max(0, Number(url.searchParams.get("offset") || 0));
+    const limit = Math.min(500, Math.max(1, Math.floor(Number(url.searchParams.get("limit") || 100))));
+    const offset = Math.max(0, Math.floor(Number(url.searchParams.get("offset") || 0)));
+    const legacyOffset = url.searchParams.has("offset") && !url.searchParams.has("cursor");
     const showId = url.searchParams.get("showId") || "";
     try {
       const changedSince = url.searchParams.get("changedSince") || "";
       if (changedSince && !Number.isFinite(Date.parse(changedSince))) return error("changedSince 必須是有效的 ISO 日期。");
-      if (kind === "shows") {
-        const where = changedSince ? " WHERE indexed_at>=?" : "";
-        const countStatement = env.DB.prepare("SELECT COUNT(*) AS count FROM podcast_shows" + where);
-        const rowsStatement = env.DB.prepare(
-          "SELECT data_json,cover_hash FROM podcast_shows" + where +
-          " ORDER BY title COLLATE NOCASE LIMIT ? OFFSET ?"
-        );
-        const [count, rows] = await Promise.all([
-          changedSince ? countStatement.bind(changedSince).first() : countStatement.first(),
-          changedSince ? rowsStatement.bind(changedSince,limit,offset).all() : rowsStatement.bind(limit,offset).all()
-        ]);
-        const items = (rows.results || []).map(row => ({
-          ...JSON.parse(row.data_json),
-          coverHash: row.cover_hash || null
-        }));
-        const total = Number(count?.count || 0);
-        return json({ ok: true, kind, total, limit, offset, changedSince: changedSince || null,
-          nextOffset: offset + items.length < total ? offset + items.length : null, items });
+      const rawCursor = url.searchParams.get("cursor") || "";
+      let cursor = null;
+      if (rawCursor) {
+        try { cursor = JSON.parse(rawCursor); } catch {}
+        const expectedLength = kind === "shows" ? 2 : 3;
+        if (!Array.isArray(cursor) || cursor.length !== expectedLength ||
+            !cursor.every(value => typeof value === "string" && value.length <= 4096)) {
+          return error("cursor 格式不正確。");
+        }
       }
+
+      const meta = await env.DB.prepare(
+        "SELECT item_count FROM catalog_meta WHERE kind=?"
+      ).bind(kind).first();
+      if (!meta) return error("D1 目錄摘要尚未初始化，請先執行 migrations/0004_catalog_meta.sql。",503);
+
       const conditions = [];
       const bindings = [];
-      if (showId) { conditions.push("show_id=?"); bindings.push(showId); }
+      if (kind === "episodes" && showId) { conditions.push("show_id=?"); bindings.push(showId); }
       if (changedSince) { conditions.push("indexed_at>=?"); bindings.push(changedSince); }
-      const where = conditions.length ? " WHERE " + conditions.join(" AND ") : "";
-      const countStatement = env.DB.prepare("SELECT COUNT(*) AS count FROM podcast_episodes" + where);
-      const rowsStatement = env.DB.prepare(
-        "SELECT data_json FROM podcast_episodes" + where +
-        " ORDER BY COALESCE(published_at,''),title COLLATE NOCASE,path LIMIT ? OFFSET ?"
-      );
-      const [count, rows] = await Promise.all([
-        (bindings.length ? countStatement.bind(...bindings) : countStatement).first(),
-        (bindings.length ? rowsStatement.bind(...bindings,limit,offset) : rowsStatement.bind(limit,offset)).all()
-      ]);
-      const items = (rows.results || []).map(row => JSON.parse(row.data_json));
-      const total = Number(count?.count || 0);
-      return json({ ok: true, kind, showId: showId || null, total, limit, offset, changedSince: changedSince || null,
-        nextOffset: offset + items.length < total ? offset + items.length : null, items });
+      if (cursor) {
+        if (kind === "shows") {
+          conditions.push("(title COLLATE NOCASE,folder_path) > (?,?)");
+        } else {
+          conditions.push("(COALESCE(published_at,''),title COLLATE NOCASE,path) > (?,?,?)");
+        }
+        bindings.push(...cursor);
+      }
+      const filtered = (kind === "episodes" && !!showId) || !!changedSince;
+      let total = Number(meta.item_count || 0);
+      if (filtered) {
+        const countWhere = [];
+        const countBindings = [];
+        if (kind === "episodes" && showId) { countWhere.push("show_id=?"); countBindings.push(showId); }
+        if (changedSince) { countWhere.push("indexed_at>=?"); countBindings.push(changedSince); }
+        const countSql = "SELECT COUNT(*) AS count FROM podcast_" + kind +
+          (countWhere.length ? " WHERE " + countWhere.join(" AND ") : "");
+        const countStatement = env.DB.prepare(countSql);
+        const count = countBindings.length
+          ? await countStatement.bind(...countBindings).first()
+          : await countStatement.first();
+        total = Number(count?.count || 0);
+      }
+
+      const order = kind === "shows"
+        ? " ORDER BY title COLLATE NOCASE,folder_path"
+        : " ORDER BY COALESCE(published_at,''),title COLLATE NOCASE,path";
+      const selected = kind === "shows"
+        ? "SELECT data_json,cover_hash,title,folder_path FROM podcast_shows"
+        : "SELECT data_json,title,published_at,path FROM podcast_episodes";
+      let statement;
+      if (legacyOffset) {
+        const where = [];
+        const values = [];
+        if (kind === "episodes" && showId) { where.push("show_id=?"); values.push(showId); }
+        if (changedSince) { where.push("indexed_at>=?"); values.push(changedSince); }
+        statement = env.DB.prepare(
+          selected + (where.length ? " WHERE " + where.join(" AND ") : "") +
+          order + " LIMIT ? OFFSET ?"
+        ).bind(...values,limit,offset);
+      } else {
+        statement = env.DB.prepare(
+          selected + (conditions.length ? " WHERE " + conditions.join(" AND ") : "") +
+          order + " LIMIT ?"
+        ).bind(...bindings,limit+1);
+      }
+
+      const result = await statement.all();
+      const rawRows = result.results || [];
+      const rows = legacyOffset ? rawRows : rawRows.slice(0,limit);
+      const hasMore = legacyOffset
+        ? offset + rows.length < total
+        : rawRows.length > limit;
+      const items = rows.map(row => {
+        const item = JSON.parse(row.data_json);
+        return kind === "shows" ? {...item,coverHash:row.cover_hash||null} : item;
+      });
+      let nextCursor = null;
+      if (!legacyOffset && hasMore && rows.length) {
+        const last = rows[rows.length-1];
+        nextCursor = kind === "shows"
+          ? [String(last.title||""),String(last.folder_path||"")]
+          : [String(last.published_at||""),String(last.title||""),String(last.path||"")];
+      }
+      return json({
+        ok:true,kind,showId:showId||null,total,limit,
+        offset:legacyOffset?offset:undefined,
+        nextOffset:legacyOffset&&hasMore?offset+items.length:null,
+        nextCursor,hasMore,changedSince:changedSince||null,items
+      });
     } catch {
-      return error("Podcast 資料表尚未初始化或查詢失敗。請先執行 migrations/0002_podcasts.sql。", 503);
+      return error("Podcast 資料表或目錄摘要尚未初始化。請先執行 migrations/0002_podcasts.sql 與 migrations/0004_catalog_meta.sql。", 503);
     }
   }
 
@@ -130,7 +184,7 @@ export async function onRequest({ request, env }) {
       if (!items.length || items.length > 100 || !items.every(validShow)) {
         return error("每批必須包含 1 至 100 筆有效 Podcast 節目資料。");
       }
-      await env.DB.batch(items.map(show => env.DB.prepare(SHOW_SQL).bind(...showRow(show, now))));
+      await env.DB.batch([...items.map(show => env.DB.prepare(SHOW_SQL).bind(...showRow(show, now))), env.DB.prepare("UPDATE catalog_meta SET revision=revision+1,updated_at=CURRENT_TIMESTAMP WHERE kind='shows'")]);
       return json({ ok: true, kind, saved: items.length });
     }
     if (kind === "episodes") {
@@ -141,7 +195,9 @@ export async function onRequest({ request, env }) {
       }
       await env.DB.batch([
         env.DB.prepare(SHOW_SQL).bind(...showRow(show, now)),
-        env.DB.prepare(EPISODE_SQL).bind(...episodeRow(episode, now))
+        env.DB.prepare(EPISODE_SQL).bind(...episodeRow(episode, now)),
+        env.DB.prepare("UPDATE catalog_meta SET revision=revision+1,updated_at=CURRENT_TIMESTAMP WHERE kind='shows'"),
+        env.DB.prepare("UPDATE catalog_meta SET revision=revision+1,updated_at=CURRENT_TIMESTAMP WHERE kind='episodes'")
       ]);
       return json({ ok: true, kind, savedShows: 1, savedEpisodes: 1 });
     }
