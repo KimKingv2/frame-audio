@@ -27,7 +27,7 @@ export function initLibraryUI(options = {}) {
     view:"music",lastLibraryView:"music",tracks:[],folders:[],shows:[],episodes:[],recentTracks:[],playlists:[],selectedFolder:null,selectedPlaylistId:"",playlistDialogItem:null,loaded:false,loadedAt:0,busy:false,trackPage:0,
     selectedShowId:"",selectedAlbum:null,search:"",searchComposing:false,items:[],itemType:"track",reportPeriod:"week",reportType:"episode",
     errors:[],currentItem:null,queue:[],queueIndex:-1,queueLabel:"播放列表",session:null,tickAt:0,speed:1,
-    lastProgressSave:0,restorePositionMs:0,playRequestId:0,artworkUrls:new Set(),
+    lastProgressSave:0,restorePositionMs:0,playRequestId:0,
     preloadEntry:null,preloadAudio:null,preloadGeneration:0,restoredPlaybackPending:false,lastLocalPositionSaveAt:0,
     playMode:"sequential",shuffleEnabled:false,shuffleOrder:[],shufflePosition:-1,
     lyricsCues:[],lyricsPlainLines:[],lyricsActiveIndex:-1,
@@ -51,6 +51,12 @@ export function initLibraryUI(options = {}) {
   let catalogMeta=null;
   let coverObserver=null;
   let coverGeneration=0;
+  let dockArtworkObjectUrl="";
+  let dockArtworkHash="";
+  let dockArtworkRequestId=0;
+  let nowPlayingArtworkObjectUrl="";
+  let nowPlayingArtworkHash="";
+  let nowPlayingArtworkRequestId=0;
   const esc = value => String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const duration = value => {
     const n=Math.max(0,Math.floor(Number(value||0)/1000)),h=Math.floor(n/3600),m=Math.floor(n%3600/60),s=n%60;
@@ -478,12 +484,37 @@ export function initLibraryUI(options = {}) {
     fallbackTimer=setTimeout(finish,900);
   }
   function syncNowPlayingArtwork(item) {
-    const host=$("#now-playing-art");if(!host||!item?.artworkHash)return;
-    fetch("/api/artwork/"+item.artworkHash,{credentials:"same-origin"}).then(response=>response.ok?response.blob():null).then(blob=>{
-      if(!blob||state.currentItem?.id!==item.id||state.view!=="now-playing")return;
-      const url=URL.createObjectURL(blob);state.artworkUrls.add(url);host.style.backgroundImage="url('"+url+"')";host.classList.add("has-artwork");
+    const host=$("#now-playing-art");
+    if(!host)return;
+    const hash=String(item?.artworkHash||"").toLowerCase();
+    if(!/^[a-f0-9]{64}$/.test(hash)){
+      nowPlayingArtworkRequestId+=1;
+      if(nowPlayingArtworkObjectUrl)URL.revokeObjectURL(nowPlayingArtworkObjectUrl);
+      nowPlayingArtworkObjectUrl="";nowPlayingArtworkHash="";
+      host.style.backgroundImage="";host.classList.remove("has-artwork");
+      const fallback=host.querySelector("span");if(fallback)fallback.hidden=false;
+      return;
+    }
+    if(nowPlayingArtworkHash===hash&&nowPlayingArtworkObjectUrl){
+      host.style.backgroundImage="url('"+nowPlayingArtworkObjectUrl+"')";
+      host.classList.add("has-artwork");
       const fallback=host.querySelector("span");if(fallback)fallback.hidden=true;
-    }).catch(()=>{});
+      return;
+    }
+    const requestId=++nowPlayingArtworkRequestId;
+    if(nowPlayingArtworkObjectUrl)URL.revokeObjectURL(nowPlayingArtworkObjectUrl);
+    nowPlayingArtworkObjectUrl="";nowPlayingArtworkHash=hash;
+    host.style.backgroundImage="";host.classList.remove("has-artwork");
+    const fallback=host.querySelector("span");if(fallback)fallback.hidden=false;
+    fetch("/api/artwork/"+hash,{credentials:"same-origin",cache:"force-cache"})
+      .then(response=>response.ok?response.blob():null)
+      .then(blob=>{
+        if(!blob||requestId!==nowPlayingArtworkRequestId||state.currentItem?.id!==item.id||state.view!=="now-playing")return;
+        nowPlayingArtworkObjectUrl=URL.createObjectURL(blob);
+        host.style.backgroundImage="url('"+nowPlayingArtworkObjectUrl+"')";
+        host.classList.add("has-artwork");
+        const node=host.querySelector("span");if(node)node.hidden=true;
+      }).catch(()=>{});
   }
   function bindLyricsManualScroll(list) {
     if(!list||list.dataset.autoFollowBound==="true")return;
@@ -867,45 +898,31 @@ export function initLibraryUI(options = {}) {
   }
   function loadCovers(){
     revokeCovers();
-    const generation=coverGeneration;
-    const groups=new Map();
-    root.querySelectorAll("img[data-art-hash]").forEach(img=>{
+    const assignImage=img=>{
+      if(!root.contains(img))return;
       const hash=String(img.dataset.artHash||"").toLowerCase();
       if(!/^[a-f0-9]{64}$/.test(hash))return;
-      if(!groups.has(hash))groups.set(hash,[]);
-      groups.get(hash).push(img);
-    });
-    const queue=[];
-    const scheduled=new Set();
-    let active=0;
-    const pump=()=>{
-      while(active<4&&queue.length){
-        const task=queue.shift();
-        active+=1;
-        task().catch(()=>{}).finally(()=>{active-=1;pump();});
+      const source="/api/artwork/"+hash;
+      img.decoding="async";
+      img.loading="lazy";
+      const markLoaded=()=>{
+        if(root.contains(img))img.parentElement?.classList.add("has-artwork");
+      };
+      const markFailed=()=>{
+        if(root.contains(img))img.parentElement?.classList.remove("has-artwork");
+      };
+      img.addEventListener("load",markLoaded,{once:true});
+      img.addEventListener("error",markFailed,{once:true});
+      if(img.getAttribute("src")===source){
+        if(img.complete&&img.naturalWidth)markLoaded();
+        return;
       }
+      img.src=source;
+      if(img.complete&&img.naturalWidth)markLoaded();
     };
-    const schedule=(hash,images)=>{
-      if(scheduled.has(hash))return;
-      scheduled.add(hash);
-      queue.push(async()=>{
-        if(generation!==coverGeneration)return;
-        const response=await fetch("/api/artwork/"+hash,{credentials:"same-origin"});
-        if(!response.ok)return;
-        const blob=await response.blob();
-        if(generation!==coverGeneration)return;
-        const url=URL.createObjectURL(blob);
-        state.artworkUrls.add(url);
-        for(const img of images){
-          if(!root.contains(img))continue;
-          img.src=url;
-          img.parentElement?.classList.add("has-artwork");
-        }
-      });
-      pump();
-    };
+    const images=[...root.querySelectorAll("img[data-art-hash]")];
     if(typeof IntersectionObserver==="undefined"){
-      for(const [hash,images] of groups)schedule(hash,images);
+      images.forEach(assignImage);
       return;
     }
     coverObserver=new IntersectionObserver(entries=>{
@@ -913,17 +930,14 @@ export function initLibraryUI(options = {}) {
         if(!entry.isIntersecting)continue;
         const img=entry.target;
         coverObserver?.unobserve(img);
-        const hash=String(img.dataset.artHash||"").toLowerCase();
-        schedule(hash,groups.get(hash)||[img]);
+        assignImage(img);
       }
-    },{root:null,rootMargin:"240px 0px",threshold:0.01});
-    for(const images of groups.values())for(const img of images)coverObserver.observe(img);
+    },{root:null,rootMargin:"480px 0px",threshold:0.01});
+    for(const img of images)coverObserver.observe(img);
   }
   function revokeCovers(){
     coverGeneration+=1;
     if(coverObserver){coverObserver.disconnect();coverObserver=null;}
-    for(const url of state.artworkUrls)URL.revokeObjectURL(url);
-    state.artworkUrls.clear();
   }
   const pathOf=item=>item.file?.path||item.path||"";
   const fileNameOf=item=>String(pathOf(item)||"").split("/").pop()||"";
@@ -1906,11 +1920,21 @@ export function initLibraryUI(options = {}) {
     if(state.view==="now-playing")renderNowPlaying();
     const lyricsButton=$("#player-lyrics");
     if(lyricsButton)lyricsButton.disabled=!item;
-    const coverNode=$("#player-cover");coverNode.textContent=(item?.title||"FA").slice(0,1).toUpperCase();coverNode.style.backgroundImage="";
-    if(item?.artworkHash) {
-      fetch("/api/artwork/"+item.artworkHash,{credentials:"same-origin"}).then(r=>r.ok?r.blob():null).then(blob=>{
-        if(!blob||state.currentItem?.id!==item.id)return;
-        const url=URL.createObjectURL(blob);state.artworkUrls.add(url);coverNode.style.backgroundImage="url('"+url+"')";coverNode.textContent="";
+    const coverNode=$("#player-cover");
+    const hash=String(item?.artworkHash||"").toLowerCase();
+    const requestId=++dockArtworkRequestId;
+    if(hash!==dockArtworkHash){
+      if(dockArtworkObjectUrl)URL.revokeObjectURL(dockArtworkObjectUrl);
+      dockArtworkObjectUrl="";dockArtworkHash=hash;
+    }
+    coverNode.textContent=dockArtworkObjectUrl?"":(item?.title||"FA").slice(0,1).toUpperCase();
+    coverNode.style.backgroundImage=dockArtworkObjectUrl?"url('"+dockArtworkObjectUrl+"')":"";
+    if(/^[a-f0-9]{64}$/.test(hash)&&!dockArtworkObjectUrl){
+      fetch("/api/artwork/"+hash,{credentials:"same-origin",cache:"force-cache"}).then(r=>r.ok?r.blob():null).then(blob=>{
+        if(!blob||requestId!==dockArtworkRequestId||state.currentItem?.id!==item.id)return;
+        dockArtworkObjectUrl=URL.createObjectURL(blob);
+        coverNode.style.backgroundImage="url('"+dockArtworkObjectUrl+"')";
+        coverNode.textContent="";
       }).catch(()=>{});
     }
   }
@@ -2767,16 +2791,17 @@ export function initLibraryUI(options = {}) {
     state.view=target;
     if(target!=="now-playing"&&!returningFromNowPlaying)state.search="";
     if(returningFromNowPlaying){render();return;}
-    try{
-      await load();
-      if(state.view!==target)return;
-      render();
-      const kinds=catalogKindsForView(target);
-      if(kinds.length)await Promise.all(kinds.map(kind=>ensureCatalogKind(kind)));
-      if(state.view===target)render();
-    }catch(error){
-      message(error?.message||"曲庫載入失敗，已保留本機快取。","error");
+    if(!state.homeReady){
+      try{await load();}
+      catch(error){
+        if(state.view===target)message(error?.message||"曲庫載入失敗，已保留本機快取。","error");
+        return;
+      }
     }
+    // Never wait for a network summary refresh or a full category sync on
+    // ordinary navigation. render() paints memory/cache immediately and
+    // starts any missing category restore in the background.
+    if(state.view===target)render();
   }
   async function refresh(){
     try{
