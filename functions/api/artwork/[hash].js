@@ -18,7 +18,7 @@ export async function onRequest({request,env,params}) {
     const actual=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
     if(actual!==hash)return error("封面 SHA-256 不符。",400);
     try{
-      await env.ARTWORKS.put(key,data,{httpMetadata:{contentType:type,cacheControl:"private, max-age=86400"},customMetadata:{sha256:hash}});
+      await env.ARTWORKS.put(key,data,{httpMetadata:{contentType:type,cacheControl:"private, max-age=31536000, immutable"},customMetadata:{sha256:hash}});
       return json({ok:true,key,sha256:hash,sizeBytes:data.byteLength});
     }catch{return error("寫入 R2 失敗。",503);}
   }
@@ -29,7 +29,7 @@ export async function onRequest({request,env,params}) {
       const headers=new Headers();
       object.writeHttpMetadata(headers);
       headers.set("etag",object.httpEtag);
-      headers.set("cache-control","private, max-age=86400");
+      headers.set("cache-control","private, max-age=31536000, immutable");
       headers.set("x-content-type-options","nosniff");
       return new Response(object.body,{headers});
     }catch{return error("讀取 R2 失敗。",503);}
