@@ -1128,8 +1128,18 @@ body.desktop-sidebar-collapsed .player-queue-panel{right:90px;width:min(420px,ca
 .library-pagination .secondary{min-width:78px;padding:8px 11px}
 .library-pagination .secondary:disabled{opacity:.35;cursor:not-allowed}
 .library-pagination-single{color:#82798f}
-.player-queue-list{touch-action:pan-y;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
-.player-queue-virtual-canvas{position:relative;width:100%;min-height:0;overflow:visible}
+.player-queue-list{
+  touch-action:pan-y;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;
+  contain:layout paint;
+}
+.player-queue-virtual-canvas{position:relative;width:100%;min-height:0;overflow:visible;contain:layout style}
+@media(max-width:760px){
+  .player-queue-panel{
+    -webkit-backdrop-filter:none;backdrop-filter:none;
+    background:linear-gradient(160deg,#221d2e,#14121c);
+  }
+  .player-queue-list .player-queue-item{transition:none}
+}
 .player-queue-virtual-row{position:absolute;top:0;left:0;right:0;display:block;height:58px;min-height:58px;overflow:hidden}
 .player-queue-virtual-row[hidden]{display:none!important}
 .player-queue-virtual-row .player-queue-item{display:flex;width:100%;height:58px;min-height:58px;max-height:58px;overflow:hidden}

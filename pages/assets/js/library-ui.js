@@ -1,6 +1,6 @@
 import { getOpenListFileInfo } from "./openlist-client.js?v=20261112-four-source-login1";
 import { parseSynchronizedLyrics } from "./player-effects.js?v=20261111-sylt-ms1";
-import { readCatalogCache, openCatalogCache, clearCatalogData, putCatalogBatch, pruneCatalogCache, writeCatalogMeta } from "./catalog-cache.js?v=20261115-idb-sync1";
+import { readCatalogCache, openCatalogCache, clearCatalogStore, putCatalogBatch, writeCatalogMeta } from "./catalog-cache.js?v=20261116-resume-lazy2";
 
 const PERIODS = [["week","近 7 日"],["month","近 30 日"],["year","近 365 日"],["all","全部時間"]];
 const PLAYBACK_QUEUE_STORAGE_KEY = "frame-audio-playback-queue-v1";
@@ -31,14 +31,14 @@ export function initLibraryUI(options = {}) {
     preloadEntry:null,preloadAudio:null,preloadGeneration:0,restoredPlaybackPending:false,lastLocalPositionSaveAt:0,
     playMode:"sequential",shuffleEnabled:false,shuffleOrder:[],shufflePosition:-1,
     lyricsCues:[],lyricsPlainLines:[],lyricsActiveIndex:-1,
-    lyricsScrollPause:new WeakMap(),homeReady:false,catalogCounts:{tracks:0,folders:0,shows:0,episodes:0},catalogRevision:"",homeReady:false,catalogCounts:{tracks:0,folders:0,shows:0,episodes:0},catalogRevision:""
+    lyricsScrollPause:new WeakMap(),homeReady:false,catalogCounts:{tracks:0,folders:0,shows:0,episodes:0},catalogRevision:"",
+    catalogKindsLoaded:{tracks:false,folders:false,shows:false,episodes:false}
   };
   const PLAY_MODES=["sequential","repeat-one","repeat-all"];
   const TRACKS_PAGE_SIZE=500;
   const QUEUE_ROW_HEIGHT_DESKTOP=58;
   const QUEUE_ROW_HEIGHT_MOBILE=54;
   const QUEUE_OVERSCAN=8;
-  let queueRenderFrame=0;
   const queueVirtualState={
     list:null,canvas:null,pool:[],queue:null,order:null,itemType:"",total:0,
     rowHeight:0,poolSize:0,start:0,emptyNode:null
@@ -46,6 +46,7 @@ export function initLibraryUI(options = {}) {
   let catalogBootstrapPromise=null;
   let catalogInitPromise=null;
   let catalogSyncPromise=null;
+  let catalogKindPromises=new Map();
   let catalogCacheDb=null;
   let catalogMeta=null;
   let coverObserver=null;
@@ -601,7 +602,7 @@ export function initLibraryUI(options = {}) {
     state.catalogCounts=normalizeCatalogCounts(snapshot?.counts);
     state.catalogRevision=String(snapshot?.revision||"");
     state.recentTracks=Array.isArray(snapshot?.recentTracks)?snapshot.recentTracks:[];
-    if(!state.loaded)state.shows=Array.isArray(snapshot?.shows)?snapshot.shows:[];
+    if(!state.catalogKindsLoaded.shows)state.shows=Array.isArray(snapshot?.shows)?snapshot.shows:[];
   }
   function makeRecentTrackRefs(items) {
     return (Array.isArray(items)?items:[]).slice(0,8).map(item=>({
@@ -627,209 +628,229 @@ export function initLibraryUI(options = {}) {
         {id,path,title:String(ref?.title||path.split("/").pop()||"未命名音訊"),recentlyPlayedAt:ref?.recentlyPlayedAt||""};
     });
   }
-  function makeCatalogMeta(snapshot,homeSnapshot,complete=true) {
-    return {
-      complete,
-      revision:String(snapshot?.revision||""),
-      counts:normalizeCatalogCounts(snapshot?.counts),
-      syncedAt:Date.now(),
-      home:{recentTrackRefs:makeRecentTrackRefs(homeSnapshot?.recentTracks)}
-    };
+  function catalogKindsForView(view) {
+    switch(view){
+      case "tracks":case "albums":case "album-detail":case "playlists":return ["tracks"];
+      case "folders":return ["folders","tracks"];
+      case "shows":return ["shows"];
+      case "show-detail":return ["shows","episodes"];
+      default:return [];
+    }
   }
-  function mergeCatalogRows(current,updates,manifestIds) {
-    const records=new Map((current||[]).map(item=>[String(item?.id||""),item]).filter(([id])=>id));
+  function sortCatalogKind(kind,items) {
+    if(kind==="tracks")return items.sort(compareTrackFileNames);
+    if(kind==="shows")return items.sort((a,b)=>String(a.title||"").localeCompare(String(b.title||""),"zh-Hant"));
+    return items;
+  }
+  function mergeCatalogKindItems(kind,current,updates) {
+    const map=new Map((current||[]).map(item=>[String(item?.id||""),item]).filter(([id])=>id));
     for(const item of updates||[]){
       const id=String(item?.id||"");
-      if(id)records.set(id,item);
+      if(id)map.set(id,item);
     }
-    if(!Array.isArray(manifestIds))return [...records.values()];
-    const allowed=new Set(manifestIds.map(String));
-    return [...records.values()].filter(item=>allowed.has(String(item?.id||"")));
+    return sortCatalogKind(kind,[...map.values()]);
   }
-  function cacheMatchesCounts(cache) {
-    if(!cache?.meta?.complete||!cache.meta.counts)return false;
-    const counts=normalizeCatalogCounts(cache.meta.counts);
-    return cache.tracks.length===counts.tracks&&cache.folders.length===counts.folders&&
-      cache.shows.length===counts.shows&&cache.episodes.length===counts.episodes;
+  function allCatalogKindsLoaded() {
+    return ["tracks","folders","shows","episodes"].every(kind=>state.catalogKindsLoaded[kind]);
   }
-  async function optionalPodcastAll(url,storeName,cacheContext) {
-    try{return await all(url,storeName,cacheContext);}
-    catch(error){
-      if(/Podcast.*(?:初始化|資料表)|migrations\/0002_podcasts/i.test(String(error?.message||error)))return [];
-      throw error;
+  async function persistCatalogMeta(progressPatch={}) {
+    catalogMeta={
+      ...(catalogMeta||{}),
+      complete:allCatalogKindsLoaded(),
+      revision:String(state.catalogRevision||catalogMeta?.revision||""),
+      counts:normalizeCatalogCounts(state.catalogCounts),
+      syncedAt:Date.now(),
+      progress:{...(catalogMeta?.progress||{}),...progressPatch},
+      home:{
+        ...(catalogMeta?.home||{}),
+        recentTrackRefs:makeRecentTrackRefs(state.recentTracks),
+        shows:Array.isArray(state.shows)?state.shows.slice(0,6):[]
+      }
+    };
+    if(catalogCacheDb){
+      try{await writeCatalogMeta(catalogCacheDb,catalogMeta);}
+      catch(error){
+        console.warn("[FRAME Audio] Could not save IndexedDB catalogue checkpoint.",error);
+        catalogCacheDb=null;
+      }
     }
   }
   async function load(force=false) {
-    if(state.loaded){
-      if(force)await syncCatalogInBackground();
-      else render();
-      return;
-    }
     if(catalogBootstrapPromise)return catalogBootstrapPromise;
     state.busy=true;
     catalogBootstrapPromise=(async()=>{
       let cached=null;
-      try{cached=await readCatalogCache();}
-      catch(error){console.warn("[FRAME Audio] IndexedDB unavailable; using server bootstrap.",error);}
-      if(cacheMatchesCounts(cached)){
-        catalogCacheDb=cached.db;
-        catalogMeta=cached.meta;
-        state.tracks=cached.tracks.slice().sort(compareTrackFileNames);
-        state.folders=cached.folders;
-        state.shows=cached.shows;
-        state.episodes=cached.episodes;
-        state.catalogCounts=normalizeCatalogCounts(cached.meta.counts);
-        state.catalogRevision=String(cached.meta.revision||"");
-        state.recentTracks=restoreRecentTrackRefs(
-          cached.meta.home?.recentTrackRefs||cached.meta.home?.recentTracks,cached.tracks
-        );
-        state.homeReady=true;
-        state.loaded=true;
-        state.loadedAt=Date.now();
-        restoreSavedPlaybackState();
-        render();
-        void syncCatalogInBackground();
-        return;
+      try{
+        cached=await readCatalogCache([]);
+        catalogCacheDb=cached?.db||null;
+        catalogMeta=cached?.meta||catalogMeta;
+        if(catalogMeta){
+          if(catalogMeta.legacyRevision==null&&catalogMeta.revision){
+            catalogMeta.legacyRevision=String(catalogMeta.revision);
+          }
+          if(catalogMeta.complete===true)catalogMeta.legacyComplete=true;
+        }
+      }catch(error){
+        console.warn("[FRAME Audio] IndexedDB metadata unavailable; using server homepage.",error);
       }
-
-      const homeSnapshot=await api("/api/catalog/home");
-      applyHomeSnapshot(homeSnapshot);
-      render();
-      void ensureFullCatalog(homeSnapshot).catch(error=>{
-        console.warn("[FRAME Audio] Initial catalogue sync failed.",error);
-        if(state.view!=="music")message(error?.message||"曲庫首次同步失敗，請稍後重試。","error");
-      });
+      if(catalogMeta?.counts){
+        state.catalogCounts=normalizeCatalogCounts(catalogMeta.counts);
+        state.catalogRevision=String(catalogMeta.revision||"");
+        state.recentTracks=restoreRecentTrackRefs(
+          catalogMeta.home?.recentTrackRefs||catalogMeta.home?.recentTracks,[]
+        );
+        if(!state.catalogKindsLoaded.shows&&Array.isArray(catalogMeta.home?.shows)){
+          state.shows=catalogMeta.home.shows;
+        }
+        state.homeReady=true;
+        if(state.view==="music")render();
+      }
+      try{
+        const homeSnapshot=await api("/api/catalog/home");
+        applyHomeSnapshot(homeSnapshot);
+        await persistCatalogMeta();
+      }catch(error){
+        if(!state.homeReady)throw error;
+        console.warn("[FRAME Audio] Homepage snapshot refresh failed; showing cached summary.",error);
+      }
+      if(state.view==="music")render();
     })();
     try{await catalogBootstrapPromise;}
-    catch(error){
-      console.warn("[FRAME Audio] Catalogue bootstrap failed.",error);
-      message(error?.message||"曲庫讀取失敗。請確認 Cloudflare D1 與 Access 連線。","error");
-    }finally{
+    finally{
       state.busy=false;
       catalogBootstrapPromise=null;
     }
   }
-  async function ensureFullCatalog(homeSnapshot=null) {
-    if(state.loaded)return;
-    if(catalogInitPromise)return catalogInitPromise;
-    catalogInitPromise=(async()=>{
-      let snapshot=homeSnapshot;
-      if(!snapshot)snapshot=await api("/api/catalog/home");
-      const cacheContext={db:null};
+  async function ensureCatalogKind(kind,options={}) {
+    const config={
+      tracks:{url:"/api/catalog?kind=tracks",store:"tracks"},
+      folders:{url:"/api/catalog?kind=folders",store:"folders"},
+      shows:{url:"/api/catalog/podcasts?kind=shows",store:"shows"},
+      episodes:{url:"/api/catalog/podcasts?kind=episodes",store:"episodes"}
+    }[kind];
+    if(!config)return;
+    if(catalogKindPromises.has(kind))return catalogKindPromises.get(kind);
+    if(state.catalogKindsLoaded[kind]&&!options.force)return;
+    const promise=(async()=>{
+      if(!state.homeReady)await load();
+      let cached=null;
       try{
-        cacheContext.db=await openCatalogCache();
-        if(cacheContext.db)await clearCatalogData(cacheContext.db);
+        cached=await readCatalogCache([kind]);
+        catalogCacheDb=cached?.db||catalogCacheDb;
+        if(cached?.meta)catalogMeta=cached.meta;
       }catch(error){
-        console.warn("[FRAME Audio] Could not prepare IndexedDB; loading the catalogue in memory only.",error);
-        cacheContext.db=null;
+        console.warn("[FRAME Audio] Could not read local "+kind+" cache.",error);
       }
-      const [tracks,folders,shows,episodes]=await Promise.all([
-        all("/api/catalog?kind=tracks","tracks",cacheContext),
-        all("/api/catalog?kind=folders","folders",cacheContext),
-        optionalPodcastAll("/api/catalog/podcasts?kind=shows","shows",cacheContext),
-        optionalPodcastAll("/api/catalog/podcasts?kind=episodes","episodes",cacheContext)
-      ]);
-      state.tracks=tracks.slice().sort(compareTrackFileNames);
-      state.folders=folders;
-      state.shows=shows;
-      state.episodes=episodes;
-      state.homeReady=true;
-      state.loaded=true;
-      state.loadedAt=Date.now();
-      state.catalogCounts=normalizeCatalogCounts(snapshot?.counts);
-      state.catalogRevision=String(snapshot?.revision||"");
-      catalogCacheDb=cacheContext.db;
-      catalogMeta=makeCatalogMeta(snapshot,snapshot,true);
-      if(catalogCacheDb){
-        try{await writeCatalogMeta(catalogCacheDb,catalogMeta);}
-        catch(error){console.warn("[FRAME Audio] Could not save IndexedDB sync metadata.",error);catalogCacheDb=null;}
+
+      const cachedRows=Array.isArray(cached?.[kind])?cached[kind]:[];
+      if(options.force){
+        if(catalogCacheDb){
+          try{await clearCatalogStore(catalogCacheDb,kind);}
+          catch(error){console.warn("[FRAME Audio] Could not reset "+kind+" cache.",error);}
+        }
+        state[kind]=[];
+      }else if(cachedRows.length){
+        state[kind]=mergeCatalogKindItems(kind,state[kind],cachedRows);
       }
-      restoreSavedPlaybackState();
-      render();
-      console.info("[FRAME Audio] Full catalogue sync completed",{
-        tracks:state.tracks.length,folders:state.folders.length,shows:state.shows.length,
-        episodes:state.episodes.length,indexedDB:!!catalogCacheDb
+
+      const savedProgress=catalogMeta?.progress?.[kind]||{};
+      const savedRevision=String(savedProgress.revision||catalogMeta?.legacyRevision||catalogMeta?.revision||"");
+      const cacheCount=cachedRows.length;
+      const expectedCount=Math.max(0,Number(state.catalogCounts[kind])||0);
+      const revisionChanged=!!(state.catalogRevision&&savedRevision&&state.catalogRevision!==savedRevision);
+      const legacyComplete=(catalogMeta?.legacyComplete===true||catalogMeta?.complete===true)&&cacheCount===expectedCount;
+      let reset=options.force===true||revisionChanged||
+        (savedProgress.complete===true&&cacheCount!==expectedCount);
+      if(reset&&!options.force){
+        if(catalogCacheDb){
+          try{await clearCatalogStore(catalogCacheDb,kind);}catch{}
+        }
+        state[kind]=[];
+      }
+      let offset=reset?0:Math.max(0,Number(savedProgress.offset)||0,cacheCount);
+      let total=expectedCount;
+      if(!reset&&(savedProgress.complete===true||legacyComplete)&&cacheCount===expectedCount){
+        state.catalogKindsLoaded[kind]=true;
+        state.loaded=allCatalogKindsLoaded();
+        return;
+      }
+      state.catalogKindsLoaded[kind]=false;
+      let firstPage=true;
+      const baseProgress={
+        ...(catalogMeta?.progress||{}),
+        [kind]:{offset,complete:false,total,revision:state.catalogRevision}
+      };
+      await persistCatalogMeta(baseProgress);
+
+      while(true){
+        let page;
+        try{
+          page=await api(config.url+(config.url.includes("?")?"&":"?")+"limit=500&offset="+offset);
+        }catch(error){
+          if((kind==="shows"||kind==="episodes")&&/Podcast.*(?:初始化|資料表)|migrations\/0002_podcasts/i.test(String(error?.message||error))){
+            state[kind]=[];
+            state.catalogCounts[kind]=0;
+            state.catalogKindsLoaded[kind]=true;
+            await persistCatalogMeta({
+              [kind]:{offset:0,complete:true,total:0,revision:state.catalogRevision}
+            });
+            state.loaded=allCatalogKindsLoaded();
+            return;
+          }
+          throw error;
+        }
+        const items=Array.isArray(page.items)?page.items:[];
+        total=Math.max(0,Number(page.total)||0);
+        state.catalogCounts[kind]=total;
+        if(items.length){
+          state[kind]=mergeCatalogKindItems(kind,state[kind],items);
+          if(catalogCacheDb){
+            try{await putCatalogBatch(catalogCacheDb,kind,items);}
+            catch(error){
+              console.warn("[FRAME Audio] IndexedDB page write failed; continuing in memory.",error);
+              catalogCacheDb=null;
+            }
+          }
+        }
+        const nextOffset=page.nextOffset==null?offset+items.length:Number(page.nextOffset);
+        if(items.length===0&&offset<total){
+          throw new Error(kind+" 曲庫分頁回傳空資料，已保留目前快取進度，請稍後重試。");
+        }
+        if(nextOffset<=offset&&offset<total){
+          throw new Error(kind+" 曲庫同步進度沒有前進，已保留目前快取進度。");
+        }
+        const complete=nextOffset>=total||page.nextOffset==null;
+        await persistCatalogMeta({
+          [kind]:{offset:nextOffset,complete,total,revision:state.catalogRevision}
+        });
+        if(firstPage){
+          firstPage=false;
+          if(catalogKindsForView(state.view).includes(kind))render();
+        }
+        offset=nextOffset;
+        if(complete)break;
+      }
+      state.catalogKindsLoaded[kind]=true;
+      state.loaded=allCatalogKindsLoaded();
+      await persistCatalogMeta({
+        [kind]:{offset,total,complete:true,revision:state.catalogRevision}
       });
-      // Re-check the revision after the long initial import so records indexed
-      // while pagination was running are not missed until the next visit.
-      void syncCatalogInBackground();
-    })();
-    try{return await catalogInitPromise;}
-    finally{catalogInitPromise=null;}
+      if(catalogKindsForView(state.view).includes(kind))render();
+      console.info("[FRAME Audio] Catalogue category sync completed",{
+        kind,count:state[kind].length,total,indexedDB:!!catalogCacheDb,resumedFrom:reset?0:Math.max(0,Number(savedProgress.offset)||0)
+      });
+    })().catch(error=>{
+      console.warn("[FRAME Audio] "+kind+" catalogue load interrupted; saved pages remain available.",error);
+      throw error;
+    }).finally(()=>catalogKindPromises.delete(kind));
+    catalogKindPromises.set(kind,promise);
+    return promise;
   }
   async function syncCatalogInBackground() {
-    if(catalogSyncPromise)return catalogSyncPromise;
-    if(!state.loaded)return ensureFullCatalog();
-    catalogSyncPromise=(async()=>{
-      const snapshot=await api("/api/catalog/home");
-      const previousRevision=String(catalogMeta?.revision??state.catalogRevision??"");
-      const previousCounts=normalizeCatalogCounts(catalogMeta?.counts||state.catalogCounts);
-      const nextCounts=normalizeCatalogCounts(snapshot.counts);
-      const hasChanges=String(snapshot.revision||"")!==previousRevision||!sameCatalogCounts(previousCounts,nextCounts);
-      state.recentTracks=Array.isArray(snapshot.recentTracks)?snapshot.recentTracks:[];
-      state.catalogCounts=nextCounts;
-
-      if(hasChanges){
-        const parsedRevision=Date.parse(previousRevision);
-        const changedSince=new Date(Math.max(0,(Number.isFinite(parsedRevision)?parsedRevision:0)-2500)).toISOString();
-        const cacheContext={db:catalogCacheDb};
-        const [trackChanges,folderChanges,showChanges,episodeChanges]=await Promise.all([
-          all("/api/catalog?kind=tracks&changedSince="+encodeURIComponent(changedSince),"tracks",cacheContext),
-          all("/api/catalog?kind=folders&changedSince="+encodeURIComponent(changedSince),"folders",cacheContext),
-          optionalPodcastAll("/api/catalog/podcasts?kind=shows&changedSince="+encodeURIComponent(changedSince),"shows",cacheContext),
-          optionalPodcastAll("/api/catalog/podcasts?kind=episodes&changedSince="+encodeURIComponent(changedSince),"episodes",cacheContext)
-        ]);
-        let manifest=null;
-        try{manifest=(await api("/api/catalog/manifest")).manifest||null;}
-        catch(error){console.warn("[FRAME Audio] Catalogue manifest unavailable; retaining existing rows.",error);}
-        state.tracks=mergeCatalogRows(state.tracks,trackChanges,manifest?.tracks).sort(compareTrackFileNames);
-        state.folders=mergeCatalogRows(state.folders,folderChanges,manifest?.folders);
-        state.shows=mergeCatalogRows(state.shows,showChanges,manifest?.shows)
-          .sort((a,b)=>String(a.title||"").localeCompare(String(b.title||""),"zh-Hant"));
-        state.episodes=mergeCatalogRows(state.episodes,episodeChanges,manifest?.episodes);
-        catalogCacheDb=cacheContext.db;
-        if(catalogCacheDb&&manifest){
-          try{await pruneCatalogCache(catalogCacheDb,manifest);}
-          catch(error){console.warn("[FRAME Audio] IndexedDB prune failed.",error);catalogCacheDb=null;}
-        }
-        if(manifest){
-          state.catalogRevision=String(snapshot.revision||"");
-          catalogMeta=makeCatalogMeta(snapshot,snapshot,true);
-        }else{
-          // Keep the previous sync cursor until the manifest succeeds, so deletions are retried next time.
-          catalogMeta={
-            ...(catalogMeta||makeCatalogMeta({revision:previousRevision,counts:previousCounts},snapshot,true)),
-            syncedAt:Date.now(),
-            home:{recentTrackRefs:makeRecentTrackRefs(state.recentTracks)}
-          };
-        }
-        if(catalogCacheDb){
-          try{await writeCatalogMeta(catalogCacheDb,catalogMeta);}
-          catch(error){console.warn("[FRAME Audio] Could not update IndexedDB metadata.",error);catalogCacheDb=null;}
-        }
-        console.info("[FRAME Audio] Incremental catalogue sync completed",{
-          tracks:trackChanges.length,folders:folderChanges.length,shows:showChanges.length,
-          episodes:episodeChanges.length,manifest:!!manifest
-        });
-      }else{
-        catalogMeta={
-          ...(catalogMeta||makeCatalogMeta(snapshot,snapshot,true)),
-          counts:nextCounts,
-          revision:String(snapshot.revision||""),
-          syncedAt:Date.now(),
-          home:{recentTrackRefs:makeRecentTrackRefs(state.recentTracks)}
-        };
-        if(catalogCacheDb){
-          try{await writeCatalogMeta(catalogCacheDb,catalogMeta);}
-          catch(error){console.warn("[FRAME Audio] Could not refresh IndexedDB home snapshot.",error);catalogCacheDb=null;}
-        }
-      }
-      state.loadedAt=Date.now();
-      if(state.view==="music"||hasChanges)render();
-    })().catch(error=>{
-      console.warn("[FRAME Audio] Background catalogue sync failed; local catalogue remains available.",error);
-    }).finally(()=>{catalogSyncPromise=null;});
-    return catalogSyncPromise;
+    await load(true);
+    const kinds=new Set(catalogKindsForView(state.view));
+    if(state.currentItem?.itemType==="track")kinds.add("tracks");
+    await Promise.all([...kinds].map(kind=>ensureCatalogKind(kind,{force:true})));
   }
   function cover(hash,title,extra="") {
     const letter=esc(String(title||"F").trim().slice(0,1).toUpperCase()||"F");
@@ -1190,14 +1211,20 @@ export function initLibraryUI(options = {}) {
     state.trackPage=Math.max(0,Math.min(pageCount-1,Number(state.trackPage)||0));
     const page=state.trackPage,start=page*TRACKS_PAGE_SIZE;
     const visibleRows=rows.slice(start,start+TRACKS_PAGE_SIZE);
-    const pageControls=rows.length>TRACKS_PAGE_SIZE
-      ?'<nav class="library-pagination" aria-label="歌曲分頁">'+
-        '<button class="secondary" type="button" data-action="tracks-page" data-page="'+(page-1)+'"'+(page===0?' disabled':'')+'>上一頁</button>'+
-        '<span>第 '+(page+1)+' / '+pageCount+' 頁 · '+(start+1)+'–'+Math.min(start+visibleRows.length,rows.length)+' / '+rows.length.toLocaleString()+' 首</span>'+
-        '<button class="secondary" type="button" data-action="tracks-page" data-page="'+(page+1)+'"'+(page>=pageCount-1?' disabled':'')+'>下一頁</button></nav>'
-      :'<div class="library-pagination library-pagination-single">完整曲庫 · '+rows.length.toLocaleString()+' 首</div>';
+    const complete=state.catalogKindsLoaded.tracks;
+    const knownTotal=Math.max(rows.length,Number(state.catalogCounts.tracks)||0);
+    const cachedTrackCount=state.tracks.length;
+    const pageControls=!complete
+      ?'<div class="library-pagination library-pagination-single">本機已載入 '+cachedTrackCount.toLocaleString()+' / '+knownTotal.toLocaleString()+' 首 · 背景續讀中'+(state.search?' · 篩選結果 '+rows.length.toLocaleString()+' 首':'')+'</div>'
+      :rows.length>TRACKS_PAGE_SIZE
+        ?'<nav class="library-pagination" aria-label="歌曲分頁">'+
+          '<button class="secondary" type="button" data-action="tracks-page" data-page="'+(page-1)+'"'+(page===0?' disabled':'')+'>上一頁</button>'+
+          '<span>第 '+(page+1)+' / '+pageCount+' 頁 · '+(start+1)+'–'+Math.min(start+visibleRows.length,rows.length)+' / '+rows.length.toLocaleString()+' 首</span>'+
+          '<button class="secondary" type="button" data-action="tracks-page" data-page="'+(page+1)+'"'+(page>=pageCount-1?' disabled':'')+'>下一頁</button></nav>'
+        :'<div class="library-pagination library-pagination-single">完整曲庫 · '+rows.length.toLocaleString()+' 首</div>';
+    const countLabel=complete?rows.length.toLocaleString()+" 首":"本機 "+cachedTrackCount.toLocaleString()+" / "+knownTotal.toLocaleString()+" 首";
     root.innerHTML=searchBar("搜尋曲名、歌手、專輯或路徑")+
-      sectionHead("ALL TRACKS","所有歌曲",'<span class="library-muted">'+rows.length.toLocaleString()+' 首 · 每頁 '+TRACKS_PAGE_SIZE+' 首</span>')+
+      sectionHead("ALL TRACKS","所有歌曲",'<span class="library-muted">'+countLabel+' · 每頁 '+TRACKS_PAGE_SIZE+' 首</span>')+
       trackRows(visibleRows,"track",rows,start)+pageControls;
     loadCovers();
   }
@@ -1583,8 +1610,26 @@ export function initLibraryUI(options = {}) {
       root.classList.remove("view-enter");
       return;
     }
-    if(!state.loaded&&state.view!=="music"){message("正在建立本機曲庫索引，完成後即可瀏覽完整清單……");void ensureFullCatalog().catch(error=>message(error?.message||"曲庫同步失敗。","error"));return;}
-    if(!state.loaded&&!state.homeReady){message("正在讀取首頁曲庫摘要……");void load(true);return;}
+    if(!state.homeReady){
+      message("正在讀取首頁曲庫摘要……");
+      void load().then(()=>{if(state.view!=="now-playing")render();}).catch(error=>message(error?.message||"曲庫讀取失敗。","error"));
+      return;
+    }
+    const requiredKinds=catalogKindsForView(state.view);
+    const missingKinds=requiredKinds.filter(kind=>!state.catalogKindsLoaded[kind]);
+    if(missingKinds.length){
+      void Promise.all(missingKinds.map(kind=>ensureCatalogKind(kind))).then(()=>{
+        if(state.view!=="now-playing")render();
+      }).catch(error=>message(error?.message||"曲庫同步失敗。","error"));
+      const waitingForFirstPage=missingKinds.some(kind=>
+        (!Array.isArray(state[kind])||state[kind].length===0)&&Number(state.catalogCounts[kind])>0
+      );
+      if(waitingForFirstPage){
+        const names={tracks:"歌曲",folders:"資料夾",shows:"Podcast 節目",episodes:"Podcast 單集"};
+        message("正在從本機快取恢復或續讀"+missingKinds.map(kind=>names[kind]||kind).join("、")+"……");
+        return;
+      }
+    }
     switch(state.view){
       case "music":renderHome();break;
       case "tracks":renderTracks();break;
@@ -1651,7 +1696,7 @@ export function initLibraryUI(options = {}) {
     const current=queueIndex===state.queueIndex;
     entry.wrapper.hidden=false;
     entry.wrapper.style.height=virtual.rowHeight+"px";
-    entry.wrapper.style.transform="translate3d(0,"+(visibleIndex*virtual.rowHeight)+"px,0)";
+    entry.wrapper.style.transform="translateY("+(visibleIndex*virtual.rowHeight)+"px)";
     entry.wrapper.dataset.visibleIndex=String(visibleIndex);
     entry.wrapper.setAttribute("aria-posinset",String(visibleIndex+1));
     entry.wrapper.setAttribute("aria-setsize",String(virtual.total));
@@ -1679,7 +1724,7 @@ export function initLibraryUI(options = {}) {
     const delta=nextStart-virtual.start;
     if(!delta)return;
 
-    if(Math.abs(delta)>=virtual.pool.length){
+    if(Math.abs(delta)>=Math.min(4,virtual.pool.length)){
       virtual.start=nextStart;
       virtual.pool.forEach((entry,index)=>bindPlayerQueueVirtualRow(entry,nextStart+index));
       return;
@@ -1729,13 +1774,7 @@ export function initLibraryUI(options = {}) {
     if(!list)return;
 
     if(list.dataset.virtualScrollBound!=="true"){
-      list.addEventListener("scroll",()=>{
-        if(queueRenderFrame)return;
-        queueRenderFrame=window.requestAnimationFrame(()=>{
-          queueRenderFrame=0;
-          updatePlayerQueueVirtualWindow();
-        });
-      },{passive:true});
+      list.addEventListener("scroll",updatePlayerQueueVirtualWindow,{passive:true});
       list.dataset.virtualScrollBound="true";
     }
     if(list.dataset.virtualResizeBound!=="true"){
@@ -2365,7 +2404,14 @@ export function initLibraryUI(options = {}) {
         }catch(error){if(status)status.textContent="重新索引失敗："+(error.message||error);button.disabled=false;}
         return;
       }
-      if(action==="open-show"){state.selectedShowId=b.dataset.id;state.view="show-detail";renderShowDetail();animateLibraryContent();return;}
+      if(action==="open-show"){
+        state.selectedShowId=b.dataset.id;
+        state.view="show-detail";
+        render();
+        await Promise.all(["shows","episodes"].map(kind=>ensureCatalogKind(kind)));
+        if(state.view==="show-detail"){renderShowDetail();animateLibraryContent();}
+        return;
+      }
       if(action==="open-album"){state.selectedAlbum=state.items[i]||null;state.view="album-detail";renderAlbumDetail();animateLibraryContent();return;}
       if(action==="open-track-album"){openAlbumFromTrack(state.items[i]);return;}
       if(action==="back-albums"){state.view="albums";renderAlbums();animateLibraryContent();return;}
@@ -2704,30 +2750,27 @@ export function initLibraryUI(options = {}) {
     state.view=target;
     if(target!=="now-playing"&&!returningFromNowPlaying)state.search="";
     if(returningFromNowPlaying){render();return;}
-    if(!state.loaded){
-      if(target==="music"&&state.homeReady){render();return;}
-      await load(true);
-      if(!state.loaded&&target!=="music"&&state.homeReady){
-        try{await ensureFullCatalog();}
-        catch(error){message(error?.message||"完整曲庫同步失敗，請稍後重試。","error");return;}
-      }
-      // load() and ensureFullCatalog() render when their data is ready.
-      return;
+    try{
+      await load();
+      if(state.view!==target)return;
+      render();
+      const kinds=catalogKindsForView(target);
+      if(kinds.length)await Promise.all(kinds.map(kind=>ensureCatalogKind(kind)));
+      if(state.view===target)render();
+    }catch(error){
+      message(error?.message||"曲庫載入失敗，已保留本機快取。","error");
     }
-    render();
   }
   async function refresh(){
     try{
-      if(catalogBootstrapPromise)await catalogBootstrapPromise;
-      if(!state.loaded){
-        if(!state.homeReady)await load(true);
-        if(!state.loaded)await ensureFullCatalog();
-        return;
-      }
-      await syncCatalogInBackground();
+      await load(true);
+      const kinds=new Set(catalogKindsForView(state.view));
+      if(state.currentItem?.itemType==="track")kinds.add("tracks");
+      if(kinds.size)await Promise.all([...kinds].map(kind=>ensureCatalogKind(kind,{force:true})));
+      else if(state.view==="music")await load(true);
     }catch(error){
       console.warn("[FRAME Audio] Catalogue refresh failed.",error);
-      if(!state.homeReady)message(error?.message||"曲庫更新失敗。","error");
+      message(error?.message||"曲庫更新失敗，已保留本機快取。","error");
     }
   }
   loadUserPlaylists();

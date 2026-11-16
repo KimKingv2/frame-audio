@@ -75,27 +75,28 @@ export async function openCatalogCache() {
   return databasePromise;
 }
 
-export async function readCatalogCache() {
+export async function readCatalogCache(storeNames = DATA_STORES) {
   const db = await openCatalogCache();
   if (!db) return null;
-  const transaction = db.transaction(ALL_STORES, "readonly");
+  const selected = DATA_STORES.filter(name => Array.isArray(storeNames) && storeNames.includes(name));
+  const transaction = db.transaction([...selected, "meta"], "readonly");
   const done = transactionDone(transaction);
-  const [tracks, folders, shows, episodes, metaRow] = await Promise.all([
-    requestValue(transaction.objectStore("tracks").getAll()),
-    requestValue(transaction.objectStore("folders").getAll()),
-    requestValue(transaction.objectStore("shows").getAll()),
-    requestValue(transaction.objectStore("episodes").getAll()),
-    requestValue(transaction.objectStore("meta").get("catalog"))
-  ]);
+  const reads = selected.map(name => requestValue(transaction.objectStore(name).getAll()));
+  const metaRead = requestValue(transaction.objectStore("meta").get("catalog"));
+  const [rows, metaRow] = await Promise.all([Promise.all(reads), metaRead]);
   await done;
-  return {
-    db,
-    tracks: tracks || [],
-    folders: folders || [],
-    shows: shows || [],
-    episodes: episodes || [],
-    meta: metaRow?.value || null
-  };
+  const result = { db, meta: metaRow?.value || null };
+  for (const name of DATA_STORES) result[name] = [];
+  selected.forEach((name, index) => { result[name] = rows[index] || []; });
+  return result;
+}
+
+export async function clearCatalogStore(db, storeName) {
+  if (!db || !DATA_STORES.includes(storeName)) return;
+  const transaction = db.transaction(storeName, "readwrite");
+  const done = transactionDone(transaction);
+  transaction.objectStore(storeName).clear();
+  await done;
 }
 
 export async function clearCatalogData(db) {
