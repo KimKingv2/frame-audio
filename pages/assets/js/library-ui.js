@@ -1,6 +1,6 @@
 import { getOpenListFileInfo } from "./openlist-client.js?v=20261112-four-source-login1";
 import { parseSynchronizedLyrics } from "./player-effects.js?v=20261111-sylt-ms1";
-import { readCatalogCache, openCatalogCache, clearCatalogStore, putCatalogBatch, writeCatalogMeta } from "./catalog-cache.js?v=20261116-cache-v3-async1";
+import { readCatalogCache, openCatalogCache, clearCatalogStore, putCatalogBatch, writeCatalogMeta } from "./catalog-cache.js?v=20261116-cache-v3-stream2";
 
 const PERIODS = [["week","近 7 日"],["month","近 30 日"],["year","近 365 日"],["all","全部時間"]];
 const PLAYBACK_QUEUE_STORAGE_KEY = "frame-audio-playback-queue-v1";
