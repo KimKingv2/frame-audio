@@ -91,7 +91,7 @@ export async function onRequest({ request, env }) {
       const meta = await env.DB.prepare(
         "SELECT item_count FROM catalog_meta WHERE kind=?"
       ).bind(kind).first();
-      if (!meta) return error("D1 目錄摘要尚未初始化，請先執行 migrations/0004_catalog_meta.sql。",503);
+      if (!meta) return error("D1 目錄摘要尚未初始化，請先執行 migrations/0005_catalog_meta.sql。",503);
 
       const conditions = [];
       const bindings = [];
@@ -168,7 +168,7 @@ export async function onRequest({ request, env }) {
         nextCursor,hasMore,changedSince:changedSince||null,items
       });
     } catch {
-      return error("Podcast 資料表或目錄摘要尚未初始化。請先執行 migrations/0002_podcasts.sql 與 migrations/0004_catalog_meta.sql。", 503);
+      return error("Podcast 資料表或目錄摘要尚未初始化。請先執行 migrations/0002_podcasts.sql 與 migrations/0005_catalog_meta.sql。", 503);
     }
   }
 
