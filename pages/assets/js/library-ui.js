@@ -693,19 +693,23 @@ export function initLibraryUI(options = {}) {
     if(kind==="tracks"||kind==="folders")return path?[path]:null;
     if(kind==="shows"){
       const folderPath=String(item?.folderPath||item?.folder_path||"");
-      return folderPath?[String(item?.title||"").toLowerCase(),folderPath]:null;
+      return folderPath?[String(item?.title||""),folderPath]:null;
     }
     if(kind==="episodes")return path?[
       String(item?.publishedAt||item?.published_at||""),
-      String(item?.title||"").toLowerCase(),
+      String(item?.title||""),
       path
     ]:null;
     return null;
   }
-  function compareCatalogCursor(a,b) {
+  function compareCatalogCursor(a,b,kind="") {
     const length=Math.min(a?.length||0,b?.length||0);
+    const titleIndex=kind==="shows"?0:kind==="episodes"?1:-1;
+    const foldNoCase=value=>String(value??"").replace(/[A-Z]/g,char=>char.toLowerCase());
     for(let index=0;index<length;index++){
-      const left=String(a[index]??""),right=String(b[index]??"");
+      let left=String(a[index]??""),right=String(b[index]??"");
+      // Match SQLite's built-in NOCASE collation (ASCII letters only).
+      if(index===titleIndex){left=foldNoCase(left);right=foldNoCase(right);}
       if(left<right)return -1;
       if(left>right)return 1;
     }
@@ -715,7 +719,7 @@ export function initLibraryUI(options = {}) {
     let latest=null;
     for(const item of items||[]){
       const candidate=catalogCursorForItem(kind,item);
-      if(candidate&&(!latest||compareCatalogCursor(candidate,latest)>0))latest=candidate;
+      if(candidate&&(!latest||compareCatalogCursor(candidate,latest,kind)>0))latest=candidate;
     }
     return latest;
   }
@@ -992,7 +996,7 @@ export function initLibraryUI(options = {}) {
         if(items.length===0&&nextCursor){
           throw new Error(kind+" 曲庫分頁回傳空資料，已保留目前快取進度，請稍後重試。");
         }
-        if(nextCursor&&cursor&&compareCatalogCursor(nextCursor,cursor)<=0){
+        if(nextCursor&&cursor&&compareCatalogCursor(nextCursor,cursor,kind)<=0){
           throw new Error(kind+" 曲庫同步游標沒有前進，已保留目前快取進度。");
         }
         const complete=!nextCursor;
