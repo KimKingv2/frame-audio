@@ -207,8 +207,8 @@ body.is-podcast-view .hero{background:radial-gradient(ellipse at 78% 50%,#5c81a8
 
 
 /* Now Playing slides up from the dock and dismisses downward. */
-.now-playing-page.now-playing-enter{animation:now-playing-slide-up .46s cubic-bezier(.2,.78,.22,1) both}
-.now-playing-page.now-playing-exit{animation:now-playing-slide-down .4s cubic-bezier(.72,0,.84,.22) both;pointer-events:none}
+.now-playing-page.now-playing-enter{animation:now-playing-slide-up .42s cubic-bezier(.2,.76,.24,1) both}
+.now-playing-page.now-playing-exit{animation:now-playing-slide-down .38s cubic-bezier(.55,.06,.68,.19) both;pointer-events:none}
 @keyframes now-playing-slide-up{
   from{opacity:.7;transform:translateY(100%)}
   to{opacity:1;transform:translateY(0)}
@@ -254,12 +254,12 @@ body.is-podcast-view .hero{background:radial-gradient(ellipse at 78% 50%,#5c81a8
   -webkit-backface-visibility:hidden;
 }
 .now-playing-page.now-playing-enter{
-  animation:now-playing-panel-in .82s cubic-bezier(.16,1,.3,1) both;
-  will-change:transform,opacity;
+  animation:now-playing-panel-in .42s cubic-bezier(.2,.76,.24,1) both;
+  will-change:transform;
 }
 .now-playing-page.now-playing-exit{
-  animation:now-playing-panel-out .68s cubic-bezier(.55,.06,.68,.19) both;
-  will-change:transform,opacity;
+  animation:now-playing-panel-out .38s cubic-bezier(.55,.06,.68,.19) both;
+  will-change:transform;
   pointer-events:none;
 }
 @keyframes now-playing-panel-in{
@@ -469,3 +469,104 @@ body.is-now-playing .dock{border-top-color:transparent}
 .playlist-detail-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:5px 0 15px}.playlist-detail-toolbar .library-muted{margin-left:auto}
 @media(max-width:760px){.media-row{grid-template-columns:39px minmax(0,1fr) auto;gap:9px;padding:8px 4px}.media-row .media-cover{width:39px;height:39px}.media-row-actions{gap:5px}.playlist-add-button,.playlist-remove-button{width:28px;height:29px;flex-basis:28px;border-radius:9px}.media-row-actions .play-button{width:29px;height:29px}.playlist-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:9px}.playlist-card{min-height:130px;padding:12px}.playlist-detail-toolbar .library-muted{width:100%;margin-left:0}}
 @media(max-width:390px){.media-row-actions{gap:3px}.playlist-add-button,.playlist-remove-button{width:26px;height:27px;flex-basis:26px}.media-row-actions .play-button{width:27px;height:27px}}
+
+/* FRAME Audio · Flat library canvas for Firefox/mobile dark-mode banding. */
+.media-list{
+  gap:0!important;
+  background:#0f0e13!important;
+}
+.media-row{
+  border:0!important;
+  border-bottom:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+.media-row:hover{
+  background:rgba(255,255,255,.025)!important;
+}
+
+/* FRAME Audio · Album-grouped all-tracks table. */
+.album-track-library{width:100%;min-width:0;margin:4px 0 10px}
+.album-track-columns{
+  display:grid;
+  grid-template-columns:72px 24px 40px minmax(180px,1.8fr) 56px minmax(90px,.85fr) 92px 54px 66px;
+  gap:8px;align-items:center;padding:0 8px 10px;
+  border-bottom:1px solid rgba(195,171,214,.12);
+  color:#897f90;font-size:9px;letter-spacing:.07em;
+}
+.album-track-group{margin:0 0 18px;padding:0 0 8px}
+.album-group-heading{display:flex;align-items:center;gap:12px;min-width:0;margin:17px 2px 10px;color:#c8b8d2}
+.album-group-heading strong{flex:0 1 auto;min-width:0;max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:650}
+.album-group-rule{height:1px;min-width:14px;flex:1;background:linear-gradient(90deg,rgba(190,161,218,.62),rgba(190,161,218,.12))}
+.album-group-year{flex:0 0 auto;color:#9b8ba8;font-size:11px;font-variant-numeric:tabular-nums}
+.album-group-body{display:grid;grid-template-columns:72px minmax(0,1fr);gap:10px;align-items:start;min-width:0}
+.album-group-cover{width:72px;height:72px;aspect-ratio:1;border-radius:5px;background:#19151f}
+.album-group-cover img{border-radius:5px}
+.album-track-rows{display:grid;gap:1px;min-width:0}
+.album-track-row{
+  display:grid;
+  grid-template-columns:24px 40px minmax(180px,1.8fr) 56px minmax(90px,.85fr) 92px 54px 66px;
+  gap:8px;align-items:center;min-width:0;min-height:43px;padding:5px 8px;
+  border:1px solid transparent;border-radius:6px;
+  color:#b8aebc;background:transparent;cursor:pointer;
+  transition:background-color .14s ease,border-color .14s ease;
+}
+.album-track-row:hover{background:rgba(255,255,255,.035);border-color:rgba(190,161,218,.08)}
+.album-track-row.is-current{background:rgba(142,103,168,.105);border-color:rgba(182,147,207,.16)}
+.album-track-status{display:block;width:9px;height:9px;margin:auto;border:1px solid rgba(181,162,194,.22);border-radius:3px;background:rgba(255,255,255,.025)}
+.album-track-row.is-current .album-track-status{border-color:#b89bd1;background:#a98ac0;box-shadow:0 0 9px rgba(169,138,192,.38)}
+.album-track-number,.album-track-year,.album-track-duration{color:#9a909e;font-size:10px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.album-track-number{color:#b6a9c0;text-align:center}
+.album-track-title{display:block;min-width:0;overflow:hidden}
+.album-track-title strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#d1c8d5;font-size:11px;font-weight:560}
+.album-track-row:hover .album-track-title strong,.album-track-row.is-current .album-track-title strong{color:#efe5f4}
+.album-track-artist{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#978b9d;font-size:10px}
+.album-track-rating{color:#625968;font-size:12px;letter-spacing:.04em;white-space:nowrap}
+.album-track-actions{display:flex;align-items:center;justify-content:flex-end;gap:5px}
+.album-track-actions .playlist-add-button{width:25px;height:25px;min-width:25px;flex-basis:25px;border-radius:8px;font-size:15px}
+.album-track-actions .play-button{width:26px;height:26px;min-width:26px;border-radius:50%;font-size:9px;opacity:.72}
+.album-track-row:hover .album-track-actions .play-button,.album-track-row.is-current .album-track-actions .play-button{opacity:1}
+.album-track-artist-inline{display:none}
+@media(max-width:900px){
+  .album-track-columns{grid-template-columns:60px 20px 34px minmax(130px,1.6fr) 48px minmax(75px,.8fr) 78px 48px 60px;gap:6px}
+  .album-group-body{grid-template-columns:60px minmax(0,1fr);gap:8px;align-items:start}
+  .album-group-cover{width:60px;height:60px}
+  .album-track-row{grid-template-columns:20px 34px minmax(130px,1.6fr) 48px minmax(75px,.8fr) 78px 48px 60px;gap:6px;padding-inline:6px}
+  .album-track-rating{font-size:11px}
+}
+@media(max-width:760px){
+  .album-track-columns{
+    grid-template-columns:48px 18px 28px minmax(0,1fr) 44px 58px;
+    gap:5px;padding:0 4px 8px;
+  }
+  .album-track-columns span:nth-child(5),
+  .album-track-columns span:nth-child(6),
+  .album-track-columns span:nth-child(7){display:none}
+  .album-group-heading{gap:8px;margin:15px 1px 8px}
+  .album-group-heading strong{max-width:78%;font-size:12px}
+  .album-group-year{font-size:10px}
+  .album-group-body{grid-template-columns:48px minmax(0,1fr);gap:7px;align-items:start}
+  .album-group-cover{width:48px;height:48px;border-radius:4px}
+  .album-group-cover img{border-radius:4px}
+  .album-track-row{
+    grid-template-columns:18px 28px minmax(0,1fr) 44px 58px;
+    gap:5px;min-height:42px;padding:4px 4px;border-radius:5px;
+  }
+  .album-track-year,.album-track-artist,.album-track-rating{display:none}
+  .album-track-title strong{font-size:10px}
+  .album-track-artist-inline{display:block;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#807687;font-size:8px}
+  .album-track-duration{font-size:9px}
+  .album-track-actions{gap:3px}
+  .album-track-actions .playlist-add-button{width:23px;height:23px;min-width:23px;flex-basis:23px}
+  .album-track-actions .play-button{width:24px;height:24px;min-width:24px}
+}
+@media(max-width:390px){
+  .album-track-columns{grid-template-columns:42px 16px 25px minmax(0,1fr) 40px 52px;gap:4px}
+  .album-group-body{grid-template-columns:42px minmax(0,1fr);gap:6px;align-items:start}
+  .album-group-cover{width:42px;height:42px}
+  .album-track-row{grid-template-columns:16px 25px minmax(0,1fr) 40px 52px;gap:4px}
+  .album-track-actions .playlist-add-button{width:21px;height:21px;min-width:21px;flex-basis:21px}
+  .album-track-actions .play-button{width:22px;height:22px;min-width:22px}
+}
+@media(prefers-reduced-motion:reduce){.album-track-row{transition:none!important}}

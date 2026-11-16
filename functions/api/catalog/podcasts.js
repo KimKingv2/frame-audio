@@ -74,32 +74,44 @@ export async function onRequest({ request, env }) {
     const offset = Math.max(0, Number(url.searchParams.get("offset") || 0));
     const showId = url.searchParams.get("showId") || "";
     try {
+      const changedSince = url.searchParams.get("changedSince") || "";
+      if (changedSince && !Number.isFinite(Date.parse(changedSince))) return error("changedSince 必須是有效的 ISO 日期。");
       if (kind === "shows") {
-        const count = await env.DB.prepare("SELECT COUNT(*) AS count FROM podcast_shows").first();
-        const rows = await env.DB.prepare(
-          "SELECT data_json,cover_hash FROM podcast_shows ORDER BY title COLLATE NOCASE LIMIT ? OFFSET ?"
-        ).bind(limit, offset).all();
+        const where = changedSince ? " WHERE indexed_at>=?" : "";
+        const countStatement = env.DB.prepare("SELECT COUNT(*) AS count FROM podcast_shows" + where);
+        const rowsStatement = env.DB.prepare(
+          "SELECT data_json,cover_hash FROM podcast_shows" + where +
+          " ORDER BY title COLLATE NOCASE LIMIT ? OFFSET ?"
+        );
+        const [count, rows] = await Promise.all([
+          changedSince ? countStatement.bind(changedSince).first() : countStatement.first(),
+          changedSince ? rowsStatement.bind(changedSince,limit,offset).all() : rowsStatement.bind(limit,offset).all()
+        ]);
         const items = (rows.results || []).map(row => ({
           ...JSON.parse(row.data_json),
           coverHash: row.cover_hash || null
         }));
         const total = Number(count?.count || 0);
-        return json({ ok: true, kind, total, limit, offset,
+        return json({ ok: true, kind, total, limit, offset, changedSince: changedSince || null,
           nextOffset: offset + items.length < total ? offset + items.length : null, items });
       }
-      const where = showId ? " WHERE show_id=?" : "";
-      const countStatement = showId
-        ? env.DB.prepare("SELECT COUNT(*) AS count FROM podcast_episodes WHERE show_id=?").bind(showId)
-        : env.DB.prepare("SELECT COUNT(*) AS count FROM podcast_episodes");
-      const rowsStatement = showId
-        ? env.DB.prepare("SELECT data_json FROM podcast_episodes WHERE show_id=? ORDER BY COALESCE(published_at,''),title COLLATE NOCASE LIMIT ? OFFSET ?")
-            .bind(showId, limit, offset)
-        : env.DB.prepare("SELECT data_json FROM podcast_episodes ORDER BY COALESCE(published_at,''),title COLLATE NOCASE LIMIT ? OFFSET ?")
-            .bind(limit, offset);
-      const [count, rows] = await Promise.all([countStatement.first(), rowsStatement.all()]);
+      const conditions = [];
+      const bindings = [];
+      if (showId) { conditions.push("show_id=?"); bindings.push(showId); }
+      if (changedSince) { conditions.push("indexed_at>=?"); bindings.push(changedSince); }
+      const where = conditions.length ? " WHERE " + conditions.join(" AND ") : "";
+      const countStatement = env.DB.prepare("SELECT COUNT(*) AS count FROM podcast_episodes" + where);
+      const rowsStatement = env.DB.prepare(
+        "SELECT data_json FROM podcast_episodes" + where +
+        " ORDER BY COALESCE(published_at,''),title COLLATE NOCASE,path LIMIT ? OFFSET ?"
+      );
+      const [count, rows] = await Promise.all([
+        (bindings.length ? countStatement.bind(...bindings) : countStatement).first(),
+        (bindings.length ? rowsStatement.bind(...bindings,limit,offset) : rowsStatement.bind(limit,offset)).all()
+      ]);
       const items = (rows.results || []).map(row => JSON.parse(row.data_json));
       const total = Number(count?.count || 0);
-      return json({ ok: true, kind, showId: showId || null, total, limit, offset,
+      return json({ ok: true, kind, showId: showId || null, total, limit, offset, changedSince: changedSince || null,
         nextOffset: offset + items.length < total ? offset + items.length : null, items });
     } catch {
       return error("Podcast 資料表尚未初始化或查詢失敗。請先執行 migrations/0002_podcasts.sql。", 503);
