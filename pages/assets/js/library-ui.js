@@ -591,18 +591,19 @@ export function initLibraryUI(options = {}) {
     return data;
   }
   async function all(url,storeName="",cacheContext=null) {
-    const result=[];let offset=0;
+    const result=[];let cursor=null;
     while(true){
       const sep=url.includes("?")?"&":"?";
-      const page=await api(url+sep+"limit=500&offset="+offset);
+      const cursorParam=cursor?"&cursor="+encodeURIComponent(JSON.stringify(cursor)):"";
+      const page=await api(url+sep+"limit=500"+cursorParam);
       const items=page.items||[];
       result.push(...items);
       if(cacheContext?.db&&storeName&&items.length){
         try{await putCatalogBatch(cacheContext.db,storeName,items);}
         catch(error){console.warn("[FRAME Audio] IndexedDB page write failed; continuing without local cache.",error);cacheContext.db=null;}
       }
-      if(page.nextOffset==null||page.nextOffset<=offset)break;
-      offset=page.nextOffset;
+      if(!Array.isArray(page.nextCursor)||!page.nextCursor.length)break;
+      cursor=page.nextCursor;
     }
     return result;
   }
@@ -1033,10 +1034,11 @@ export function initLibraryUI(options = {}) {
     return promise;
   }
   async function syncCatalogInBackground() {
-    await load(true);
+    await load();
     const kinds=new Set(catalogKindsForView(state.view));
     if(state.currentItem?.itemType==="track")kinds.add("tracks");
-    await Promise.all([...kinds].map(kind=>ensureCatalogKind(kind,{force:true})));
+    for(const kind of kinds)state.catalogKindsLoaded[kind]=false;
+    await Promise.all([...kinds].map(kind=>ensureCatalogKind(kind)));
   }
   function cover(hash,title,extra="") {
     const letter=esc(String(title||"F").trim().slice(0,1).toUpperCase()||"F");
