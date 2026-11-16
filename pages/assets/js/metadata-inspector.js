@@ -409,14 +409,43 @@ function collectNativeLyrics(metadata) {
   for (const [tagType, tags] of Object.entries(metadata.native || {})) {
     for (const tag of (Array.isArray(tags) ? tags : [])) {
       const id = String(tag?.id || "").trim();
-      if (!/LYRIC|SYLT|SLT|USLT/i.test(id)) continue;
+      if (!/LYRIC|SYLT|SLT|USLT|TXXX/i.test(id)) continue;
+      const description = String(
+        tag?.value?.description || tag?.value?.desc || tag?.value?.key || ""
+      ).trim();
+      const isLyricsTextFrame = /TXXX/i.test(id) &&
+        /LYRICS?/i.test(id + " " + description);
+      if (!/LYRIC|SYLT|SLT|USLT/i.test(id) && !isLyricsTextFrame) continue;
       for (const value of lyricPayloadValues(tag?.value)) {
-        candidates.push({ tagType, id, value, source: "native." + tagType + ":" + id });
+        candidates.push({
+          tagType,id,description,value,
+          isLyricsTextFrame,
+          source:"native." + tagType + ":" + id + (description ? ":" + description : "")
+        });
       }
     }
   }
   return candidates;
 }
+
+const INLINE_WORD_TIMESTAMP = /<\\s*((?:\\d{1,3}:)?\\d{1,3}:[0-5]\\d(?:[.,]\\d{1,3})?)\\s*>/g;
+function normalizeInlineWordTimedLyrics(value) {
+  if (typeof value !== "string" || !/<\\s*(?:\\d{1,3}:)?\\d{1,3}:[0-5]\\d(?:[.,]\\d{1,3})?\\s*>/.test(value)) {
+    return value;
+  }
+  return value.replace(/\\r\\n?/g,"\\n").split("\\n").map(line => {
+    const firstWordTimestamp = line.match(/<\\s*((?:\\d{1,3}:)?\\d{1,3}:[0-5]\\d(?:[.,]\\d{1,3})?)\\s*>/);
+    if (!firstWordTimestamp) return line;
+    const lineTimestamp = line.match(/^\\s*\\[((?:\\d{1,3}:)?\\d{1,3}:[0-5]\\d(?:[.,]\\d{1,3})?)\\]\\s*/);
+    const timestamp = lineTimestamp?.[1] || firstWordTimestamp[1];
+    const text = line
+      .replace(/^\\s*\\[(?:\\d{1,3}:)?\\d{1,3}:[0-5]\\d(?:[.,]\\d{1,3})?\\]\\s*/,"")
+      .replace(INLINE_WORD_TIMESTAMP,"")
+      .trim();
+    return text ? "[" + timestamp + "]" + text : "";
+  }).filter(Boolean).join("\\n");
+}
+
 function selectLyrics(metadata, common) {
   const nativeCandidates = collectNativeLyrics(metadata);
   const commonCandidates = lyricPayloadValues(common.lyrics).map(value => ({
@@ -428,11 +457,18 @@ function selectLyrics(metadata, common) {
     const id = String(candidate.id || "").toUpperCase();
     const timed = containsTimedLyrics(candidate.value);
     const vorbis = type === "vorbis";
-    const sylt = /^(?:SYLT|SLT)$/.test(id);
-    if (timed && vorbis) return 0;
-    if (timed && sylt) return 1;
-    if (timed && type !== "common") return 2;
-    if (timed) return 3;
+    const sylt = /SYLT|SLT/.test(id);
+    const uslt = /USLT/.test(id);
+    // Keep native synchronized ID3 lyrics intact. SYLT is a real timed-text
+    // frame, unlike word timestamps embedded inside a TXXX LYRICS string.
+    if (timed && sylt) return 0;
+    if (timed && vorbis) return 1;
+    // When a normal unsynchronized ID3 lyric block and enhanced TXXX lyrics
+    // coexist, prefer USLT so inline per-word stamps cannot split a whole line.
+    if (uslt) return 2;
+    if (candidate.isLyricsTextFrame && timed) return 3;
+    if (timed && type !== "common") return 4;
+    if (timed) return 5;
     if (vorbis && /^(?:LYRICS|SYNCEDLYRICS|SYNCED_LYRICS)$/.test(id)) return 10;
     if (vorbis && /UNSYNCED/i.test(id)) return 11;
     if (type !== "common") return 12;
@@ -445,7 +481,7 @@ function selectLyrics(metadata, common) {
         score(candidate) === score(selected) &&
         candidate.tagType === selected.tagType &&
         candidate.id === selected.id
-      ).map(candidate => candidate.value)
+      ).map(candidate => normalizeInlineWordTimedLyrics(candidate.value))
     : [];
   const diagnostics = nativeCandidates.map(candidate => {
     const value = candidate.value;

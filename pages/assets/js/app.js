@@ -1,5 +1,5 @@
 import { listOpenListDirectory, joinOpenListPath, formatBytes, probeOpenListAudioRange, getOpenListFileInfo, configureOpenListConnection, normalizeOpenListUrl, loginOpenList } from "./openlist-client.js?v=20261114-auth-password-only1";
-import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261116-provider-module-singleton7";
+import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261116-lyrics-uslt-sylt1";
 import { runPodcastBatch, indexPodcastEpisode } from "./podcast-scanner.js?v=20261116-provider-module-singleton7";
 import { initLibraryUI } from "./library-ui.js?v=20261116-catalog-progress1";
 
