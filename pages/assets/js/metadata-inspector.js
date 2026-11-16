@@ -428,22 +428,25 @@ function collectNativeLyrics(metadata) {
   return candidates;
 }
 
-const INLINE_WORD_TIMESTAMP = /<\\s*((?:\\d{1,3}:)?\\d{1,3}:[0-5]\\d(?:[.,]\\d{1,3})?)\\s*>/g;
-function normalizeInlineWordTimedLyrics(value) {
-  if (typeof value !== "string" || !/<\\s*(?:\\d{1,3}:)?\\d{1,3}:[0-5]\\d(?:[.,]\\d{1,3})?\\s*>/.test(value)) {
+const INLINE_WORD_TIMESTAMP = /<\s*((?:\d{1,3}:)?\d{1,3}:[0-5]\d(?:[.,]\d{1,3})?)\s*>/g;
+function normalizeInlineWordTimedLyrics(value, candidate) {
+  const id = String(candidate?.id || "").toUpperCase();
+  // SYLT is an actual ID3 synchronized-lyrics frame. Never flatten its cues.
+  if (/SYLT|SLT/.test(id) || typeof value !== "string" ||
+      !/<\s*(?:\d{1,3}:)?\d{1,3}:[0-5]\d(?:[.,]\d{1,3})?\s*>/.test(value)) {
     return value;
   }
-  return value.replace(/\\r\\n?/g,"\\n").split("\\n").map(line => {
-    const firstWordTimestamp = line.match(/<\\s*((?:\\d{1,3}:)?\\d{1,3}:[0-5]\\d(?:[.,]\\d{1,3})?)\\s*>/);
+  return value.replace(/\r\n?/g,"\n").split("\n").map(line => {
+    const firstWordTimestamp = line.match(/<\s*((?:\d{1,3}:)?\d{1,3}:[0-5]\d(?:[.,]\d{1,3})?)\s*>/);
     if (!firstWordTimestamp) return line;
-    const lineTimestamp = line.match(/^\\s*\\[((?:\\d{1,3}:)?\\d{1,3}:[0-5]\\d(?:[.,]\\d{1,3})?)\\]\\s*/);
+    const lineTimestamp = line.match(/^\s*\[((?:\d{1,3}:)?\d{1,3}:[0-5]\d(?:[.,]\d{1,3})?)\]\s*/);
     const timestamp = lineTimestamp?.[1] || firstWordTimestamp[1];
     const text = line
-      .replace(/^\\s*\\[(?:\\d{1,3}:)?\\d{1,3}:[0-5]\\d(?:[.,]\\d{1,3})?\\]\\s*/,"")
+      .replace(/^\s*\[(?:\d{1,3}:)?\d{1,3}:[0-5]\d(?:[.,]\d{1,3})?\]\s*/,"")
       .replace(INLINE_WORD_TIMESTAMP,"")
       .trim();
     return text ? "[" + timestamp + "]" + text : "";
-  }).filter(Boolean).join("\\n");
+  }).filter(Boolean).join("\n");
 }
 
 function selectLyrics(metadata, common) {
@@ -481,7 +484,7 @@ function selectLyrics(metadata, common) {
         score(candidate) === score(selected) &&
         candidate.tagType === selected.tagType &&
         candidate.id === selected.id
-      ).map(candidate => normalizeInlineWordTimedLyrics(candidate.value))
+      ).map(candidate => normalizeInlineWordTimedLyrics(candidate.value, candidate))
     : [];
   const diagnostics = nativeCandidates.map(candidate => {
     const value = candidate.value;
