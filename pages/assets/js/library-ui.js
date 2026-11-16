@@ -31,7 +31,7 @@ export function initLibraryUI(options = {}) {
     preloadEntry:null,preloadAudio:null,preloadGeneration:0,restoredPlaybackPending:false,lastLocalPositionSaveAt:0,
     playMode:"sequential",shuffleEnabled:false,shuffleOrder:[],shufflePosition:-1,
     lyricsCues:[],lyricsPlainLines:[],lyricsActiveIndex:-1,
-    lyricsScrollPause:new WeakMap(),homeReady:false,catalogCounts:{tracks:0,folders:0,shows:0,episodes:0},catalogRevision:"",
+    lyricsScrollPause:new WeakMap(),homeReady:false,catalogCounts:{tracks:0,folders:0,shows:0,episodes:0},catalogRevision:"",catalogRevisions:{tracks:"",folders:"",shows:"",episodes:""},
     catalogKindsLoaded:{tracks:false,folders:false,shows:false,episodes:false},
     catalogProgress:{tracks:{phase:"idle"},folders:{phase:"idle"},shows:{phase:"idle"},episodes:{phase:"idle"}}
   };
@@ -630,6 +630,13 @@ export function initLibraryUI(options = {}) {
       episodes:Math.max(0,Number(value.episodes)||0)
     };
   }
+  function normalizeCatalogRevisions(value={},legacy="") {
+    const source=value&&typeof value==="object"?value:{};
+    const fallback=String(legacy||"");
+    return Object.fromEntries(["tracks","folders","shows","episodes"].map(kind=>[
+      kind,String(source[kind]??fallback)
+    ]));
+  }
   function sameCatalogCounts(a={},b={}) {
     return ["tracks","folders","shows","episodes"].every(key=>Number(a[key]||0)===Number(b[key]||0));
   }
@@ -637,6 +644,7 @@ export function initLibraryUI(options = {}) {
     state.homeReady=true;
     state.catalogCounts=normalizeCatalogCounts(snapshot?.counts);
     state.catalogRevision=String(snapshot?.revision||"");
+    state.catalogRevisions=normalizeCatalogRevisions(snapshot?.revisions,state.catalogRevision);
     state.recentTracks=Array.isArray(snapshot?.recentTracks)?snapshot.recentTracks:[];
     if(!state.catalogKindsLoaded.shows)state.shows=Array.isArray(snapshot?.shows)?snapshot.shows:[];
   }
@@ -678,6 +686,44 @@ export function initLibraryUI(options = {}) {
     if(kind==="tracks")return items.sort(compareTrackFileNames);
     if(kind==="shows")return items.sort((a,b)=>String(a.title||"").localeCompare(String(b.title||""),"zh-Hant"));
     return items;
+  }
+  function catalogCursorForItem(kind,item) {
+    const path=String(item?.file?.path||item?.path||"");
+    if(kind==="tracks"||kind==="folders")return path?[path]:null;
+    if(kind==="shows"){
+      const folderPath=String(item?.folderPath||item?.folder_path||"");
+      return folderPath?[String(item?.title||"").toLowerCase(),folderPath]:null;
+    }
+    if(kind==="episodes")return path?[
+      String(item?.publishedAt||item?.published_at||""),
+      String(item?.title||"").toLowerCase(),
+      path
+    ]:null;
+    return null;
+  }
+  function compareCatalogCursor(a,b) {
+    const length=Math.min(a?.length||0,b?.length||0);
+    for(let index=0;index<length;index++){
+      const left=String(a[index]??""),right=String(b[index]??"");
+      if(left<right)return -1;
+      if(left>right)return 1;
+    }
+    return (a?.length||0)-(b?.length||0);
+  }
+  function catalogCursorFromCache(kind,items) {
+    let latest=null;
+    for(const item of items||[]){
+      const candidate=catalogCursorForItem(kind,item);
+      if(candidate&&(!latest||compareCatalogCursor(candidate,latest)>0))latest=candidate;
+    }
+    return latest;
+  }
+  function parseCatalogCursor(value) {
+    if(!value)return null;
+    try{
+      const parsed=JSON.parse(value);
+      return Array.isArray(parsed)&&parsed.every(part=>typeof part==="string")?parsed:null;
+    }catch{return null;}
   }
   function mergeCatalogKindItems(kind,current,updates) {
     const map=new Map((current||[]).map(item=>[String(item?.id||""),item]).filter(([id])=>id));
@@ -732,6 +778,7 @@ export function initLibraryUI(options = {}) {
       ...(catalogMeta||{}),
       complete:allCatalogKindsLoaded(),
       revision:String(state.catalogRevision||catalogMeta?.revision||""),
+      revisions:normalizeCatalogRevisions(state.catalogRevisions,state.catalogRevision),
       counts:normalizeCatalogCounts(state.catalogCounts),
       syncedAt:Date.now(),
       progress:{...(catalogMeta?.progress||{}),...progressPatch},
@@ -770,6 +817,7 @@ export function initLibraryUI(options = {}) {
       if(catalogMeta?.counts){
         state.catalogCounts=normalizeCatalogCounts(catalogMeta.counts);
         state.catalogRevision=String(catalogMeta.revision||"");
+        state.catalogRevisions=normalizeCatalogRevisions(catalogMeta.revisions,state.catalogRevision);
         state.recentTracks=restoreRecentTrackRefs(
           catalogMeta.home?.recentTrackRefs||catalogMeta.home?.recentTracks,[]
         );
@@ -851,21 +899,26 @@ export function initLibraryUI(options = {}) {
       }
 
       const savedProgress=catalogMeta?.progress?.[kind]||{};
-      const savedRevision=String(savedProgress.revision||catalogMeta?.legacyRevision||catalogMeta?.revision||"");
+      const currentRevision=String(state.catalogRevisions?.[kind]||state.catalogRevision||"");
+      const savedRevision=String(savedProgress.revision||catalogMeta?.revisions?.[kind]||catalogMeta?.legacyRevision||catalogMeta?.revision||"");
       const cacheCount=cachedRows.length;
       const expectedCount=Math.max(0,Number(state.catalogCounts[kind])||0);
       setCatalogProgress(kind,{
         phase:"cache-check",localCount:cacheCount,localLoaded:cacheCount,
         localTotal:cacheCount,synced:state[kind].length,total:expectedCount
       });
-      const revisionChanged=!!(state.catalogRevision&&savedRevision&&state.catalogRevision!==savedRevision);
+      const revisionChanged=!!(currentRevision&&savedRevision&&currentRevision!==savedRevision);
       const legacyComplete=(catalogMeta?.legacyComplete===true||catalogMeta?.complete===true)&&cacheCount===expectedCount;
       const savedOffset=Math.max(0,Number(savedProgress.offset)||0);
       const savedTotal=Number(savedProgress.total);
+      const legacyCursor=!savedProgress.cursor&&savedOffset>0?catalogCursorFromCache(kind,cachedRows):null;
+      const savedCursor=parseCatalogCursor(savedProgress.cursor)||legacyCursor;
+      const missingResumeCursor=cacheCount>0&&cacheCount<expectedCount&&!savedCursor&&!legacyComplete;
       let reset=options.force===true||revisionChanged||cacheCount>expectedCount||
         (savedProgress.complete===true&&cacheCount!==expectedCount)||
         (Number.isFinite(savedTotal)&&savedTotal!==expectedCount)||
-        savedOffset>cacheCount;
+        savedOffset>cacheCount||(savedOffset>0&&!cacheCount)||
+        (!!savedProgress.cursor&&!cacheCount)||missingResumeCursor;
       if(reset&&!options.force){
         if(catalogCacheDb){
           try{await clearCatalogStore(catalogCacheDb,kind);}catch{}
@@ -876,7 +929,7 @@ export function initLibraryUI(options = {}) {
           synced:0,total:expectedCount
         });
       }
-      let offset=reset?0:Math.max(savedOffset,cacheCount);
+      let cursor=reset?null:savedCursor;
       let total=expectedCount;
       if(!reset&&(savedProgress.complete===true||legacyComplete)&&cacheCount===expectedCount){
         state.catalogKindsLoaded[kind]=true;
@@ -887,9 +940,10 @@ export function initLibraryUI(options = {}) {
       }
       state.catalogKindsLoaded[kind]=false;
       let firstPage=true;
+      let batchNumber=Math.floor((reset?0:cacheCount)/500)+1;
       const baseProgress={
         ...(catalogMeta?.progress||{}),
-        [kind]:{offset,complete:false,total,revision:state.catalogRevision}
+        [kind]:{cursor:cursor?JSON.stringify(cursor):"",complete:false,total,revision:currentRevision}
       };
       setCatalogProgress(kind,{
         phase:"checkpoint",synced:state[kind].length,total,localCount:cacheCount
@@ -897,20 +951,20 @@ export function initLibraryUI(options = {}) {
       await persistCatalogMeta(baseProgress);
 
       while(true){
-        const batchNumber=Math.floor(offset/500)+1;
         let page;
         setCatalogProgress(kind,{
           phase:"d1-request",page:batchNumber,synced:state[kind].length,total
         });
         try{
-          page=await api(config.url+(config.url.includes("?")?"&":"?")+"limit=500&offset="+offset);
+          const cursorParam=cursor?"&cursor="+encodeURIComponent(JSON.stringify(cursor)):"";
+          page=await api(config.url+(config.url.includes("?")?"&":"?")+"limit=500"+cursorParam);
         }catch(error){
           if((kind==="shows"||kind==="episodes")&&/Podcast.*(?:初始化|資料表)|migrations\/0002_podcasts/i.test(String(error?.message||error))){
             state[kind]=[];
             state.catalogCounts[kind]=0;
             state.catalogKindsLoaded[kind]=true;
             await persistCatalogMeta({
-              [kind]:{offset:0,complete:true,total:0,revision:state.catalogRevision}
+              [kind]:{cursor:"",complete:true,total:0,revision:currentRevision}
             });
             state.loaded=allCatalogKindsLoaded();
             return;
@@ -933,16 +987,16 @@ export function initLibraryUI(options = {}) {
             }
           }
         }
-        const nextOffset=page.nextOffset==null?offset+items.length:Number(page.nextOffset);
-        if(items.length===0&&offset<total){
+        const nextCursor=Array.isArray(page.nextCursor)&&page.nextCursor.length?page.nextCursor:null;
+        if(items.length===0&&nextCursor){
           throw new Error(kind+" 曲庫分頁回傳空資料，已保留目前快取進度，請稍後重試。");
         }
-        if(nextOffset<=offset&&offset<total){
-          throw new Error(kind+" 曲庫同步進度沒有前進，已保留目前快取進度。");
+        if(nextCursor&&cursor&&compareCatalogCursor(nextCursor,cursor)<=0){
+          throw new Error(kind+" 曲庫同步游標沒有前進，已保留目前快取進度。");
         }
-        const complete=nextOffset>=total||page.nextOffset==null;
+        const complete=!nextCursor;
         await persistCatalogMeta({
-          [kind]:{offset:nextOffset,complete,total,revision:state.catalogRevision}
+          [kind]:{cursor:nextCursor?JSON.stringify(nextCursor):"",complete,total,revision:currentRevision}
         });
         setCatalogProgress(kind,{
           phase:complete?"finalizing":"d1-ready",
@@ -952,19 +1006,20 @@ export function initLibraryUI(options = {}) {
           firstPage=false;
           if(catalogKindsForView(state.view).includes(kind))render();
         }
-        offset=nextOffset;
+        cursor=nextCursor;
+        batchNumber+=1;
         if(complete)break;
       }
       setCatalogProgress(kind,{phase:"finalizing",synced:state[kind].length,total});
       state.catalogKindsLoaded[kind]=true;
       state.loaded=allCatalogKindsLoaded();
       await persistCatalogMeta({
-        [kind]:{offset,total,complete:true,revision:state.catalogRevision}
+        [kind]:{cursor:"",total,complete:true,revision:currentRevision}
       });
       setCatalogProgress(kind,{phase:"complete",synced:state[kind].length,total});
       if(catalogKindsForView(state.view).includes(kind))render();
       console.info("[FRAME Audio] Catalogue category sync completed",{
-        kind,count:state[kind].length,total,indexedDB:!!catalogCacheDb,resumedFrom:reset?0:Math.max(0,Number(savedProgress.offset)||0)
+        kind,count:state[kind].length,total,indexedDB:!!catalogCacheDb,resumedWithCursor:!!savedCursor
       });
     })().catch(error=>{
       setCatalogProgress(kind,{
@@ -3100,11 +3155,11 @@ export function initLibraryUI(options = {}) {
   }
   async function refresh(){
     try{
-      await load(true);
+      await load();
       const kinds=new Set(catalogKindsForView(state.view));
       if(state.currentItem?.itemType==="track")kinds.add("tracks");
-      if(kinds.size)await Promise.all([...kinds].map(kind=>ensureCatalogKind(kind,{force:true})));
-      else if(state.view==="music")await load(true);
+      for(const kind of kinds)state.catalogKindsLoaded[kind]=false;
+      if(kinds.size)await Promise.all([...kinds].map(kind=>ensureCatalogKind(kind)));
     }catch(error){
       console.warn("[FRAME Audio] Catalogue refresh failed.",error);
       message(error?.message||"曲庫更新失敗，已保留本機快取。","error");
