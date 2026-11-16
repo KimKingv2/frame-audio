@@ -763,15 +763,19 @@ export function initLibraryUI(options = {}) {
       const expectedCount=Math.max(0,Number(state.catalogCounts[kind])||0);
       const revisionChanged=!!(state.catalogRevision&&savedRevision&&state.catalogRevision!==savedRevision);
       const legacyComplete=(catalogMeta?.legacyComplete===true||catalogMeta?.complete===true)&&cacheCount===expectedCount;
+      const savedOffset=Math.max(0,Number(savedProgress.offset)||0);
+      const savedTotal=Number(savedProgress.total);
       let reset=options.force===true||revisionChanged||cacheCount>expectedCount||
-        (savedProgress.complete===true&&cacheCount!==expectedCount);
+        (savedProgress.complete===true&&cacheCount!==expectedCount)||
+        (Number.isFinite(savedTotal)&&savedTotal!==expectedCount)||
+        savedOffset>cacheCount;
       if(reset&&!options.force){
         if(catalogCacheDb){
           try{await clearCatalogStore(catalogCacheDb,kind);}catch{}
         }
         state[kind]=[];
       }
-      let offset=reset?0:Math.max(0,Number(savedProgress.offset)||0,cacheCount);
+      let offset=reset?0:Math.max(savedOffset,cacheCount);
       let total=expectedCount;
       if(!reset&&(savedProgress.complete===true||legacyComplete)&&cacheCount===expectedCount){
         state.catalogKindsLoaded[kind]=true;
