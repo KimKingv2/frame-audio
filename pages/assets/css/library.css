@@ -490,7 +490,7 @@ body.is-now-playing .dock{border-top-color:transparent}
 .album-track-library{width:100%;min-width:0;margin:4px 0 10px}
 .album-track-columns{
   display:grid;
-  grid-template-columns:90px 24px 40px minmax(180px,1.8fr) 56px minmax(90px,.85fr) 92px 54px 66px;
+  grid-template-columns:72px 24px 40px minmax(180px,1.8fr) 56px minmax(90px,.85fr) 92px 54px 66px;
   gap:8px;align-items:center;padding:0 8px 10px;
   border-bottom:1px solid rgba(195,171,214,.12);
   color:#897f90;font-size:9px;letter-spacing:.07em;
@@ -500,8 +500,8 @@ body.is-now-playing .dock{border-top-color:transparent}
 .album-group-heading strong{flex:0 1 auto;min-width:0;max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:650}
 .album-group-rule{height:1px;min-width:14px;flex:1;background:linear-gradient(90deg,rgba(190,161,218,.62),rgba(190,161,218,.12))}
 .album-group-year{flex:0 0 auto;color:#9b8ba8;font-size:11px;font-variant-numeric:tabular-nums}
-.album-group-body{display:grid;grid-template-columns:90px minmax(0,1fr);gap:12px;align-items:center;min-width:0}
-.album-group-cover{width:90px;height:90px;aspect-ratio:1;border-radius:5px;background:#19151f}
+.album-group-body{display:grid;grid-template-columns:72px minmax(0,1fr);gap:10px;align-items:start;min-width:0}
+.album-group-cover{width:72px;height:72px;aspect-ratio:1;border-radius:5px;background:#19151f}
 .album-group-cover img{border-radius:5px}
 .album-track-rows{display:grid;gap:1px;min-width:0}
 .album-track-row{
@@ -529,15 +529,15 @@ body.is-now-playing .dock{border-top-color:transparent}
 .album-track-row:hover .album-track-actions .play-button,.album-track-row.is-current .album-track-actions .play-button{opacity:1}
 .album-track-artist-inline{display:none}
 @media(max-width:900px){
-  .album-track-columns{grid-template-columns:76px 20px 34px minmax(130px,1.6fr) 48px minmax(75px,.8fr) 78px 48px 60px;gap:6px}
-  .album-group-body{grid-template-columns:76px minmax(0,1fr);gap:9px}
-  .album-group-cover{width:76px;height:76px}
+  .album-track-columns{grid-template-columns:60px 20px 34px minmax(130px,1.6fr) 48px minmax(75px,.8fr) 78px 48px 60px;gap:6px}
+  .album-group-body{grid-template-columns:60px minmax(0,1fr);gap:8px;align-items:start}
+  .album-group-cover{width:60px;height:60px}
   .album-track-row{grid-template-columns:20px 34px minmax(130px,1.6fr) 48px minmax(75px,.8fr) 78px 48px 60px;gap:6px;padding-inline:6px}
   .album-track-rating{font-size:11px}
 }
 @media(max-width:760px){
   .album-track-columns{
-    grid-template-columns:58px 18px 28px minmax(0,1fr) 44px 58px;
+    grid-template-columns:48px 18px 28px minmax(0,1fr) 44px 58px;
     gap:5px;padding:0 4px 8px;
   }
   .album-track-columns span:nth-child(5),
@@ -546,8 +546,8 @@ body.is-now-playing .dock{border-top-color:transparent}
   .album-group-heading{gap:8px;margin:15px 1px 8px}
   .album-group-heading strong{max-width:78%;font-size:12px}
   .album-group-year{font-size:10px}
-  .album-group-body{grid-template-columns:58px minmax(0,1fr);gap:7px}
-  .album-group-cover{width:58px;height:58px;border-radius:4px}
+  .album-group-body{grid-template-columns:48px minmax(0,1fr);gap:7px;align-items:start}
+  .album-group-cover{width:48px;height:48px;border-radius:4px}
   .album-group-cover img{border-radius:4px}
   .album-track-row{
     grid-template-columns:18px 28px minmax(0,1fr) 44px 58px;
@@ -562,9 +562,9 @@ body.is-now-playing .dock{border-top-color:transparent}
   .album-track-actions .play-button{width:24px;height:24px;min-width:24px}
 }
 @media(max-width:390px){
-  .album-track-columns{grid-template-columns:50px 16px 25px minmax(0,1fr) 40px 52px;gap:4px}
-  .album-group-body{grid-template-columns:50px minmax(0,1fr);gap:6px}
-  .album-group-cover{width:50px;height:50px}
+  .album-track-columns{grid-template-columns:42px 16px 25px minmax(0,1fr) 40px 52px;gap:4px}
+  .album-group-body{grid-template-columns:42px minmax(0,1fr);gap:6px;align-items:start}
+  .album-group-cover{width:42px;height:42px}
   .album-track-row{grid-template-columns:16px 25px minmax(0,1fr) 40px 52px;gap:4px}
   .album-track-actions .playlist-add-button{width:21px;height:21px;min-width:21px;flex-basis:21px}
   .album-track-actions .play-button{width:22px;height:22px;min-width:22px}

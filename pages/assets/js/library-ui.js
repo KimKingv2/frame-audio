@@ -1311,14 +1311,13 @@ export function initLibraryUI(options = {}) {
   function albumListGroups(rows,offset=0) {
     const groups=new Map();
     rows.forEach((track,index)=>{
-      const albumTitle=String(track.album||"").trim();
-      const albumArtist=String(track.albumArtist||"").trim();
-      const primaryArtist=String(track.artists?.[0]||"").trim();
-      const identityArtist=albumArtist||primaryArtist;
-      const albumKey=normalizeAlbumName(albumTitle);
-      const artistKey=normalizeAlbumName(identityArtist);
-      const key=albumKey
-        ?"album:"+albumKey+"|artist:"+(artistKey||"__unknown__")
+      const rawAlbumName=track.album==null?"":String(track.album);
+      const albumTitle=rawAlbumName.trim();
+      const albumYear=track.year==null?"":String(track.year);
+      // An album is identified only by its exact album-name and year pair.
+      // Artists are display metadata, not part of the grouping identity.
+      const key=albumTitle
+        ?"album:"+JSON.stringify([rawAlbumName,albumYear])
         :"unassigned-track:"+String(track.id||pathOf(track)||offset+index);
       if(!groups.has(key)){
         groups.set(key,{
