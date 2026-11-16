@@ -46,26 +46,16 @@ export async function onRequest({ request, env }) {
   const url = new URL(request.url);
   const kind = url.searchParams.get("kind") || "tracks";
   if (request.method === "GET") {
-    const limit = Math.min(kind==="folders"?1000:500,Math.max(1,Math.floor(Number(url.searchParams.get("limit")||100))));
-    const offset = Math.max(0,Math.floor(Number(url.searchParams.get("offset")||0)));
+    const limit = Math.min(kind==="folders"?1000:500,Math.max(1,Number(url.searchParams.get("limit")||100)));
+    const offset = Math.max(0,Number(url.searchParams.get("offset")||0));
     const table = kind==="folders"?"folders":kind==="tracks"?"tracks":null;
     if (!table) return error("kind 只能是 tracks 或 folders。");
-    const changedSince = url.searchParams.get("changedSince") || "";
-    if (changedSince && !Number.isFinite(Date.parse(changedSince))) return error("changedSince 必須是有效的 ISO 日期。");
-    const where = changedSince ? " WHERE indexed_at>=?" : "";
     try {
-      const countStatement = env.DB.prepare("SELECT COUNT(*) AS count FROM "+table+where);
-      const rowsStatement = env.DB.prepare(
-        "SELECT data_json FROM "+table+where+" ORDER BY path LIMIT ? OFFSET ?"
-      );
-      const [count, rows] = await Promise.all([
-        changedSince ? countStatement.bind(changedSince).first() : countStatement.first(),
-        changedSince ? rowsStatement.bind(changedSince,limit,offset).all() : rowsStatement.bind(limit,offset).all()
-      ]);
+      const count = await env.DB.prepare("SELECT COUNT(*) AS count FROM "+table).first();
+      const rows = await env.DB.prepare("SELECT data_json FROM "+table+" ORDER BY path LIMIT ? OFFSET ?").bind(limit,offset).all();
       const items = (rows.results||[]).map(row=>JSON.parse(row.data_json));
       const total = Number(count?.count||0);
-      return json({ok:true,kind,total,limit,offset,changedSince:changedSince||null,
-        nextOffset:offset+items.length<total?offset+items.length:null,items});
+      return json({ok:true,kind,total,limit,offset,nextOffset:offset+items.length<total?offset+items.length:null,items});
     } catch { return error("D1 資料表尚未初始化或查詢失敗。",503); }
   }
   if (request.method !== "POST") return error("Method Not Allowed",405);
