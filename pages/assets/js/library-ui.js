@@ -1289,6 +1289,106 @@ export function initLibraryUI(options = {}) {
       showCards(state.shows.slice(0,6));
     loadCovers();
   }
+  function albumListArtist(track) {
+    const artists=Array.isArray(track?.artists)?track.artists.map(value=>String(value||"").trim()).filter(Boolean):[];
+    return artists.join(" / ")||String(track?.albumArtist||"").trim()||"未知藝人";
+  }
+  function albumListTrackOrder(tracks) {
+    const number=value=>{
+      const parsed=Number(value);
+      return Number.isFinite(parsed)&&parsed>0?parsed:null;
+    };
+    return [...tracks].sort((a,b)=>{
+      const discA=number(a.discNumber)||1,discB=number(b.discNumber)||1;
+      if(discA!==discB)return discA-discB;
+      const trackA=number(a.trackNumber),trackB=number(b.trackNumber);
+      if(trackA!==null&&trackB!==null&&trackA!==trackB)return trackA-trackB;
+      if(trackA!==null&&trackB===null)return -1;
+      if(trackA===null&&trackB!==null)return 1;
+      return compareTrackFileNames(a,b);
+    });
+  }
+  function albumListGroups(rows,offset=0) {
+    const groups=new Map();
+    rows.forEach((track,index)=>{
+      const albumTitle=String(track.album||"").trim();
+      const albumArtist=String(track.albumArtist||"").trim();
+      const primaryArtist=String(track.artists?.[0]||"").trim();
+      const identityArtist=albumArtist||primaryArtist;
+      const albumKey=normalizeAlbumName(albumTitle);
+      const artistKey=normalizeAlbumName(identityArtist);
+      const key=albumKey
+        ?"album:"+albumKey+"|artist:"+(artistKey||"__unknown__")
+        :artistKey
+          ?"unassigned:"+artistKey
+          :"unassigned-track:"+String(track.id||pathOf(track)||offset+index);
+      if(!groups.has(key)){
+        groups.set(key,{
+          key,title:albumTitle||"未分類專輯",
+          firstIndex:offset+index,tracks:[]
+        });
+      }
+      groups.get(key).tracks.push(track);
+    });
+    return [...groups.values()].map(group=>{
+      const ordered=albumListTrackOrder(group.tracks);
+      const years=[...new Set(ordered.map(track=>Number(track.year)).filter(year=>Number.isInteger(year)&&year>0))].sort((a,b)=>a-b);
+      const yearLabel=years.length===1?String(years[0]):years.length>1?years[0]+"–"+years[years.length-1]:"";
+      const artworkTrack=ordered.find(track=>artworkOf(track))||ordered[0];
+      return {
+        ...group,
+        tracks:ordered,
+        artist:albumArtistDisplay(ordered),
+        yearLabel,
+        artworkHash:artworkOf(artworkTrack)
+      };
+    }).sort((a,b)=>a.firstIndex-b.firstIndex);
+  }
+  function albumGroupedTrackRows(rows,queueRows,indexOffset=0) {
+    state.items=queueRows;
+    state.itemType="track";
+    if(!rows.length)return '<div class="library-empty"><div class="library-empty-mark">♫</div><h3>目前沒有項目</h3><p>完成索引後，內容就會出現在這裡。</p></div>';
+    const activeId=String(state.currentItem?.id||state.currentItem?.item_id||"");
+    const activePath=String(pathOf(state.currentItem)||"");
+    const groups=albumListGroups(rows,indexOffset);
+    const header='<div class="album-track-columns" aria-hidden="true">'+
+      '<span>封面</span><span>狀態</span><span>#</span><span>標題</span>'+
+      '<span>年份</span><span>藝術家</span><span>評分</span><span>時間</span><span>操作</span></div>';
+    const groupMarkup=groups.map(group=>{
+      const albumHeading='<div class="album-group-heading"><strong title="'+esc(group.title)+'">'+esc(group.title)+' | '+esc(group.artist)+'</strong>'+
+        '<span class="album-group-rule"></span><span class="album-group-year">'+esc(group.yearLabel)+'</span></div>';
+      const songRows=group.tracks.map((raw,groupIndex)=>{
+        const item=playable(raw,"track");
+        const queueIndex=queueRows.indexOf(raw);
+        const actualIndex=queueIndex>=0?queueIndex:indexOffset+rows.indexOf(raw);
+        const current=(activeId&&String(raw.id||raw.item_id||"")===activeId)||(activePath&&pathOf(raw)===activePath);
+        const trackNumber=Number(raw.trackNumber);
+        const displayNumber=Number.isFinite(trackNumber)&&trackNumber>0?trackNumber:groupIndex+1;
+        const discNumber=Number(raw.discNumber);
+        const numberLabel=(Number.isFinite(discNumber)&&discNumber>1?String(discNumber).padStart(2,"0")+"-":"")+String(displayNumber).padStart(2,"0");
+        const artist=albumListArtist(raw);
+        const year=Number(raw.year);
+        const yearLabel=Number.isInteger(year)&&year>0?String(year):"";
+        const title=item.title||fileNameOf(raw)||"未命名音訊";
+        return '<article class="album-track-row'+(current?' is-current':'')+'" data-action="play" data-index="'+actualIndex+'"'+
+          (current?' aria-current="true"':"")+'>'+
+          '<span class="album-track-status" aria-label="'+(current?'目前播放曲目':'未播放')+'" title="'+(current?'目前播放曲目':'未播放')+'"></span>'+
+          '<span class="album-track-number">'+esc(numberLabel)+'</span>'+
+          '<span class="album-track-title" title="'+esc(title)+'"><strong>'+esc(title)+'</strong><small class="album-track-artist-inline">'+esc(artist)+'</small></span>'+
+          '<span class="album-track-year">'+esc(yearLabel)+'</span>'+
+          '<span class="album-track-artist" title="'+esc(artist)+'">'+esc(artist)+'</span>'+
+          '<span class="album-track-rating" title="尚未設定評分" aria-label="尚未設定評分">☆☆☆☆☆</span>'+
+          '<span class="album-track-duration">'+esc(duration(item.durationMs))+'</span>'+
+          '<span class="album-track-actions"><button class="playlist-add-button" type="button" data-action="open-playlist-picker" data-index="'+actualIndex+'" aria-label="加入收藏歌單" title="加入收藏歌單">＋</button>'+
+          '<button class="play-button" type="button" data-action="play" data-index="'+actualIndex+'" aria-label="播放" title="播放">▶</button></span>'+
+          '</article>';
+      }).join("");
+      return '<section class="album-track-group">'+albumHeading+
+        '<div class="album-group-body">'+cover(group.artworkHash,group.title,"album-group-cover")+
+        '<div class="album-track-rows">'+songRows+'</div></div></section>';
+    }).join("");
+    return '<div class="album-track-library">'+header+groupMarkup+'</div>';
+  }
   function renderTracks() {
     const q=state.search.toLocaleLowerCase();
     const rows=state.tracks.filter(t=>!q||[t.title,t.album,t.albumArtist,t.file?.path,...(t.artists||[]),...(t.genres||[])].join(" ").toLocaleLowerCase().includes(q));
@@ -1310,7 +1410,7 @@ export function initLibraryUI(options = {}) {
     const countLabel=complete?rows.length.toLocaleString()+" 首":"本機 "+cachedTrackCount.toLocaleString()+" / "+knownTotal.toLocaleString()+" 首 · 暫時排序";
     root.innerHTML=searchBar("搜尋曲名、歌手、專輯或路徑")+
       sectionHead("ALL TRACKS","所有歌曲",'<span class="library-muted">'+countLabel+' · 每頁 '+TRACKS_PAGE_SIZE+' 首</span>')+
-      trackRows(visibleRows,"track",rows,start)+pageControls;
+      albumGroupedTrackRows(visibleRows,rows,start)+pageControls;
     loadCovers();
   }
   function albumArtistDisplay(tracks) {
