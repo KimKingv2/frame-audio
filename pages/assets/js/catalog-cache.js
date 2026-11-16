@@ -25,14 +25,35 @@ function readStoreInBatches(store, onBatch) {
   return new Promise((resolve, reject) => {
     const rows = [];
     let batch = [];
+    let total = null;
+    let completeNotified = false;
+    const countRequest = store.count();
+    countRequest.onsuccess = () => {
+      total = Number(countRequest.result) || 0;
+    };
+    countRequest.onerror = () => reject(countRequest.error || new Error("IndexedDB count failed."));
+
+    const notify = (items, complete = false) => {
+      try {
+        onBatch(items, {
+          loaded: rows.length,
+          total: total == null ? rows.length : total,
+          complete
+        });
+      } catch (error) {
+        console.warn("[FRAME Audio] Catalogue cache progress callback failed.", error);
+      }
+    };
+
     const request = store.openCursor();
     request.onsuccess = () => {
       const cursor = request.result;
       if (!cursor) {
         if (batch.length) {
-          try { onBatch(batch); } catch (error) {
-            console.warn("[FRAME Audio] Catalogue cache batch paint failed.", error);
-          }
+          notify(batch, true);
+          completeNotified = true;
+        } else if (!completeNotified) {
+          notify([], true);
         }
         resolve(rows);
         return;
@@ -42,9 +63,9 @@ function readStoreInBatches(store, onBatch) {
       if (batch.length >= 500) {
         const ready = batch;
         batch = [];
-        try { onBatch(ready); } catch (error) {
-          console.warn("[FRAME Audio] Catalogue cache batch paint failed.", error);
-        }
+        const complete = total != null && rows.length >= total;
+        notify(ready, complete);
+        completeNotified = complete;
       }
       cursor.continue();
     };

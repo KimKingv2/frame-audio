@@ -1,6 +1,6 @@
 import { getOpenListFileInfo } from "./openlist-client.js?v=20261114-auth-password-only1";
 import { parseSynchronizedLyrics } from "./player-effects.js?v=20261111-sylt-ms1";
-import { readCatalogCache, openCatalogCache, clearCatalogStore, putCatalogBatch, writeCatalogMeta } from "./catalog-cache.js?v=20261116-cache-v3-stream2";
+import { readCatalogCache, openCatalogCache, clearCatalogStore, putCatalogBatch, writeCatalogMeta } from "./catalog-cache.js?v=20261116-progress-phases1";
 
 const PERIODS = [["week","近 7 日"],["month","近 30 日"],["year","近 365 日"],["all","全部時間"]];
 const PLAYBACK_QUEUE_STORAGE_KEY = "frame-audio-playback-queue-v1";
@@ -32,7 +32,8 @@ export function initLibraryUI(options = {}) {
     playMode:"sequential",shuffleEnabled:false,shuffleOrder:[],shufflePosition:-1,
     lyricsCues:[],lyricsPlainLines:[],lyricsActiveIndex:-1,
     lyricsScrollPause:new WeakMap(),homeReady:false,catalogCounts:{tracks:0,folders:0,shows:0,episodes:0},catalogRevision:"",
-    catalogKindsLoaded:{tracks:false,folders:false,shows:false,episodes:false}
+    catalogKindsLoaded:{tracks:false,folders:false,shows:false,episodes:false},
+    catalogProgress:{tracks:{phase:"idle"},folders:{phase:"idle"},shows:{phase:"idle"},episodes:{phase:"idle"}}
   };
   const PLAY_MODES=["sequential","repeat-one","repeat-all"];
   const TRACKS_PAGE_SIZE=500;
@@ -689,6 +690,43 @@ export function initLibraryUI(options = {}) {
   function allCatalogKindsLoaded() {
     return ["tracks","folders","shows","episodes"].every(kind=>state.catalogKindsLoaded[kind]);
   }
+  function catalogProgressLabel(kind) {
+    const progress=state.catalogProgress[kind]||{};
+    const count=value=>Math.max(0,Number(value)||0).toLocaleString("zh-Hant");
+    const total=progress.total==null?Math.max(0,Number(state.catalogCounts[kind])||0):Number(progress.total)||0;
+    const synced=progress.synced==null?(state[kind]?.length||0):progress.synced;
+    switch(progress.phase){
+      case "local-read":
+        return "正在讀取本機快取 · "+count(progress.localLoaded)+" / "+(progress.localTotal==null?"待確認":count(progress.localTotal))+" 首";
+      case "cache-check":
+        return "本機快取已讀取 "+count(progress.localCount)+" 首 · 正在核對同步進度";
+      case "checkpoint":
+        return "已恢復 "+count(synced)+" / "+count(total)+" 首 · 正在保存同步進度";
+      case "d1-request":
+        return "正在向 Cloudflare D1 請求第 "+count(progress.page)+" 批 · 已恢復 "+count(synced)+" / "+count(total)+" 首";
+      case "d1-saving":
+        return "已收到第 "+count(progress.page)+" 批 · 已恢復 "+count(synced)+" / "+count(total)+" 首 · 正在保存本機快取";
+      case "d1-ready":
+        return "已恢復 "+count(synced)+" / "+count(total)+" 首 · 準備讀取下一批";
+      case "finalizing":
+        return "已取得全部 "+count(total)+" 首 · 正在整理排序";
+      case "complete":
+        return "完整曲庫 · "+count(total||state[kind]?.length||0)+" 首";
+      case "error":
+        return "同步暫停 · 已保留 "+count(synced)+" / "+count(total)+" 首，可重新進入續讀";
+      default:
+        return "已載入 "+count(synced)+" / "+count(total)+" 首 · 尚未完成同步";
+    }
+  }
+  function updateCatalogProgressLabel(kind) {
+    if(kind!=="tracks"||state.view!=="tracks")return;
+    const label=root.querySelector("[data-catalog-progress-header]");
+    if(label)label.textContent=catalogProgressLabel(kind)+" · 每頁 "+TRACKS_PAGE_SIZE+" 首";
+  }
+  function setCatalogProgress(kind,patch={}) {
+    state.catalogProgress[kind]={...(state.catalogProgress[kind]||{}),...patch};
+    updateCatalogProgressLabel(kind);
+  }
   async function persistCatalogMeta(progressPatch={}) {
     catalogMeta={
       ...(catalogMeta||{}),
@@ -769,12 +807,24 @@ export function initLibraryUI(options = {}) {
     if(state.catalogKindsLoaded[kind]&&!options.force)return;
     const promise=(async()=>{
       if(!state.homeReady)await load();
+      const startingTotal=Math.max(0,Number(state.catalogCounts[kind])||0);
+      setCatalogProgress(kind,{
+        phase:"local-read",localLoaded:0,localTotal:null,localCount:0,
+        synced:state[kind].length,total:startingTotal,page:0
+      });
       let cached=null;
       let firstCacheBatchPainted=false;
       try{
         cached=await readCatalogCache([kind],{
-          onBatch:(storeName,batch)=>{
-            if(storeName!==kind||firstCacheBatchPainted||!batch.length)return;
+          onBatch:(storeName,batch,info={})=>{
+            if(storeName!==kind)return;
+            const localLoaded=Math.max(0,Number(info.loaded)||0);
+            setCatalogProgress(kind,{
+              phase:"local-read",localLoaded,
+              localTotal:info.total==null?startingTotal:Math.max(0,Number(info.total)||0),
+              localCount:localLoaded,synced:state[kind].length,total:startingTotal
+            });
+            if(firstCacheBatchPainted||!batch.length)return;
             firstCacheBatchPainted=true;
             state[kind]=mergeCatalogKindItems(kind,state[kind],batch);
             if(catalogKindsForView(state.view).includes(kind))render();
@@ -804,6 +854,10 @@ export function initLibraryUI(options = {}) {
       const savedRevision=String(savedProgress.revision||catalogMeta?.legacyRevision||catalogMeta?.revision||"");
       const cacheCount=cachedRows.length;
       const expectedCount=Math.max(0,Number(state.catalogCounts[kind])||0);
+      setCatalogProgress(kind,{
+        phase:"cache-check",localCount:cacheCount,localLoaded:cacheCount,
+        localTotal:cacheCount,synced:state[kind].length,total:expectedCount
+      });
       const revisionChanged=!!(state.catalogRevision&&savedRevision&&state.catalogRevision!==savedRevision);
       const legacyComplete=(catalogMeta?.legacyComplete===true||catalogMeta?.complete===true)&&cacheCount===expectedCount;
       const savedOffset=Math.max(0,Number(savedProgress.offset)||0);
@@ -817,12 +871,18 @@ export function initLibraryUI(options = {}) {
           try{await clearCatalogStore(catalogCacheDb,kind);}catch{}
         }
         state[kind]=[];
+        setCatalogProgress(kind,{
+          phase:"cache-check",localCount:0,localLoaded:0,localTotal:cacheCount,
+          synced:0,total:expectedCount
+        });
       }
       let offset=reset?0:Math.max(savedOffset,cacheCount);
       let total=expectedCount;
       if(!reset&&(savedProgress.complete===true||legacyComplete)&&cacheCount===expectedCount){
         state.catalogKindsLoaded[kind]=true;
         state.loaded=allCatalogKindsLoaded();
+        setCatalogProgress(kind,{phase:"complete",synced:state[kind].length,total:expectedCount});
+        if(catalogKindsForView(state.view).includes(kind))render();
         return;
       }
       state.catalogKindsLoaded[kind]=false;
@@ -831,10 +891,17 @@ export function initLibraryUI(options = {}) {
         ...(catalogMeta?.progress||{}),
         [kind]:{offset,complete:false,total,revision:state.catalogRevision}
       };
+      setCatalogProgress(kind,{
+        phase:"checkpoint",synced:state[kind].length,total,localCount:cacheCount
+      });
       await persistCatalogMeta(baseProgress);
 
       while(true){
+        const batchNumber=Math.floor(offset/500)+1;
         let page;
+        setCatalogProgress(kind,{
+          phase:"d1-request",page:batchNumber,synced:state[kind].length,total
+        });
         try{
           page=await api(config.url+(config.url.includes("?")?"&":"?")+"limit=500&offset="+offset);
         }catch(error){
@@ -855,6 +922,9 @@ export function initLibraryUI(options = {}) {
         state.catalogCounts[kind]=total;
         if(items.length){
           state[kind]=mergeCatalogKindItems(kind,state[kind],items);
+          setCatalogProgress(kind,{
+            phase:"d1-saving",page:batchNumber,synced:state[kind].length,total
+          });
           if(catalogCacheDb){
             try{await putCatalogBatch(catalogCacheDb,kind,items);}
             catch(error){
@@ -874,6 +944,10 @@ export function initLibraryUI(options = {}) {
         await persistCatalogMeta({
           [kind]:{offset:nextOffset,complete,total,revision:state.catalogRevision}
         });
+        setCatalogProgress(kind,{
+          phase:complete?"finalizing":"d1-ready",
+          page:batchNumber,synced:state[kind].length,total
+        });
         if(firstPage){
           firstPage=false;
           if(catalogKindsForView(state.view).includes(kind))render();
@@ -881,16 +955,22 @@ export function initLibraryUI(options = {}) {
         offset=nextOffset;
         if(complete)break;
       }
+      setCatalogProgress(kind,{phase:"finalizing",synced:state[kind].length,total});
       state.catalogKindsLoaded[kind]=true;
       state.loaded=allCatalogKindsLoaded();
       await persistCatalogMeta({
         [kind]:{offset,total,complete:true,revision:state.catalogRevision}
       });
+      setCatalogProgress(kind,{phase:"complete",synced:state[kind].length,total});
       if(catalogKindsForView(state.view).includes(kind))render();
       console.info("[FRAME Audio] Catalogue category sync completed",{
         kind,count:state[kind].length,total,indexedDB:!!catalogCacheDb,resumedFrom:reset?0:Math.max(0,Number(savedProgress.offset)||0)
       });
     })().catch(error=>{
+      setCatalogProgress(kind,{
+        phase:"error",synced:state[kind].length,
+        total:Math.max(0,Number(state.catalogCounts[kind])||0)
+      });
       console.warn("[FRAME Audio] "+kind+" catalogue load interrupted; saved pages remain available.",error);
       throw error;
     }).finally(()=>catalogKindPromises.delete(kind));
@@ -1397,16 +1477,16 @@ export function initLibraryUI(options = {}) {
     const knownTotal=Math.max(rows.length,Number(state.catalogCounts.tracks)||0);
     const cachedTrackCount=state.tracks.length;
     const pageControls=!complete
-      ?'<div class="library-pagination library-pagination-single">本機已載入 '+cachedTrackCount.toLocaleString()+' / '+knownTotal.toLocaleString()+' 首 · 背景續讀中 · 目前為暫時排序'+(state.search?' · 篩選結果 '+rows.length.toLocaleString()+' 首':'')+'</div>'
+      ?'<div class="library-pagination library-pagination-single">目前先顯示已恢復的歌曲；完整同步後會自動整理排序'+(state.search?' · 篩選結果 '+rows.length.toLocaleString()+' 首':'')+'</div>'
       :rows.length>TRACKS_PAGE_SIZE
         ?'<nav class="library-pagination" aria-label="歌曲分頁">'+
           '<button class="secondary" type="button" data-action="tracks-page" data-page="'+(page-1)+'"'+(page===0?' disabled':'')+'>上一頁</button>'+
           '<span>第 '+(page+1)+' / '+pageCount+' 頁 · '+(start+1)+'–'+Math.min(start+visibleRows.length,rows.length)+' / '+rows.length.toLocaleString()+' 首</span>'+
           '<button class="secondary" type="button" data-action="tracks-page" data-page="'+(page+1)+'"'+(page>=pageCount-1?' disabled':'')+'>下一頁</button></nav>'
         :'<div class="library-pagination library-pagination-single">完整曲庫 · '+rows.length.toLocaleString()+' 首</div>';
-    const countLabel=complete?rows.length.toLocaleString()+" 首":"本機 "+cachedTrackCount.toLocaleString()+" / "+knownTotal.toLocaleString()+" 首 · 暫時排序";
+    const countLabel=complete?rows.length.toLocaleString()+" 首":catalogProgressLabel("tracks");
     root.innerHTML=searchBar("搜尋曲名、歌手、專輯或路徑")+
-      sectionHead("ALL TRACKS","所有歌曲",'<span class="library-muted">'+countLabel+' · 每頁 '+TRACKS_PAGE_SIZE+' 首</span>')+
+      sectionHead("ALL TRACKS","所有歌曲",'<span class="library-muted" data-catalog-progress-header>'+countLabel+' · 每頁 '+TRACKS_PAGE_SIZE+' 首</span>')+
       albumGroupedTrackRows(visibleRows,rows,start)+pageControls;
     loadCovers();
   }
