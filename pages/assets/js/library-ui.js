@@ -1051,6 +1051,34 @@ export function initLibraryUI(options = {}) {
       (path&&String(pathOf(item)||"")===path)
     );
   }
+  function syncAllTracksQueueAfterLoad(catalogPromise,searchQuery,selectedItem,queueLabel){
+    const selectedId=String(selectedItem?.id||selectedItem?.item_id||"");
+    const selectedPath=String(pathOf(selectedItem)||"");
+    void catalogPromise.then(()=>{
+      const currentId=String(state.currentItem?.id||state.currentItem?.item_id||"");
+      const currentPath=String(pathOf(state.currentItem)||"");
+      if(!state.currentItem||state.currentItem.itemType!=="track"||state.queueLabel!==queueLabel||
+        !((selectedId&&currentId===selectedId)||(selectedPath&&currentPath===selectedPath)))return;
+      const query=String(searchQuery||"").toLocaleLowerCase();
+      const completeQueue=state.tracks.filter(track=>!query||
+        [track.title,track.album,track.albumArtist,pathOf(track),...(track.artists||[]),...(track.genres||[])]
+          .join(" ").toLocaleLowerCase().includes(query)
+      );
+      const index=findPlaybackItemIndex(completeQueue,selectedId,selectedPath);
+      if(index<0)return;
+      state.queue=completeQueue.map(track=>({...track}));
+      state.queueIndex=index;
+      if(state.shuffleEnabled)rebuildShuffleOrder(index);
+      else{state.shuffleOrder=[];state.shufflePosition=-1;}
+      savePlaybackQueueState();
+      renderPlayerQueue();
+      console.info("[FRAME Audio] Playback queue expanded after catalogue sync",{
+        count:state.queue.length,selectedIndex:index,complete:true
+      });
+    }).catch(error=>{
+      appendPlaybackLog("完整歌曲列表同步失敗，播放將維持目前已載入的曲目 · "+(error?.message||error),"warning");
+    });
+  }
   function syncActiveNavigation(){
     let active=state.view;
     if(state.view==="now-playing")active=state.currentItem?.itemType==="episode"?"podcasts":"music";
@@ -2502,17 +2530,25 @@ export function initLibraryUI(options = {}) {
             queueLabel:"繼續收聽 / "+String(p.subtitle||"Podcast")
           });
         }else{
-          if(type==="track"&&catalogKindsForView(state.view).includes("tracks")&&!state.catalogKindsLoaded.tracks){
-            const id=String(item.id||item.item_id||"");
-            const path=String(pathOf(item)||"");
-            const expectedView=state.view;
-            if(!await ensureCompleteTrackCatalogForPlayback(expectedView))return;
-            queue=state.items;
-            selectedIndex=findPlaybackItemIndex(queue,id,path);
-            if(selectedIndex<0)throw new Error("完整曲庫載入完成，但找不到剛選取的歌曲。請重新點選。");
-            item=queue[selectedIndex];
+          const queueLabel=defaultQueueLabel(type,item);
+          if(type==="track"&&state.view==="tracks"&&!state.catalogKindsLoaded.tracks){
+            // Start the selected song immediately. Fill the remaining queue in
+            // the background after all catalogue pages have been restored.
+            const catalogPromise=ensureCatalogKind("tracks");
+            const query=state.search;
+            await playItem(type,item,queue,selectedIndex,{queueLabel});
+            syncAllTracksQueueAfterLoad(catalogPromise,query,item,queueLabel);
+          }else{
+            if(type==="track"&&catalogKindsForView(state.view).includes("tracks")&&!state.catalogKindsLoaded.tracks){
+              const expectedView=state.view;
+              if(!await ensureCompleteTrackCatalogForPlayback(expectedView))return;
+              queue=state.items;
+              selectedIndex=findPlaybackItemIndex(queue,String(item.id||item.item_id||""),String(pathOf(item)||""));
+              if(selectedIndex<0)throw new Error("完整曲庫載入完成，但找不到剛選取的歌曲。請重新點選。");
+              item=queue[selectedIndex];
+            }
+            await playItem(type,item,queue,selectedIndex,{queueLabel});
           }
-          await playItem(type,item,queue,selectedIndex,{queueLabel:defaultQueueLabel(type,item)});
         }
         return;
       }
