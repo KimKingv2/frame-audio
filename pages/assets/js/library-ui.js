@@ -2688,7 +2688,7 @@ export function initLibraryUI(options = {}) {
       if(action==="reindex-current-lyrics"){
         const item=state.currentItem,button=b,status=$("#now-playing-reindex-status");
         if(!item||item.itemType!=="track"||typeof options.reindexMusic!=="function")return;
-        button.disabled=true;if(status)status.textContent="正在單獨重新讀取這首 FLAC 的原生 Vorbis 歌詞標籤……";
+        button.disabled=true;if(status)status.textContent="正在單獨重新讀取這首音訊的內嵌歌詞與標籤……";
         try{
           const result=await options.reindexMusic(pathOf(item));
           if(!result?.ok)throw new Error(result?.error||"單首重新索引失敗。");
