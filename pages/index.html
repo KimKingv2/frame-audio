@@ -342,7 +342,7 @@ body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-icon:not(:has(
 
 </style>
 <link rel="stylesheet" href="/assets/css/metadata.css">
-<link rel="stylesheet" href="/assets/css/library.css?v=20261116-now-playing-smooth1">
+<link rel="stylesheet" href="/assets/css/library.css?v=20261116-flat-library-bg1">
 <link rel="stylesheet" href="/assets/css/interaction.css?v=20261116-now-playing-smooth1">
 <style>
 .playback-connection-notice{position:fixed;z-index:120;right:clamp(14px,3vw,30px);bottom:102px;display:flex;align-items:center;gap:9px;max-width:min(440px,calc(100vw - 28px));padding:9px 13px;border:1px solid #b99ae84a;border-radius:10px;background:#211e2bf5;box-shadow:0 10px 32px #0008;color:#e4dced;font-size:11px;line-height:1.55;opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity .22s ease,transform .22s ease}
@@ -384,11 +384,13 @@ body.mobile-sidebar-expanded #site-sidebar .nav button:hover .nav-icon:not(:has(
   --surface-deep:#100f14;
   --violet:#a98ac0;
 }
-html,body{background:#0e0d12!important;color:#b1aaa8!important}
+html,body{
+  background:#0f0e13!important;
+  color:#b1aaa8!important;
+}
 body{
-  background:
-    radial-gradient(ellipse at 78% 8%,rgba(73,45,93,.075),transparent 43%),
-    linear-gradient(145deg,#0f0e13 0%,#0d0c11 60%,#100e14 100%)!important;
+  background-color:#0f0e13!important;
+  background-image:none!important;
 }
 button{border:0!important}
 button:focus-visible,input:focus-visible,select:focus-visible{

@@ -469,3 +469,19 @@ body.is-now-playing .dock{border-top-color:transparent}
 .playlist-detail-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:5px 0 15px}.playlist-detail-toolbar .library-muted{margin-left:auto}
 @media(max-width:760px){.media-row{grid-template-columns:39px minmax(0,1fr) auto;gap:9px;padding:8px 4px}.media-row .media-cover{width:39px;height:39px}.media-row-actions{gap:5px}.playlist-add-button,.playlist-remove-button{width:28px;height:29px;flex-basis:28px;border-radius:9px}.media-row-actions .play-button{width:29px;height:29px}.playlist-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:9px}.playlist-card{min-height:130px;padding:12px}.playlist-detail-toolbar .library-muted{width:100%;margin-left:0}}
 @media(max-width:390px){.media-row-actions{gap:3px}.playlist-add-button,.playlist-remove-button{width:26px;height:27px;flex-basis:26px}.media-row-actions .play-button{width:27px;height:27px}}
+
+/* FRAME Audio · Flat library canvas for Firefox/mobile dark-mode banding. */
+.media-list{
+  gap:0!important;
+  background:#0f0e13!important;
+}
+.media-row{
+  border:0!important;
+  border-bottom:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+.media-row:hover{
+  background:rgba(255,255,255,.025)!important;
+}
