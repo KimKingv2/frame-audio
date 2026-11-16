@@ -1039,6 +1039,18 @@ export function initLibraryUI(options = {}) {
     return state.tracks.filter(track=>{const path=trimSlash(pathOf(track));return path===directory||path.startsWith(directory+"/");})
       .sort((a,b)=>String(pathOf(a)||"").localeCompare(String(pathOf(b)||""),"zh-Hant"));
   }
+  async function ensureCompleteTrackCatalogForPlayback(expectedView=state.view){
+    if(!state.catalogKindsLoaded.tracks)await ensureCatalogKind("tracks");
+    if(state.view!==expectedView)return false;
+    render();
+    return true;
+  }
+  function findPlaybackItemIndex(items,id,path){
+    return (Array.isArray(items)?items:[]).findIndex(item=>
+      (id&&String(item?.id||item?.item_id||"")===id)||
+      (path&&String(pathOf(item)||"")===path)
+    );
+  }
   function syncActiveNavigation(){
     let active=state.view;
     if(state.view==="now-playing")active=state.currentItem?.itemType==="episode"?"podcasts":"music";
@@ -1386,9 +1398,17 @@ export function initLibraryUI(options = {}) {
     );
   }
   function renderAlbumDetail() {
-    const album=state.selectedAlbum;
+    let album=state.selectedAlbum;
     if(!album){state.view="albums";renderAlbums();return;}
-    const tracks=orderedAlbumTracks(album.tracks);
+    const albumNames=[...new Set([album.title,...(album.albumNameVariants||[])].map(normalizeAlbumName).filter(Boolean))];
+    const catalogTracks=albumNames.length
+      ?state.tracks.filter(track=>albumNames.includes(normalizeAlbumName(track.album))):[];
+    const tracks=orderedAlbumTracks(catalogTracks.length?catalogTracks:(album.tracks||[]));
+    if(catalogTracks.length){
+      album={...album,tracks,artist:albumArtistDisplay(tracks),
+        albumNameVariants:[...new Set(tracks.map(track=>String(track.album||"").trim()).filter(Boolean))]};
+      state.selectedAlbum=album;
+    }
     const years=[...new Set(tracks.map(t=>Number(t.year)).filter(y=>Number.isInteger(y)&&y>0))];
     const yearLabel=years.length===1?String(years[0]):"";
     const totalDuration=tracks.reduce((sum,t)=>sum+Math.max(0,Number(t.durationMs)||0),0);
@@ -2419,11 +2439,15 @@ export function initLibraryUI(options = {}) {
         return;
       }
       if(action==="play-folder"){
+        const expectedView=state.view;
+        if(!await ensureCompleteTrackCatalogForPlayback(expectedView))return;
         const folder=state.selectedFolder,list=folderTracks(folder);
         if(list.length)await playItem("track",list[0],list,0,{queueLabel:"資料夾 / "+displayFolderName(folder?.name||folder?.path?.split("/").filter(Boolean).pop()||"未命名資料夾")});
         return;
       }
       if(action==="play-playlist"){
+        const expectedView=state.view;
+        if(!await ensureCompleteTrackCatalogForPlayback(expectedView))return;
         const playlist=findPlaylist(state.selectedPlaylistId),list=resolvePlaylistTracks(playlist);
         if(list.length)await playItem("track",list[0],list,0,{queueLabel:playlist?.id===FAVORITES_PLAYLIST_ID?"我喜歡的音樂":"歌單 / "+String(playlist?.name||"播放列表")});
         return;
@@ -2467,18 +2491,34 @@ export function initLibraryUI(options = {}) {
         return;
       }
       if(action==="play"){
-        const item=state.items[i];
-        if(state.itemType==="continue"){
+        const type=state.itemType;
+        let queue=state.items;
+        let selectedIndex=i;
+        let item=queue[selectedIndex];
+        if(!item)return;
+        if(type==="continue"){
           const p=item;
           await playItem("episode",{id:p.item_id,title:p.title,showTitle:p.subtitle,path:p.path,artworkHash:p.artwork_hash,durationMs:p.duration_ms},[item],0,{
             queueLabel:"繼續收聽 / "+String(p.subtitle||"Podcast")
           });
         }else{
-          await playItem(state.itemType,item,state.items,i,{queueLabel:defaultQueueLabel(state.itemType,item)});
+          if(type==="track"&&catalogKindsForView(state.view).includes("tracks")&&!state.catalogKindsLoaded.tracks){
+            const id=String(item.id||item.item_id||"");
+            const path=String(pathOf(item)||"");
+            const expectedView=state.view;
+            if(!await ensureCompleteTrackCatalogForPlayback(expectedView))return;
+            queue=state.items;
+            selectedIndex=findPlaybackItemIndex(queue,id,path);
+            if(selectedIndex<0)throw new Error("完整曲庫載入完成，但找不到剛選取的歌曲。請重新點選。");
+            item=queue[selectedIndex];
+          }
+          await playItem(type,item,queue,selectedIndex,{queueLabel:defaultQueueLabel(type,item)});
         }
         return;
       }
       if(action==="play-album"){
+        const expectedView=state.view;
+        if(!await ensureCompleteTrackCatalogForPlayback(expectedView))return;
         const album=state.selectedAlbum;
         const list=orderedAlbumTracks(album?.tracks||[]);
         const queueLabel=album?"專輯 / "+String(album.title||"未命名專輯")+(album.artist?"（"+album.artist+"）":""):"專輯";
@@ -2491,13 +2531,22 @@ export function initLibraryUI(options = {}) {
       }
       if(action==="play-group"){
         const group=state.items[i];if(!group)return;
+        const groupType=state.itemType;
+        const expectedView=state.view;
+        if(!await ensureCompleteTrackCatalogForPlayback(expectedView))return;
         let list=[],queueLabel="音樂";
-        if(state.itemType==="artist"){
-          list=group[1];
-          queueLabel="歌手 / "+String(group[0]||"未知歌手");
-        }else if(state.itemType==="folder"){
-          list=state.tracks.filter(t=>t.file?.path===group.path||t.file?.path?.startsWith(group.path.replace(/\/$/,"")+"/"));
-          queueLabel="資料夾 / "+displayFolderName(group.name||group.path.split("/").filter(Boolean).pop()||"未命名資料夾");
+        if(groupType==="artist"){
+          const artist=String(group[0]||"未知藝人");
+          list=state.tracks.filter(track=>(track.artists?.length?track.artists:[track.albumArtist||"未知藝人"]).includes(artist));
+          queueLabel="歌手 / "+artist;
+        }else if(groupType==="folder"){
+          const folderPath=String(group.path||"");
+          const prefix=folderPath.endsWith("/")?folderPath:folderPath+"/";
+          list=state.tracks.filter(track=>{
+            const path=String(pathOf(track)||"");
+            return path===folderPath||path.startsWith(prefix);
+          });
+          queueLabel="資料夾 / "+displayFolderName(group.name||folderPath.split("/").filter(Boolean).pop()||"未命名資料夾");
         }
         if(list.length)await playItem("track",list[0],list,0,{queueLabel});return;
       }
