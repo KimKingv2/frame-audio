@@ -766,8 +766,16 @@ export function initLibraryUI(options = {}) {
     const promise=(async()=>{
       if(!state.homeReady)await load();
       let cached=null;
+      let firstCacheBatchPainted=false;
       try{
-        cached=await readCatalogCache([kind]);
+        cached=await readCatalogCache([kind],{
+          onBatch:(storeName,batch)=>{
+            if(storeName!==kind||firstCacheBatchPainted||!batch.length)return;
+            firstCacheBatchPainted=true;
+            state[kind]=mergeCatalogKindItems(kind,state[kind],batch);
+            if(catalogKindsForView(state.view).includes(kind))render();
+          }
+        });
         catalogCacheDb=cached?.db||catalogCacheDb;
         if(cached?.meta)catalogMeta=cached.meta;
       }catch(error){

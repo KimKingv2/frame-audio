@@ -21,6 +21,37 @@ function transactionDone(transaction) {
   });
 }
 
+function readStoreInBatches(store, onBatch) {
+  return new Promise((resolve, reject) => {
+    const rows = [];
+    let batch = [];
+    const request = store.openCursor();
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        if (batch.length) {
+          try { onBatch(batch); } catch (error) {
+            console.warn("[FRAME Audio] Catalogue cache batch paint failed.", error);
+          }
+        }
+        resolve(rows);
+        return;
+      }
+      rows.push(cursor.value);
+      batch.push(cursor.value);
+      if (batch.length >= 500) {
+        const ready = batch;
+        batch = [];
+        try { onBatch(ready); } catch (error) {
+          console.warn("[FRAME Audio] Catalogue cache batch paint failed.", error);
+        }
+      }
+      cursor.continue();
+    };
+    request.onerror = () => reject(request.error || new Error("IndexedDB cursor read failed."));
+  });
+}
+
 export async function openCatalogCache() {
   if (typeof indexedDB === "undefined") return null;
   if (!databasePromise) {
@@ -69,7 +100,7 @@ export async function openCatalogCache() {
   return databasePromise;
 }
 
-export async function readCatalogCache(storeNames = DATA_STORES) {
+export async function readCatalogCache(storeNames = DATA_STORES, options = {}) {
   const startedAt = performance.now();
   const db = await openCatalogCache();
   if (!db) return null;
@@ -77,7 +108,12 @@ export async function readCatalogCache(storeNames = DATA_STORES) {
   const selected = DATA_STORES.filter(name => Array.isArray(storeNames) && storeNames.includes(name));
   const transaction = db.transaction([...selected, "meta"], "readonly");
   const done = transactionDone(transaction);
-  const reads = selected.map(name => requestValue(transaction.objectStore(name).getAll()));
+  const reads = selected.map(name => {
+    const store = transaction.objectStore(name);
+    return typeof options.onBatch === "function"
+      ? readStoreInBatches(store, batch => options.onBatch(name, batch))
+      : requestValue(store.getAll());
+  });
   const metaRead = requestValue(transaction.objectStore("meta").get("catalog"));
   const [rows, metaRow] = await Promise.all([Promise.all(reads), metaRead]);
   await done;
