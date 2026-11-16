@@ -6,38 +6,34 @@ export async function onRequestGet({ request, env }) {
   if (!env.DB || typeof env.DB.prepare !== "function") return error("D1 binding DB 尚未設定。", 503);
 
   try {
-    const [trackCount, folderCount, trackRevision, folderRevision] = await Promise.all([
-      env.DB.prepare("SELECT COUNT(*) AS count FROM tracks").first(),
-      env.DB.prepare("SELECT COUNT(*) AS count FROM folders").first(),
-      env.DB.prepare("SELECT MAX(indexed_at) AS revision FROM tracks").first(),
-      env.DB.prepare("SELECT MAX(indexed_at) AS revision FROM folders").first()
-    ]);
+    const metaResult = await env.DB.prepare(
+      "SELECT kind,item_count,revision FROM catalog_meta"
+    ).all();
+    const meta = new Map((metaResult.results || []).map(row => [row.kind, row]));
+    const requiredKinds = ["tracks","folders","shows","episodes"];
+    if (requiredKinds.some(kind => !meta.has(kind))) {
+      return error("D1 目錄摘要尚未初始化，請先執行 migrations/0004_catalog_meta.sql。",503);
+    }
+
+    const counts = {
+      tracks: Number(meta.get("tracks")?.item_count || 0),
+      folders: Number(meta.get("folders")?.item_count || 0),
+      shows: Number(meta.get("shows")?.item_count || 0),
+      episodes: Number(meta.get("episodes")?.item_count || 0)
+    };
+    const revisions = Object.fromEntries(requiredKinds.map(kind => [
+      kind, String(meta.get(kind)?.revision || 0)
+    ]));
+    const revision = requiredKinds.map(kind => kind + ":" + revisions[kind]).join("|");
 
     let shows = [];
-    let showCount = 0;
-    let episodeCount = 0;
-    let showRevision = "";
-    let episodeRevision = "";
     let podcastSchemaReady = false;
     try {
-      const [counts, revisions, rows] = await Promise.all([
-        Promise.all([
-          env.DB.prepare("SELECT COUNT(*) AS count FROM podcast_shows").first(),
-          env.DB.prepare("SELECT COUNT(*) AS count FROM podcast_episodes").first()
-        ]),
-        Promise.all([
-          env.DB.prepare("SELECT MAX(indexed_at) AS revision FROM podcast_shows").first(),
-          env.DB.prepare("SELECT MAX(indexed_at) AS revision FROM podcast_episodes").first()
-        ]),
-        env.DB.prepare(
-          "SELECT data_json,cover_hash,(SELECT COUNT(*) FROM podcast_episodes WHERE show_id=podcast_shows.id) AS episode_count FROM podcast_shows ORDER BY title COLLATE NOCASE LIMIT 6"
-        ).all()
-      ]);
+      const rows = await env.DB.prepare(
+        "SELECT data_json,cover_hash,(SELECT COUNT(*) FROM podcast_episodes WHERE show_id=podcast_shows.id) AS episode_count " +
+        "FROM podcast_shows ORDER BY title COLLATE NOCASE,folder_path LIMIT 6"
+      ).all();
       podcastSchemaReady = true;
-      showCount = Number(counts[0]?.count || 0);
-      episodeCount = Number(counts[1]?.count || 0);
-      showRevision = revisions[0]?.revision || "";
-      episodeRevision = revisions[1]?.revision || "";
       shows = (rows.results || []).map(row => {
         let item = {};
         try { item = JSON.parse(row.data_json || "{}"); } catch {}
@@ -87,28 +83,8 @@ export async function onRequestGet({ request, env }) {
       // Listening history is optional; a fresh library still renders without it.
     }
 
-    const counts = {
-      tracks: Number(trackCount?.count || 0),
-      folders: Number(folderCount?.count || 0),
-      shows: showCount,
-      episodes: episodeCount
-    };
-    const revision = [
-      trackRevision?.revision,
-      folderRevision?.revision,
-      showRevision,
-      episodeRevision
-    ].filter(Boolean).sort().at(-1) || "";
-
-    return json({
-      ok: true,
-      counts,
-      revision,
-      podcastSchemaReady,
-      recentTracks,
-      shows
-    });
+    return json({ok:true,counts,revision,revisions,podcastSchemaReady,recentTracks,shows});
   } catch {
-    return error("讀取首頁曲庫摘要失敗，請確認 D1 資料表已初始化。", 503);
+    return error("讀取首頁曲庫摘要失敗，請確認 D1 資料表及 migrations/0004_catalog_meta.sql 已初始化。", 503);
   }
 }
