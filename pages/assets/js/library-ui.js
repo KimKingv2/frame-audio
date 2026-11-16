@@ -370,16 +370,16 @@ export function initLibraryUI(options = {}) {
     const entering = direction !== "return";
     const frames = entering
       ? [
-          { opacity: 0, transform: "translate3d(0,14px,0) scale(.95)", filter: "blur(3px)" },
-          { opacity: 1, transform: "translate3d(0,0,0) scale(1)", filter: "blur(0)" }
+          { opacity: 0, transform: "translate3d(0,10px,0) scale(.98)" },
+          { opacity: 1, transform: "translate3d(0,0,0) scale(1)" }
         ]
       : [
-          { opacity: 0, transform: "translate3d(0,10px,0) scale(.97)", filter: "blur(2px)" },
-          { opacity: 1, transform: "translate3d(0,0,0) scale(1)", filter: "blur(0)" }
+          { opacity: 0, transform: "translate3d(0,7px,0) scale(.985)" },
+          { opacity: 1, transform: "translate3d(0,0,0) scale(1)" }
         ];
     try {
       element.animate(frames, {
-        duration: entering ? 460 : 380,
+        duration: entering ? 280 : 240,
         easing: "cubic-bezier(.2,.78,.22,1)",
         fill: "none"
       });
@@ -400,7 +400,7 @@ export function initLibraryUI(options = {}) {
       page.className="now-playing-page now-playing-enter";
       page.setAttribute("aria-label","正在播放");
       page.addEventListener("animationend",event=>{
-        if(event.target===page&&event.animationName==="now-playing-slide-up")page.classList.remove("now-playing-enter");
+        if(event.target===page&&event.animationName==="now-playing-panel-in")page.classList.remove("now-playing-enter");
       });
       // The overlay lives outside the library DOM, so delegate its controls here.
       page.addEventListener("click",handleClick);
@@ -443,7 +443,7 @@ export function initLibraryUI(options = {}) {
       if(controlsStartInDock)animatePlayerControlMove(detailControls,"enter");
     }
     bindLyricsManualScroll($("#now-playing-lyrics-list"));
-    syncNowPlayingArtwork(item);syncLyricsHighlight({forceScroll:true});
+    syncNowPlayingArtwork(item);syncLyricsHighlight({forceScroll:true,instant:true});
   }
   function closeNowPlaying() {
     if(state.view!=="now-playing")return;
@@ -468,10 +468,10 @@ export function initLibraryUI(options = {}) {
       page.classList.remove("now-playing-enter");
       const exit=page.animate(
         [{transform:startTransform,opacity:startOpacity},{transform:"translate3d(0,100%,0)",opacity:"0.96"}],
-        {duration:660,easing:"cubic-bezier(.55,.06,.68,.19)",fill:"forwards"}
+        {duration:390,easing:"cubic-bezier(.55,.06,.68,.19)",fill:"forwards"}
       );
       exit.addEventListener("finish",finish,{once:true});
-      fallbackTimer=setTimeout(finish,900);
+      fallbackTimer=setTimeout(finish,650);
       return;
     }
 
@@ -479,9 +479,9 @@ export function initLibraryUI(options = {}) {
     void page.offsetWidth;
     page.classList.add("now-playing-exit");
     page.addEventListener("animationend",event=>{
-      if(event.target===page&&event.animationName==="now-playing-slide-down")finish();
+      if(event.target===page&&event.animationName==="now-playing-panel-out")finish();
     },{once:true});
-    fallbackTimer=setTimeout(finish,900);
+    fallbackTimer=setTimeout(finish,650);
   }
   function syncNowPlayingArtwork(item) {
     const host=$("#now-playing-art");
@@ -536,12 +536,13 @@ export function initLibraryUI(options = {}) {
     list.addEventListener("pointermove",pointerMove,{passive:true});
     list.addEventListener("keydown",pauseAutoFollow);
   }
-  function scrollLyricIntoList(list,line) {
+  function scrollLyricIntoList(list,line,options={}) {
     if(!list||!line)return;
     const listRect=list.getBoundingClientRect();
     const lineRect=line.getBoundingClientRect();
-    const targetTop=list.scrollTop+lineRect.top-listRect.top-(list.clientHeight-lineRect.height)/2;
-    list.scrollTo({top:Math.max(0,targetTop),behavior:"smooth"});
+    const targetTop=Math.max(0,list.scrollTop+lineRect.top-listRect.top-(list.clientHeight-lineRect.height)/2);
+    if(options.instant){list.scrollTop=targetTop;return;}
+    list.scrollTo({top:targetTop,behavior:"smooth"});
   }
   function syncLyricsHighlight(options={}) {
     if((state.view!=="now-playing"&&!$("#lyrics-dialog")?.open)||!state.lyricsCues.length)return;
@@ -553,13 +554,16 @@ export function initLibraryUI(options = {}) {
     if(state.view==="now-playing")lists.push($("#now-playing-lyrics-list"));
     if($("#lyrics-dialog")?.open)lists.push($("#lyrics-list"));
     for(const list of [...new Set(lists.filter(Boolean))]){
-      list.querySelectorAll("[data-lyric-index]").forEach((node,index)=>node.classList.toggle("active",index===active));
       const current=active>=0?list.querySelector('[data-lyric-index="'+active+'"]'):null;
-      if(!current)continue;
+      const previous=list.querySelector("[data-lyric-index].active");
+      if(previous&&previous!==current)previous.classList.remove("active");
+      if(current)current.classList.add("active");
       const pause=state.lyricsScrollPause.get(list);
       const manuallyPaused=Number(pause?.until||0)>Date.now();
       const forced=options.forceScroll===true&&(!options.list||options.list===list);
-      if(forced||(activeChanged&&!manuallyPaused))scrollLyricIntoList(list,current);
+      if(current&&(forced||(activeChanged&&!manuallyPaused))){
+        scrollLyricIntoList(list,current,{instant:options.instant===true});
+      }
     }
   }
   root.addEventListener("animationend",event=>{

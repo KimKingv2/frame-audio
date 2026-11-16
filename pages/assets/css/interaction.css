@@ -1257,3 +1257,10 @@ body.mobile-sidebar-expanded #site-sidebar .nav button.active .nav-icon{
     animation:none!important;
   }
 }
+
+
+/* Avoid an expensive backdrop blur while the full-screen Now Playing panel moves. */
+body.is-now-playing .dock{
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+}
