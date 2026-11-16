@@ -26,6 +26,18 @@ function nameOf(path) {
   return path.slice(path.lastIndexOf("/") + 1) || "未命名資料夾";
 }
 
+function prefixUpperBound(value) {
+  const chars = Array.from(value);
+  for (let index = chars.length - 1; index >= 0; index -= 1) {
+    const code = chars[index].codePointAt(0);
+    if (code < 0x10ffff) {
+      chars[index] = String.fromCodePoint(code + 1);
+      return chars.slice(0, index + 1).join("");
+    }
+  }
+  return null;
+}
+
 async function folderId(path) {
   const bytes = new TextEncoder().encode(path);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -88,17 +100,19 @@ export async function onRequestPost({ request, env }) {
     }
 
     const trackPrefix = prefix;
-    let trackOffset = 0;
+    let trackCursor = "";
     let indexedTracks = 0;
     const pageSize = 500;
+    const trackUpperBound = prefixUpperBound(trackPrefix);
+    if (!trackUpperBound) return error("資料夾根目錄路徑無法建立安全的索引範圍。",400);
     while (true) {
       const result = await env.DB.prepare(
-        "SELECT id,path FROM tracks WHERE substr(path,1,length(?))=? ORDER BY path LIMIT ? OFFSET ?"
-      ).bind(trackPrefix, trackPrefix, pageSize, trackOffset).all();
+        "SELECT id,path FROM tracks WHERE path>=? AND path<? AND path>? ORDER BY path LIMIT ?"
+      ).bind(trackPrefix, trackUpperBound, trackCursor, pageSize).all();
       const rows = result.results || [];
       for (const row of rows) {
         const path = String(row.path || "");
-        if (!path.startsWith(trackPrefix) || typeof row.id !== "string") continue;
+        if (typeof row.id !== "string") continue;
         const parentPath = parentPathOf(path);
         const folder = folders.get(parentPath);
         if (!folder) continue;
@@ -106,8 +120,9 @@ export async function onRequestPost({ request, env }) {
         folder.directTrackCount += 1;
         indexedTracks += 1;
       }
-      trackOffset += rows.length;
-      if (rows.length < pageSize) break;
+      if (!rows.length || rows.length < pageSize) break;
+      trackCursor = String(rows[rows.length - 1].path || "");
+      if (!trackCursor) break;
     }
 
     const deepestFirst = [...folders.values()].sort((a, b) =>
@@ -155,6 +170,8 @@ export async function onRequestPost({ request, env }) {
       });
       if (batch.length) await env.DB.batch(batch);
     }
+
+    await env.DB.prepare("UPDATE catalog_meta SET revision=revision+1,updated_at=CURRENT_TIMESTAMP WHERE kind='folders'").run();
 
     const root = folders.get(rootPath);
     return json({
