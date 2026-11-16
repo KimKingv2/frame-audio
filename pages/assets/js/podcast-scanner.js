@@ -3,8 +3,8 @@ import {
   joinOpenListPath,
   formatBytes,
   getOpenListFileInfo
-} from "./openlist-client.js?v=20261114-response-body-timeout1";
-import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261113-mobile-device-source1";
+} from "./openlist-client.js?v=20261114-auth-password-only1";
+import { inspectAudioMetadata } from "./metadata-inspector.js?v=20261116-provider-module-singleton7";
 
 const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape|dsf|dff)$/i;
 const MAX_FILE_ATTEMPTS = 20;
