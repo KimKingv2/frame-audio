@@ -1,4 +1,4 @@
-import { getOpenListFileInfo } from "./openlist-client.js?v=20261112-four-source-login1";
+import { getOpenListFileInfo } from "./openlist-client.js?v=20261114-auth-password-only1";
 import { parseSynchronizedLyrics } from "./player-effects.js?v=20261111-sylt-ms1";
 import { readCatalogCache, openCatalogCache, clearCatalogStore, putCatalogBatch, writeCatalogMeta } from "./catalog-cache.js?v=20261116-cache-v3-stream2";
 
@@ -947,7 +947,7 @@ export function initLibraryUI(options = {}) {
     coverGeneration+=1;
     if(coverObserver){coverObserver.disconnect();coverObserver=null;}
   }
-  const pathOf=item=>item.file?.path||item.path||"";
+  const pathOf=item=>item?.file?.path||item?.path||"";
   const fileNameOf=item=>String(pathOf(item)||"").split("/").pop()||"";
   function compareTrackFileNames(a,b){
     const byName=fileNameOf(a).localeCompare(fileNameOf(b),"zh-Hant",{numeric:true,sensitivity:"base"});
@@ -1063,13 +1063,13 @@ export function initLibraryUI(options = {}) {
     void catalogPromise.then(()=>{
       if(syncToken!==state.queueSyncToken)return;
       const currentItem=state.currentItem;
-      const currentId=String(currentItem?.id||currentItem?.item_id||"");
-      const currentPath=String(pathOf(currentItem)||"");
       if(!currentItem||currentItem.itemType!=="track"||state.queueLabel!==queueLabel){
         state.queueSyncPending=false;
         renderPlayerQueue();
         return;
       }
+      const currentId=String(currentItem.id||currentItem.item_id||"");
+      const currentPath=String(pathOf(currentItem)||"");
       const query=String(searchQuery||"").toLocaleLowerCase();
       const completeQueue=state.tracks.filter(track=>!query||
         [track.title,track.album,track.albumArtist,pathOf(track),...(track.artists||[]),...(track.genres||[])]
