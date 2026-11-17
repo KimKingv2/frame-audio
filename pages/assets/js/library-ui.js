@@ -1284,11 +1284,12 @@ export function initLibraryUI(options = {}) {
     });
   }
   function syncActiveNavigation(){
-    let active=state.view;
-    if(state.view==="now-playing")active=state.currentItem?.itemType==="episode"?"podcasts":"music";
-    else if(["shows","show-detail","continue"].includes(state.view))active="podcasts";
-    else if(state.view==="music"&&state.currentItem?.itemType==="episode")active="podcasts";
-    else if(state.view==="album-detail")active="albums";
+    // Navigation reflects the library location, never the type of audio playing.
+    // The Now Playing screen keeps the section the user came from.
+    const view=state.view==="now-playing"?(state.lastLibraryView||"music"):state.view;
+    let active=view;
+    if(["shows","show-detail","continue"].includes(view))active="podcasts";
+    else if(view==="album-detail")active="albums";
     document.querySelectorAll("#site-sidebar [data-view]").forEach(button=>button.classList.toggle("active",button.dataset.view===active));
   }
   function reserveDockTransportSlot(transport){
