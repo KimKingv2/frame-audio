@@ -1117,7 +1117,6 @@ export function initLibraryUI(options = {}) {
     const link=document.createElement("a");
     link.href=target.href;
     link.download=filename;
-    link.target="_blank";
     link.rel="noopener noreferrer";
     link.style.position="fixed";
     link.style.left="-10000px";
