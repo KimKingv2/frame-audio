@@ -85,7 +85,7 @@ export async function onRequestPost({ request, env }) {
       payload.data.raw_url = rawUrl;
     }
     const encodedPath = body.path.split("/").slice(1).map(segment => encodeURIComponent(segment)).join("/");
-    const downloadUrl = new URL("d/" + encodedPath, result.baseUrl.replace(/\\/+$/, "") + "/");
+    const downloadUrl = new URL("d/" + encodedPath, base.replace(/\/+$/, "") + "/");
     if (payload.data.sign) downloadUrl.searchParams.set("sign", String(payload.data.sign));
     payload.data.download_url = downloadUrl.href;
   }
