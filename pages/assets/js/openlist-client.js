@@ -251,6 +251,21 @@ export async function getOpenListFileInfo({ baseUrl, token, path, timeoutMs = DE
     try { info.raw_url = new URL(String(info.raw_url), base + "/").href; }
     catch { throw new Error(sourceLabel(config.provider) + " 回傳的 raw_url 格式不正確。"); }
   }
+  if (config.provider === "local") {
+    const base = normalizeOpenListUrl(config.baseUrl || window.location.origin);
+    const encodedPath = safePath.split("/").slice(1).map(segment => encodeURIComponent(segment)).join("/");
+    const downloadUrl = new URL("d/" + encodedPath, base.replace(/\\/+$/, "") + "/");
+    if (info.sign) downloadUrl.searchParams.set("sign", String(info.sign));
+    info.download_url = downloadUrl.href;
+  } else if (info.download_url) {
+    let target;
+    try { target = new URL(String(info.download_url)); }
+    catch { throw new Error(sourceLabel(config.provider) + " 回傳的下載網址格式不正確。"); }
+    if (!["https:", "http:"].includes(target.protocol) || target.username || target.password) {
+      throw new Error(sourceLabel(config.provider) + " 回傳的下載網址不受支援。");
+    }
+    info.download_url = target.href;
+  }
   return info;
 }
 export async function probeOpenListAudioRange({ baseUrl, token, path, byteCount = 65536, startByte = 0 }) {
