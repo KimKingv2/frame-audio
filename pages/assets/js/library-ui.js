@@ -1101,12 +1101,12 @@ export function initLibraryUI(options = {}) {
       throw new Error("請先連線並測試目前活動的 OpenList 來源，再下載歌曲。");
     }
     const path=String(pathOf(item)||"").trim();
-    if(!path.startsWith("/")||path.includes("\\0"))throw new Error("歌曲檔案路徑不正確，無法下載。");
+    if(!path.startsWith("/")||path.includes(String.fromCharCode(0)))throw new Error("歌曲檔案路徑不正確，無法下載。");
     const info=await getOpenListFileInfo({baseUrl:config.baseUrl,path,timeoutMs:180000});
     if(!info||info.is_dir)throw new Error("選取的項目不是歌曲檔案。");
     if(!info.raw_url)throw new Error("目前活動的 OpenList 來源沒有提供這首歌的下載網址。");
     let target;
-    try{target=new URL(String(info.raw_url),String(config.baseUrl).replace(/\\/+$/,"")+"/");}
+    try{target=new URL(String(info.raw_url));}
     catch{throw new Error("OpenList 回傳的下載網址格式不正確。");}
     if(!["http:","https:"].includes(target.protocol))throw new Error("下載網址必須使用 HTTP 或 HTTPS。");
     const filename=fileNameOf(item)||String(info.name||"").trim()||"audio";
