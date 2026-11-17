@@ -24,7 +24,7 @@ export function initLibraryUI(options = {}) {
   let mediaSessionArtworkObjectUrl = "";
   let mediaSessionArtworkObjectUrlKey = "";
   const state = {
-    view:"music",lastLibraryView:"music",tracks:[],folders:[],shows:[],episodes:[],recentTracks:[],playlists:[],selectedFolder:null,selectedPlaylistId:"",playlistDialogItem:null,loaded:false,loadedAt:0,busy:false,trackPage:0,
+    view:"music",lastLibraryView:"music",tracks:[],folders:[],shows:[],episodes:[],recentTracks:[],recentTrackRows:[],recentTrackRowsLoadedAt:0,playlists:[],selectedFolder:null,selectedPlaylistId:"",playlistDialogItem:null,loaded:false,loadedAt:0,busy:false,trackPage:0,
     selectedShowId:"",selectedAlbum:null,search:"",searchComposing:false,items:[],itemType:"track",reportPeriod:"week",reportType:"episode",
     errors:[],currentItem:null,queue:[],queueIndex:-1,queueLabel:"播放列表",queueSyncToken:0,queueSyncPending:false,session:null,tickAt:0,speed:1,
     lastProgressSave:0,restorePositionMs:0,playRequestId:0,
@@ -48,6 +48,7 @@ export function initLibraryUI(options = {}) {
   let catalogInitPromise=null;
   let catalogSyncPromise=null;
   let catalogKindPromises=new Map();
+  let recentTracksPromise=null;
   let catalogCacheDb=null;
   let catalogMeta=null;
   let coverObserver=null;
@@ -675,7 +676,7 @@ export function initLibraryUI(options = {}) {
   }
   function catalogKindsForView(view) {
     switch(view){
-      case "tracks":case "albums":case "album-detail":return ["tracks"];
+      case "tracks":case "albums":case "album-detail":case "recent":return ["tracks"];
       case "playlists":return state.selectedPlaylistId?["tracks"]:[];
       case "folders":return state.selectedFolder?["folders","tracks"]:["folders"];
       case "shows":return ["shows"];
@@ -1278,6 +1279,7 @@ export function initLibraryUI(options = {}) {
       const query=String(state.search||"").trim();
       return query?"搜尋結果 / "+query:"所有歌曲";
     }
+    if(state.view==="recent")return "最近播放";
     if(state.view==="music")return "最近播放的音樂";
     return "所有歌曲";
   }
@@ -1420,14 +1422,59 @@ export function initLibraryUI(options = {}) {
   }
   function renderHome() {
     const recent=state.recentTracks.slice(0,8);
-    const recentMarkup=recent.length?trackRows(recent,"track"):
+    const recentMarkup=recent.length?albumGroupedTrackRows(recent,recent,0,{groupByAlbum:false,groupTitle:"最近播放",groupArtist:"依最後播放時間排序"}):
       '<div class="library-empty"><div class="library-empty-mark">♫</div><h3>還沒有播放紀錄</h3><p>開始播放音樂後，最近播放的歌曲就會出現在這裡。</p></div>';
     if(!recent.length){state.items=[];state.itemType="track";}
     root.innerHTML=stats([["MUSIC TRACKS",state.catalogCounts.tracks.toLocaleString()],["PODCAST SHOWS",state.catalogCounts.shows.toLocaleString()],["PODCAST EPISODES",state.catalogCounts.episodes.toLocaleString()]])+
-      sectionHead("RECENTLY PLAYED","最近播放的音樂",'<button class="secondary" data-action="navigate" data-view="tracks">查看全部歌曲</button>')+
+      sectionHead("RECENTLY PLAYED","最近播放的音樂",'<button class="secondary" data-action="navigate" data-view="recent">查看全部</button>')+
       recentMarkup+
       sectionHead("PODCASTS","你的節目",'<button class="secondary" data-action="navigate" data-view="shows">查看全部</button>')+
       showCards(state.shows.slice(0,6));
+    loadCovers();
+  }
+  async function renderRecentTracks() {
+    if(!state.recentTrackRowsLoadedAt){
+      if(!recentTracksPromise){
+        recentTracksPromise=(async()=>{
+          const data=await api("/api/listening?view=recent&itemType=track&limit=50");
+          const byId=new Map(),byPath=new Map();
+          for(const track of state.tracks){
+            const id=String(track?.id||track?.item_id||"");
+            const path=String(pathOf(track)||"");
+            if(id&&!byId.has(id))byId.set(id,track);
+            if(path&&!byPath.has(path))byPath.set(path,track);
+          }
+          state.recentTrackRows=(Array.isArray(data.items)?data.items:[]).map(record=>{
+            const id=String(record?.item_id||"");
+            const path=String(record?.path||"");
+            if(!id||!path)return null;
+            const track=byId.get(id)||byPath.get(path);
+            return track
+              ?{...track,recentlyPlayedAt:String(record.updated_at||"")}
+              :{
+                  id,path,title:String(record.title||fileNameOf({path})||"未命名音訊"),
+                  albumArtist:String(record.subtitle||""),
+                  artworkHash:record.artwork_hash||null,
+                  durationMs:Number(record.duration_ms||0),
+                  recentlyPlayedAt:String(record.updated_at||"")
+                };
+          }).filter(Boolean);
+          state.recentTrackRowsLoadedAt=Date.now();
+        })().finally(()=>{recentTracksPromise=null;});
+      }
+      await recentTracksPromise;
+    }
+    const recent=state.recentTrackRows;
+    const query=String(state.search||"").trim().toLocaleLowerCase();
+    const visible=recent.filter(track=>!query||
+      [track.title,track.album,track.albumArtist,track.file?.path,track.path,
+        ...(Array.isArray(track.artists)?track.artists:[]),...(Array.isArray(track.genres)?track.genres:[])]
+        .join(" ").toLocaleLowerCase().includes(query));
+    root.innerHTML=searchBar("搜尋最近播放的歌曲")+
+      sectionHead("RECENTLY PLAYED","最近播放",'<span class="library-muted">'+recent.length.toLocaleString()+' 筆紀錄 · 最新在前</span>')+
+      (recent.length
+        ?albumGroupedTrackRows(visible,recent,0,{groupByAlbum:false,groupTitle:"最近播放",groupArtist:"依最後播放時間排序"})
+        :'<div class="library-empty"><div class="library-empty-mark">♫</div><h3>還沒有播放紀錄</h3><p>開始播放音樂後，最近 50 筆歌曲紀錄就會出現在這裡。</p></div>');
     loadCovers();
   }
   function albumListArtist(track) {
@@ -1482,18 +1529,24 @@ export function initLibraryUI(options = {}) {
       };
     }).sort((a,b)=>a.firstIndex-b.firstIndex);
   }
-  function albumGroupedTrackRows(rows,queueRows,indexOffset=0) {
+  function albumGroupedTrackRows(rows,queueRows,indexOffset=0,rowOptions={}) {
     state.items=queueRows;
     state.itemType="track";
     if(!rows.length)return '<div class="library-empty"><div class="library-empty-mark">♫</div><h3>目前沒有項目</h3><p>完成索引後，內容就會出現在這裡。</p></div>';
     const activeId=String(state.currentItem?.id||state.currentItem?.item_id||"");
     const activePath=String(pathOf(state.currentItem)||"");
-    const groups=albumListGroups(rows,indexOffset);
+    const groups=rowOptions.groupByAlbum===false?[{
+      title:rowOptions.groupTitle||"曲目清單",
+      artist:rowOptions.groupArtist||"",
+      yearLabel:"",
+      artworkHash:artworkOf(rows[0]),
+      tracks:rows
+    }]:albumListGroups(rows,indexOffset);
     const header='<div class="album-track-columns" aria-hidden="true">'+
       '<span>封面</span><span>狀態</span><span>#</span><span>標題</span>'+
       '<span>年份</span><span>藝術家</span><span>評分</span><span>時間</span><span>操作</span></div>';
     const groupMarkup=groups.map(group=>{
-      const albumHeading='<div class="album-group-heading"><strong title="'+esc(group.title)+'">'+esc(group.title)+' | '+esc(group.artist)+'</strong>'+
+      const albumHeading='<div class="album-group-heading"><strong title="'+esc(group.title)+'">'+esc(group.title)+(group.artist?' | '+esc(group.artist):"")+'</strong>'+
         '<span class="album-group-rule"></span><span class="album-group-year">'+esc(group.yearLabel)+'</span></div>';
       const songRows=group.tracks.map((raw,groupIndex)=>{
         const item=playable(raw,"track");
@@ -1508,6 +1561,8 @@ export function initLibraryUI(options = {}) {
         const year=Number(raw.year);
         const yearLabel=Number.isInteger(year)&&year>0?String(year):"";
         const title=item.title||fileNameOf(raw)||"未命名音訊";
+        const add='<button class="playlist-add-button" type="button" data-action="open-playlist-picker" data-index="'+actualIndex+'" aria-label="加入收藏歌單" title="加入收藏歌單">＋</button>';
+        const remove=rowOptions.removeFromPlaylist?'<button class="playlist-remove-button" type="button" data-action="remove-from-playlist" data-index="'+actualIndex+'" aria-label="從歌單移除" title="從這份歌單移除">−</button>':"";
         return '<article class="album-track-row'+(current?' is-current':'')+'" data-action="play" data-index="'+actualIndex+'"'+
           (current?' aria-current="true"':"")+'>'+
           '<span class="album-track-status" aria-label="'+(current?'目前播放曲目':'未播放')+'" title="'+(current?'目前播放曲目':'未播放')+'"></span>'+
@@ -1517,8 +1572,7 @@ export function initLibraryUI(options = {}) {
           '<span class="album-track-artist" title="'+esc(artist)+'">'+esc(artist)+'</span>'+
           '<span class="album-track-rating" title="尚未設定評分" aria-label="尚未設定評分">☆☆☆☆☆</span>'+
           '<span class="album-track-duration">'+esc(duration(item.durationMs))+'</span>'+
-          '<span class="album-track-actions"><button class="playlist-add-button" type="button" data-action="open-playlist-picker" data-index="'+actualIndex+'" aria-label="加入收藏歌單" title="加入收藏歌單">＋</button>'+
-          '<button class="play-button" type="button" data-action="play" data-index="'+actualIndex+'" aria-label="播放" title="播放">▶</button></span>'+
+          '<span class="album-track-actions">'+add+remove+'<button class="play-button" type="button" data-action="play" data-index="'+actualIndex+'" aria-label="播放" title="播放">▶</button></span>'+
           '</article>';
       }).join("");
       return '<section class="album-track-group">'+albumHeading+
@@ -1718,7 +1772,7 @@ export function initLibraryUI(options = {}) {
       '<button class="secondary" data-action="refresh-album-metadata">重新讀取同名專輯標籤（'+albumRefreshTargetCount(album)+' 首）</button></div>'+
       '<p class="library-muted" id="album-reindex-status" hidden></p></div></div>'+
       sectionHead("TRACK LIST","曲目清單",'<span class="library-muted">'+tracks.length+' 首</span>')+
-      trackRows(tracks,"track");
+      albumGroupedTrackRows(tracks,tracks);
     loadCovers();
   }
 
@@ -1839,7 +1893,7 @@ export function initLibraryUI(options = {}) {
     root.innerHTML='<button class="back-link" type="button" data-action="back-folders">← 返回資料夾歌單</button>'+
       sectionHead("FOLDER CONTENTS",name,'<span class="library-muted">'+tracks.length.toLocaleString()+' 首歌曲</span>')+
       '<div class="playlist-detail-toolbar">'+play+'<span class="library-muted">包含此資料夾內的子資料夾歌曲</span></div>'+
-      (tracks.length?trackRows(tracks,"track",tracks):'<div class="library-empty"><div class="library-empty-mark">▰</div><h3>這個資料夾目前沒有已索引歌曲</h3><p>完成音樂索引後，這裡就會列出目前資料夾內的所有曲目。</p></div>');
+      (tracks.length?albumGroupedTrackRows(tracks,tracks):'<div class="library-empty"><div class="library-empty-mark">▰</div><h3>這個資料夾目前沒有已索引歌曲</h3><p>完成音樂索引後，這裡就會列出目前資料夾內的所有曲目。</p></div>');
     loadCovers();
   }
   function renderPlaylists(){
@@ -1863,7 +1917,7 @@ export function initLibraryUI(options = {}) {
     root.innerHTML='<button class="back-link" type="button" data-action="back-playlists">← 返回收藏歌單</button>'+
       sectionHead(favorites?"FAVORITES":"CUSTOM PLAYLIST",playlist.name,'<span class="library-muted">'+tracks.length.toLocaleString()+' 首歌曲</span>')+
       '<div class="playlist-detail-toolbar">'+actions+'<span class="library-muted">點擊歌曲即可切換播放，佇列會使用這份歌單的完整曲目</span></div>'+
-      (tracks.length?trackRows(tracks,"track",tracks,0,{removeFromPlaylist:true}):
+      (tracks.length?albumGroupedTrackRows(tracks,tracks,0,{removeFromPlaylist:true}):
         '<div class="library-empty"><div class="library-empty-mark">'+(favorites?"♡":"♫")+'</div><h3>這份歌單還是空的</h3><p>前往「所有歌曲」或資料夾目錄，點擊歌曲右側的「＋」，就能加入這份歌單。</p></div>');
     loadCovers();
   }
@@ -1966,6 +2020,7 @@ export function initLibraryUI(options = {}) {
     switch(state.view){
       case "music":renderHome();break;
       case "tracks":renderTracks();break;
+      case "recent":void renderRecentTracks().catch(e=>message(e.message,"error"));break;
       case "albums":renderAlbums();break;
       case "album-detail":renderAlbumDetail();break;
       case "playlists":if(state.selectedPlaylistId)renderPlaylistDetail();else renderPlaylists();break;
@@ -3144,7 +3199,9 @@ export function initLibraryUI(options = {}) {
     if(target!=="now-playing")state.lastLibraryView=target;
     if(target==="folders"&&!restoringLibraryDetail)state.selectedFolder=null;
     if(target==="playlists"&&!restoringLibraryDetail)state.selectedPlaylistId="";
+    const enteringRecent=target==="recent"&&state.view!=="recent";
     state.view=target;
+    if(enteringRecent)state.recentTrackRowsLoadedAt=0;
     if(target!=="now-playing"&&!returningFromNowPlaying)state.search="";
     if(returningFromNowPlaying){render();return;}
     if(!state.homeReady){
