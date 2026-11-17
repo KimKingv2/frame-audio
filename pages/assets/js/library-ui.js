@@ -1448,13 +1448,23 @@ export function initLibraryUI(options = {}) {
   function trackRows(rows,type="track",queueRows=rows,indexOffset=0,rowOptions={}) {
     state.items=queueRows;state.itemType=type;
     if(!rows.length)return '<div class="library-empty"><div class="library-empty-mark">♫</div><h3>目前沒有項目</h3><p>完成索引後，內容就會出現在這裡。</p></div>';
-    return '<div class="media-list">'+rows.map((raw,i)=>{
+    return '<div class="media-list'+(rowOptions.hideCover?' podcast-episode-list':'')+'">'+rows.map((raw,i)=>{
       const item=playable(raw,type),itemIndex=indexOffset+i;
       const rowAction=type==="track"?' data-action="play" data-index="'+itemIndex+'"':"";
       const add=type==="track"?'<button class="playlist-add-button" type="button" data-action="open-playlist-picker" data-index="'+itemIndex+'" aria-label="加入收藏歌單" title="加入收藏歌單">＋</button>':"";
       const remove=rowOptions.removeFromPlaylist?'<button class="playlist-remove-button" type="button" data-action="remove-from-playlist" data-index="'+itemIndex+'" aria-label="從歌單移除" title="從這份歌單移除">−</button>':"";
-      return '<article class="media-row"'+rowAction+'>'+cover(item.artworkHash,item.title)+
-        '<div class="media-copy"><strong title="'+esc(item.title)+'">'+esc(item.title)+'</strong><span>'+esc(item.subtitle||item.path)+'</span>'+
+      const episodeMeta=rowOptions.hideCover?[
+        Number(raw.seasonNumber)>0?"第 "+Number(raw.seasonNumber)+" 季":"",
+        Number(raw.episodeNumber)>0?"第 "+Number(raw.episodeNumber)+" 集":"",
+        !(Number(raw.seasonNumber)>0||Number(raw.episodeNumber)>0)&&raw.publishedAt?String(raw.publishedAt).slice(0,10):""
+      ].filter(Boolean).join(" · "):"";
+      const leading=rowOptions.hideCover
+        ?'<span class="podcast-episode-index" aria-hidden="true">'+String(i+1).padStart(2,"0")+'</span>'
+        :cover(item.artworkHash,item.title);
+      const subtitle=rowOptions.hideCover?episodeMeta:(item.subtitle||item.path);
+      return '<article class="media-row'+(rowOptions.hideCover?' podcast-episode-row':'')+'"'+rowAction+'>'+leading+
+        '<div class="media-copy"><strong title="'+esc(item.title)+'">'+esc(item.title)+'</strong>'+
+        (subtitle?'<span>'+esc(subtitle)+'</span>':"")+
         (type==="track"&&item.album?'<button class="album-link" type="button" data-action="open-track-album" data-index="'+itemIndex+'" title="開啟專輯">'+esc(item.album)+'</button>':"")+
         '</div><span class="media-duration">'+duration(item.durationMs)+'</span><div class="media-row-actions">'+add+remove+'<button class="play-button" type="button" data-action="play" data-index="'+itemIndex+'" aria-label="播放" title="播放">▶</button></div></article>';
     }).join("")+'</div>';
@@ -2017,7 +2027,7 @@ export function initLibraryUI(options = {}) {
     const episodes=state.episodes.filter(e=>e.showId===show.id).sort((a,b)=>Number(a.seasonNumber||0)-Number(b.seasonNumber||0)||Number(a.episodeNumber||0)-Number(b.episodeNumber||0)||String(a.publishedAt||"").localeCompare(String(b.publishedAt||""))).map(e=>({...e,showTitle:show.title}));
     root.innerHTML='<button class="back-link" data-action="back-shows">← 所有節目</button><div class="show-detail">'+cover(show.coverHash,show.title,"show-detail-cover")+
       '<div><span class="kicker">PODCAST SHOW</span><h3>'+esc(show.title)+'</h3><p>'+esc(show.author||"Podcast")+'</p><p class="show-description">'+esc(show.description||"尚無節目簡介。")+'</p><span class="library-muted">'+episodes.length+' 集單集</span></div></div>'+
-      sectionHead("EPISODES","所有單集",'<button class="primary" data-action="play-show">從頭播放</button>')+trackRows(episodes,"episode");
+      sectionHead("EPISODES","所有單集",'<button class="primary" data-action="play-show">從頭播放</button>')+trackRows(episodes,"episode",episodes,0,{hideCover:true});
     loadCovers();
   }
   async function renderContinue() {
