@@ -42,8 +42,9 @@ Run only the active migrations, in order, when the corresponding schema is not a
 1. `migrations/0001_catalog.sql` — Music tracks, folders and scan checkpoints.
 2. `migrations/0002_podcasts.sql` — Podcast shows and episodes.
 3. `migrations/0003_listening.sql` — playback progress, Podcast playback speed and listening events.
+4. `migrations/0005_catalog_meta.sql` — precomputed per-category row counts and independent revisions used by cursor-based catalogue pagination.
 
-`migrations/0004_connection_settings.sql` is retired/no-op and is not required. The previous D1 credential-storage approach has been removed. If an earlier test created an unused `connection_settings` table, leave it untouched; the current application ignores it.
+`migrations/0004_connection_settings.sql` is retired/no-op and is not required. `0005_catalog_meta.sql` is the active catalogue-read optimization migration and must be applied separately to the Preview and Production D1 databases after the first three migrations. It seeds lightweight counters from existing rows and installs insert/delete triggers; it does not drop or rebuild catalogue, listening, or artwork data. The previous D1 credential-storage approach has been removed. If an earlier test created an unused `connection_settings` table, leave it untouched; the current application ignores it.
 
 ## Cloudflare Access and APIs
 

@@ -29,8 +29,9 @@ FRAME Audio 是以 VPS Alist 為音訊來源的私人音訊平台，包含 **Mus
 | `0001_catalog.sql` | Music 曲目、資料夾、掃描進度 |
 | `0002_podcasts.sql` | Podcast 節目與單集 |
 | `0003_listening.sql` | 播放進度、Podcast 播放速度、收聽事件 |
+| `0005_catalog_meta.sql` | D1 預先計算各分類筆數與獨立版本號，支援游標分頁 |
 
-前三個 migration 建立曲庫、Podcast 與收聽資料。第四個檔案 `0004_connection_settings.sql` 已退役並改為 no-op，不需要執行；VPS／Worker／Mobile Device 憑證不再寫入 D1。現有 D1 資料與 R2 封面應保留。
+前三個 migration 建立曲庫、Podcast 與收聽資料。`0004_connection_settings.sql` 已退役並改為 no-op；`0005_catalog_meta.sql` 是本次 D1 讀取最佳化所需的新增 migration，須在各環境既有前三個 migration 已執行後套用。VPS／Worker／Mobile Device 憑證不會寫入 D1；執行 0005 不會清空曲庫、播放進度或封面。
 
 ## 掃描規則
 

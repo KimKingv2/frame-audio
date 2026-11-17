@@ -16,37 +16,46 @@ export async function onRequestGet({request,env}) {
   if(denied)return denied;
   if(!env.DB||typeof env.DB.prepare!=="function")return error("D1 尚未綁定，請新增名為 DB 的 D1 binding。",503);
   if(!env.ARTWORKS||typeof env.ARTWORKS.put!=="function")return error("R2 尚未綁定，請新增名為 ARTWORKS 的 R2 binding。",503);
-  try{
-    const [tracks,folders]=await Promise.all([
-      env.DB.prepare("SELECT COUNT(*) AS count FROM tracks").first(),
-      env.DB.prepare("SELECT COUNT(*) AS count FROM folders").first()
-    ]);
+  try {
+    const metaResult = await env.DB.prepare(
+      "SELECT kind,item_count,revision FROM catalog_meta"
+    ).all();
+    const meta = new Map((metaResult.results || []).map(row => [row.kind,row]));
+    if (["tracks","folders","shows","episodes"].some(kind => !meta.has(kind))) {
+      return error("請先在此環境的 D1 執行 migrations/0005_catalog_meta.sql。",503);
+    }
+
     let podcastSchemaReady = false;
     let listeningSchemaReady = false;
-    let podcastShows = 0;
-    let podcastEpisodes = 0;
     try {
-      const [shows, episodes] = await Promise.all([
-        env.DB.prepare("SELECT COUNT(*) AS count FROM podcast_shows").first(),
-        env.DB.prepare("SELECT COUNT(*) AS count FROM podcast_episodes").first()
+      await Promise.all([
+        env.DB.prepare("SELECT 1 FROM podcast_shows LIMIT 1").first(),
+        env.DB.prepare("SELECT 1 FROM podcast_episodes LIMIT 1").first()
       ]);
       podcastSchemaReady = true;
-      podcastShows = Number(shows?.count || 0);
-      podcastEpisodes = Number(episodes?.count || 0);
     } catch {
-      // Podcast migration is additive and can be applied separately.
+      // Podcast migration is additive and may be applied separately.
     }
     try {
-      await env.DB.prepare("SELECT COUNT(*) AS count FROM listening_progress").first();
-      await env.DB.prepare("SELECT COUNT(*) AS count FROM listening_events").first();
+      await Promise.all([
+        env.DB.prepare("SELECT 1 FROM listening_progress LIMIT 1").first(),
+        env.DB.prepare("SELECT 1 FROM listening_events LIMIT 1").first()
+      ]);
       listeningSchemaReady = true;
     } catch {
-      // Listening analytics migration is additive and may be applied after the catalogue migrations.
+      // Listening analytics migration is additive.
     }
+
     return json({
       ok:true,storage:"cloudflare-d1-r2",d1:true,r2:true,
-      tracks:Number(tracks?.count||0),folders:Number(folders?.count||0),
-      podcastSchemaReady,podcastShows,podcastEpisodes,listeningSchemaReady
+      tracks:Number(meta.get("tracks")?.item_count||0),
+      folders:Number(meta.get("folders")?.item_count||0),
+      podcastSchemaReady,
+      podcastShows:podcastSchemaReady?Number(meta.get("shows")?.item_count||0):0,
+      podcastEpisodes:podcastSchemaReady?Number(meta.get("episodes")?.item_count||0):0,
+      listeningSchemaReady
     });
-  }catch{return error("D1 已綁定，但尚未初始化資料表。請執行 migrations/0001_catalog.sql。",503);}
+  } catch {
+    return error("D1 已綁定，但目錄摘要尚未初始化。請執行 migrations/0005_catalog_meta.sql。",503);
+  }
 }

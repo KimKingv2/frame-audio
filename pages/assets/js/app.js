@@ -579,7 +579,7 @@ const AUDIO_FILE_PATTERN = /\.(?:flac|mp3|m4a|mp4|aac|wav|aiff?|ogg|opus|wma|ape
       try { data = await response.json(); } catch {}
       if (!response.ok || !data.ok) throw new Error(data.error || ("Cloudflare API HTTP " + response.status));
       cloudflareStorageReady = true;
-      void libraryUI?.refresh();
+      // A connection check only verifies storage; it must not trigger a catalogue sync.
       setStorageResult(
         "PASS：Cloudflare 伺服器端儲存已連線。\\nD1：歌曲 " + data.tracks +
         " 首；資料夾 " + data.folders + " 個。\\nR2：已連接。" +

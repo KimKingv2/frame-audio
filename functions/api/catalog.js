@@ -39,6 +39,15 @@ function validFolder(f) {
   return isObject(f)&&typeof f.id==="string"&&typeof f.name==="string"
     &&typeof f.path==="string"&&f.path.startsWith("/")&&!f.path.includes("\0");
 }
+function parsePathCursor(value) {
+  if (!value) return null;
+  try {
+    const cursor = JSON.parse(value);
+    return Array.isArray(cursor) && cursor.length === 1 &&
+      typeof cursor[0] === "string" && cursor[0].startsWith("/") &&
+      cursor[0].length <= 4096 ? cursor[0] : null;
+  } catch { return null; }
+}
 export async function onRequest({ request, env }) {
   const denied = await requireAdmin(request, env);
   if (denied) return denied;
@@ -48,24 +57,64 @@ export async function onRequest({ request, env }) {
   if (request.method === "GET") {
     const limit = Math.min(kind==="folders"?1000:500,Math.max(1,Math.floor(Number(url.searchParams.get("limit")||100))));
     const offset = Math.max(0,Math.floor(Number(url.searchParams.get("offset")||0)));
+    const legacyOffset = url.searchParams.has("offset") && !url.searchParams.has("cursor");
     const table = kind==="folders"?"folders":kind==="tracks"?"tracks":null;
     if (!table) return error("kind 只能是 tracks 或 folders。");
     const changedSince = url.searchParams.get("changedSince") || "";
     if (changedSince && !Number.isFinite(Date.parse(changedSince))) return error("changedSince 必須是有效的 ISO 日期。");
-    const where = changedSince ? " WHERE indexed_at>=?" : "";
+    const cursor = parsePathCursor(url.searchParams.get("cursor") || "");
+    if (url.searchParams.has("cursor") && !cursor) return error("cursor 格式不正確。");
     try {
-      const countStatement = env.DB.prepare("SELECT COUNT(*) AS count FROM "+table+where);
-      const rowsStatement = env.DB.prepare(
-        "SELECT data_json FROM "+table+where+" ORDER BY path LIMIT ? OFFSET ?"
-      );
-      const [count, rows] = await Promise.all([
-        changedSince ? countStatement.bind(changedSince).first() : countStatement.first(),
-        changedSince ? rowsStatement.bind(changedSince,limit,offset).all() : rowsStatement.bind(limit,offset).all()
-      ]);
-      const items = (rows.results||[]).map(row=>JSON.parse(row.data_json));
-      const total = Number(count?.count||0);
-      return json({ok:true,kind,total,limit,offset,changedSince:changedSince||null,
-        nextOffset:offset+items.length<total?offset+items.length:null,items});
+      const meta = await env.DB.prepare(
+        "SELECT item_count FROM catalog_meta WHERE kind=?"
+      ).bind(kind).first();
+      if (!meta) return error("D1 目錄摘要尚未初始化，請先執行 migrations/0005_catalog_meta.sql。",503);
+
+      let total = Number(meta.item_count || 0);
+      if (changedSince) {
+        const count = await env.DB.prepare(
+          "SELECT COUNT(*) AS count FROM " + table + " WHERE indexed_at>=?"
+        ).bind(changedSince).first();
+        total = Number(count?.count || 0);
+      }
+
+      let statement;
+      if (legacyOffset) {
+        statement = env.DB.prepare(
+          "SELECT path,data_json FROM " + table +
+          (changedSince ? " WHERE indexed_at>=?" : "") +
+          " ORDER BY path LIMIT ? OFFSET ?"
+        );
+        statement = changedSince
+          ? statement.bind(changedSince,limit,offset)
+          : statement.bind(limit,offset);
+      } else {
+        const conditions = [];
+        const bindings = [];
+        if (changedSince) { conditions.push("indexed_at>=?"); bindings.push(changedSince); }
+        if (cursor) { conditions.push("path>?"); bindings.push(cursor); }
+        const where = conditions.length ? " WHERE " + conditions.join(" AND ") : "";
+        statement = env.DB.prepare(
+          "SELECT path,data_json FROM " + table + where + " ORDER BY path LIMIT ?"
+        ).bind(...bindings,limit+1);
+      }
+
+      const result = await statement.all();
+      const rawRows = result.results || [];
+      const rows = legacyOffset ? rawRows : rawRows.slice(0,limit);
+      const hasMore = legacyOffset
+        ? offset + rows.length < total
+        : rawRows.length > limit;
+      const items = rows.map(row=>JSON.parse(row.data_json));
+      const lastPath = rows.length ? String(rows[rows.length-1].path || "") : "";
+      return json({
+        ok:true,kind,total,limit,
+        offset:legacyOffset?offset:undefined,
+        cursor:cursor?JSON.stringify([cursor]):null,
+        nextOffset:legacyOffset && hasMore ? offset+items.length : null,
+        nextCursor:!legacyOffset && hasMore && lastPath ? [lastPath] : null,
+        hasMore,items
+      });
     } catch { return error("D1 資料表尚未初始化或查詢失敗。",503); }
   }
   if (request.method !== "POST") return error("Method Not Allowed",405);
@@ -76,7 +125,10 @@ export async function onRequest({ request, env }) {
     if (kind==="tracks") {
       const items=Array.isArray(body.tracks)?body.tracks:[body.track];
       if (!items.length||items.length>100||!items.every(validTrack)) return error("每批必須包含 1 至 100 筆有效歌曲資料。");
-      await env.DB.batch(items.map(t=>env.DB.prepare(TRACK_SQL).bind(...trackRow(t))));
+      await env.DB.batch([
+        ...items.map(t=>env.DB.prepare(TRACK_SQL).bind(...trackRow(t))),
+        env.DB.prepare("UPDATE catalog_meta SET revision=revision+1,updated_at=CURRENT_TIMESTAMP WHERE kind='tracks'")
+      ]);
       return json({ok:true,saved:items.length,kind});
     }
     if (kind==="folders") {
@@ -86,9 +138,10 @@ export async function onRequest({ request, env }) {
         f.id,f.path,f.name,f.parentId||null,JSON.stringify(f.childFolderIds||[]),
         JSON.stringify(f.trackIds||[]),Number(f.directTrackCount||0),Number(f.recursiveTrackCount||0),
         JSON.stringify(f),now));
+      batch.push(env.DB.prepare("UPDATE catalog_meta SET revision=revision+1,updated_at=CURRENT_TIMESTAMP WHERE kind='folders'"));
       await env.DB.batch(batch);
       return json({ok:true,saved:items.length,kind});
     }
     return error("kind 只能是 tracks 或 folders。");
-  } catch { return error("寫入 D1 失敗。",503); }
+  } catch { return error("寫入 D1 失敗。請確認已執行 migrations/0005_catalog_meta.sql。",503); }
 }
