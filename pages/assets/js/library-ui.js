@@ -1917,7 +1917,7 @@ export function initLibraryUI(options = {}) {
     root.innerHTML='<button class="back-link" type="button" data-action="back-playlists">← 返回收藏歌單</button>'+
       sectionHead(favorites?"FAVORITES":"CUSTOM PLAYLIST",playlist.name,'<span class="library-muted">'+tracks.length.toLocaleString()+' 首歌曲</span>')+
       '<div class="playlist-detail-toolbar">'+actions+'<span class="library-muted">點擊歌曲即可切換播放，佇列會使用這份歌單的完整曲目</span></div>'+
-      (tracks.length?albumGroupedTrackRows(tracks,tracks,0,{removeFromPlaylist:true}):
+      (tracks.length?albumGroupedTrackRows(tracks,tracks,0,{groupByAlbum:false,groupTitle:"歌單曲目",groupArtist:"依歌單順序排列",removeFromPlaylist:true}):
         '<div class="library-empty"><div class="library-empty-mark">'+(favorites?"♡":"♫")+'</div><h3>這份歌單還是空的</h3><p>前往「所有歌曲」或資料夾目錄，點擊歌曲右側的「＋」，就能加入這份歌單。</p></div>');
     loadCovers();
   }
