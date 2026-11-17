@@ -1586,6 +1586,25 @@ export function initLibraryUI(options = {}) {
       };
     }).sort((a,b)=>a.firstIndex-b.firstIndex);
   }
+  function syncCurrentTrackHighlight(){
+    const current=state.currentItem?.itemType==="track"?state.currentItem:null;
+    const activeId=String(current?.id||current?.item_id||"");
+    const activePath=String(pathOf(current)||"");
+    root.querySelectorAll(".album-track-row[data-track-id],.album-track-row[data-track-path]").forEach(row=>{
+      const rowId=String(row.dataset.trackId||"");
+      const rowPath=String(row.dataset.trackPath||"");
+      const isCurrent=!!((activeId&&rowId===activeId)||(activePath&&rowPath===activePath));
+      row.classList.toggle("is-current",isCurrent);
+      if(isCurrent)row.setAttribute("aria-current","true");
+      else row.removeAttribute("aria-current");
+      const status=row.querySelector(".album-track-status");
+      if(status){
+        const label=isCurrent?"目前播放曲目":"未播放";
+        status.setAttribute("aria-label",label);
+        status.title=label;
+      }
+    });
+  }
   function albumGroupedTrackRows(rows,queueRows,indexOffset=0,rowOptions={}) {
     state.items=queueRows;
     state.itemType="track";
@@ -1621,7 +1640,7 @@ export function initLibraryUI(options = {}) {
         const download='<button class="track-download-button" type="button" data-action="download-track" data-index="'+actualIndex+'" aria-label="下載歌曲" title="下載歌曲"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v3h14v-3"/></svg></button>';
         const add='<button class="playlist-add-button" type="button" data-action="open-playlist-picker" data-index="'+actualIndex+'" aria-label="加入收藏歌單" title="加入收藏歌單">＋</button>';
         const remove=rowOptions.removeFromPlaylist?'<button class="playlist-remove-button" type="button" data-action="remove-from-playlist" data-index="'+actualIndex+'" aria-label="從歌單移除" title="從這份歌單移除">−</button>':"";
-        return '<article class="album-track-row'+(current?' is-current':'')+'" data-action="play" data-index="'+actualIndex+'"'+
+        return '<article class="album-track-row'+(current?' is-current':'')+'" data-action="play" data-index="'+actualIndex+'" data-track-id="'+esc(raw.id||raw.item_id||"")+'" data-track-path="'+esc(pathOf(raw))+'"'+
           (current?' aria-current="true"':"")+'>'+
           '<span class="album-track-status" aria-label="'+(current?'目前播放曲目':'未播放')+'" title="'+(current?'目前播放曲目':'未播放')+'"></span>'+
           '<span class="album-track-number">'+esc(numberLabel)+'</span>'+
@@ -2664,7 +2683,8 @@ export function initLibraryUI(options = {}) {
       if(!isCurrentRequest())return;
 
       state.currentItem=item;
-       syncActiveNavigation();
+      syncCurrentTrackHighlight();
+      syncActiveNavigation();
       if(playOptions.preserveQueue){
         state.queueIndex=index;
         if(state.shuffleOrder.length!==state.queue.length)rebuildShuffleOrder(index);
@@ -3144,7 +3164,7 @@ export function initLibraryUI(options = {}) {
     setPlaybackConnectionStatus("已停止播放。","idle",state.playRequestId,1400);
     clearNextPreload();
     accountTime();persistSession(false);saveProgress(true);audio.pause();audio.removeAttribute("src");audio.removeAttribute("crossorigin");audio.load();
-    state.currentItem=null;state.session=null;state.queue=[];state.queueIndex=-1;state.shuffleOrder=[];state.shufflePosition=-1;state.restorePositionMs=0;clearSavedPlaybackState();setDock(null);timeline();
+    state.currentItem=null;syncCurrentTrackHighlight();state.session=null;state.queue=[];state.queueIndex=-1;state.shuffleOrder=[];state.shufflePosition=-1;state.restorePositionMs=0;clearSavedPlaybackState();setDock(null);timeline();
   });
   $("#player-seek")?.addEventListener("input",e=>{
     const value=Math.max(0,Math.min(1000,Number(e.target.value)||0));
