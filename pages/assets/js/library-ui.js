@@ -1095,6 +1095,32 @@ export function initLibraryUI(options = {}) {
   }
   const pathOf=item=>item?.file?.path||item?.path||"";
   const fileNameOf=item=>String(pathOf(item)||"").split("/").pop()||"";
+  async function downloadTrack(item) {
+    const config=getConfig();
+    if(!config.connected||!config.storageReady||!config.baseUrl) {
+      throw new Error("請先連線並測試目前活動的 OpenList 來源，再下載歌曲。");
+    }
+    const path=String(pathOf(item)||"").trim();
+    if(!path.startsWith("/")||path.includes(String.fromCharCode(0)))throw new Error("歌曲檔案路徑不正確，無法下載。");
+    const info=await getOpenListFileInfo({baseUrl:config.baseUrl,path,timeoutMs:180000});
+    if(!info||info.is_dir)throw new Error("選取的項目不是歌曲檔案。");
+    if(!info.raw_url)throw new Error("目前活動的 OpenList 來源沒有提供這首歌的下載網址。");
+    let target;
+    try{target=new URL(String(info.raw_url));}
+    catch{throw new Error("OpenList 回傳的下載網址格式不正確。");}
+    if(!["http:","https:"].includes(target.protocol))throw new Error("下載網址必須使用 HTTP 或 HTTPS。");
+    const filename=fileNameOf(item)||String(info.name||"").trim()||"audio";
+    const link=document.createElement("a");
+    link.href=target.href;
+    link.download=filename;
+    link.target="_blank";
+    link.rel="noopener noreferrer";
+    link.style.position="fixed";
+    link.style.left="-10000px";
+    document.body.append(link);
+    try{link.click();}finally{link.remove();}
+    message("已送出下載請求："+filename,"success");
+  }
   function compareTrackFileNames(a,b){
     const byName=fileNameOf(a).localeCompare(fileNameOf(b),"zh-Hant",{numeric:true,sensitivity:"base"});
     return byName||String(pathOf(a)||"").localeCompare(String(pathOf(b)||""),"zh-Hant",{numeric:true,sensitivity:"base"});
@@ -1561,6 +1587,7 @@ export function initLibraryUI(options = {}) {
         const year=Number(raw.year);
         const yearLabel=Number.isInteger(year)&&year>0?String(year):"";
         const title=item.title||fileNameOf(raw)||"未命名音訊";
+        const download='<button class="track-download-button" type="button" data-action="download-track" data-index="'+actualIndex+'" aria-label="下載歌曲" title="下載歌曲"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v3h14v-3"/></svg></button>';
         const add='<button class="playlist-add-button" type="button" data-action="open-playlist-picker" data-index="'+actualIndex+'" aria-label="加入收藏歌單" title="加入收藏歌單">＋</button>';
         const remove=rowOptions.removeFromPlaylist?'<button class="playlist-remove-button" type="button" data-action="remove-from-playlist" data-index="'+actualIndex+'" aria-label="從歌單移除" title="從這份歌單移除">−</button>':"";
         return '<article class="album-track-row'+(current?' is-current':'')+'" data-action="play" data-index="'+actualIndex+'"'+
@@ -1572,7 +1599,7 @@ export function initLibraryUI(options = {}) {
           '<span class="album-track-artist" title="'+esc(artist)+'">'+esc(artist)+'</span>'+
           '<span class="album-track-rating" title="尚未設定評分" aria-label="尚未設定評分">☆☆☆☆☆</span>'+
           '<span class="album-track-duration">'+esc(duration(item.durationMs))+'</span>'+
-          '<span class="album-track-actions">'+add+remove+'<button class="play-button" type="button" data-action="play" data-index="'+actualIndex+'" aria-label="播放" title="播放">▶</button></span>'+
+          '<span class="album-track-actions">'+download+add+remove+'<button class="play-button" type="button" data-action="play" data-index="'+actualIndex+'" aria-label="播放" title="播放">▶</button></span>'+
           '</article>';
       }).join("");
       return '<section class="album-track-group">'+albumHeading+
@@ -2744,6 +2771,13 @@ export function initLibraryUI(options = {}) {
       if(action==="navigate"){showView(b.dataset.view);return;}
       if(action==="back-now-playing"){closeNowPlaying();return;}
       if(action==="open-playlist-creator"){openPlaylistDialog();return;}
+      if(action==="download-track"){
+        const item=state.items[i];if(!item||b.disabled)return;
+        b.disabled=true;
+        try{await downloadTrack(item);}
+        finally{if(b.isConnected)b.disabled=false;}
+        return;
+      }
       if(action==="open-playlist-picker"){const item=state.items[i];if(item)openPlaylistDialog(item);return;}
       if(action==="close-playlist-dialog"){const dialog=$("#playlist-picker-dialog");if(dialog?.open)dialog.close();return;}
       if(action==="toggle-playlist-membership"){
