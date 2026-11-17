@@ -78,11 +78,16 @@ export async function onRequestPost({ request, env }) {
     // The original provider response is retained; only the retry note is appended
     // after the bounded retry budget has been exhausted.
   }
-  if (Number(payload.code) === 200 && payload.data && typeof payload.data === "object" &&
-      payload.data.raw_url) {
-    const rawUrl = normalizedRawUrl(payload.data.raw_url, result.baseUrl);
-    if (!rawUrl) return respond(error("OpenList 回傳的 raw_url 格式不受支援。", 502));
-    payload.data.raw_url = rawUrl;
+  if (Number(payload.code) === 200 && payload.data && typeof payload.data === "object") {
+    if (payload.data.raw_url) {
+      const rawUrl = normalizedRawUrl(payload.data.raw_url, result.baseUrl);
+      if (!rawUrl) return respond(error("OpenList 回傳的 raw_url 格式不受支援。", 502));
+      payload.data.raw_url = rawUrl;
+    }
+    const encodedPath = body.path.split("/").slice(1).map(segment => encodeURIComponent(segment)).join("/");
+    const downloadUrl = new URL("d/" + encodedPath, result.baseUrl.replace(/\\/+$/, "") + "/");
+    if (payload.data.sign) downloadUrl.searchParams.set("sign", String(payload.data.sign));
+    payload.data.download_url = downloadUrl.href;
   }
   return respond(json(payload));
 }
