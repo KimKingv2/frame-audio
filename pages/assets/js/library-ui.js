@@ -1107,7 +1107,7 @@ export function initLibraryUI(options = {}) {
     const info=await getOpenListFileInfo({baseUrl:config.baseUrl,path,timeoutMs:180000});
     if(!info||info.is_dir)throw new Error("選取的項目不是歌曲檔案。");
     const filename=fileNameOf(item)||String(info.name||"").trim()||"audio";
-    const base=String(config.baseUrl).replace(/\\/+$/,"");
+    const base=String(config.baseUrl).replace(/\/+$/,"");
     const encodedPath=path.split("/").map(part=>encodeURIComponent(part)).join("/");
     let target;
     try{target=new URL(base+"/d"+encodedPath);}
