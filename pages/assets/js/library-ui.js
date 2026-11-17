@@ -2022,9 +2022,15 @@ export function initLibraryUI(options = {}) {
     root.innerHTML=searchBar("搜尋節目名稱或作者")+sectionHead("PODCAST SHOWS","所有節目",'<span class="library-muted">'+showCountLabel+'</span>')+showCards(shows);
     loadCovers();
   }
+  function sortPodcastEpisodesByFileName(items) {
+    return [...(items||[])].sort((a,b)=>{
+      const byName=fileNameOf(a).localeCompare(fileNameOf(b),"zh-Hant",{numeric:true,sensitivity:"base"});
+      return byName||String(pathOf(a)||"").localeCompare(String(pathOf(b)||""),"zh-Hant",{numeric:true,sensitivity:"base"});
+    });
+  }
   function renderShowDetail() {
     const show=state.shows.find(s=>s.id===state.selectedShowId);if(!show){state.view="shows";renderShows();return;}
-    const episodes=state.episodes.filter(e=>e.showId===show.id).sort((a,b)=>Number(a.seasonNumber||0)-Number(b.seasonNumber||0)||Number(a.episodeNumber||0)-Number(b.episodeNumber||0)||String(a.publishedAt||"").localeCompare(String(b.publishedAt||""))).map(e=>({...e,showTitle:show.title}));
+    const episodes=sortPodcastEpisodesByFileName(state.episodes.filter(e=>e.showId===show.id)).map(e=>({...e,showTitle:show.title}));
     root.innerHTML='<button class="back-link" data-action="back-shows">← 所有節目</button><div class="show-detail">'+cover(show.coverHash,show.title,"show-detail-cover")+
       '<div><span class="kicker">PODCAST SHOW</span><h3>'+esc(show.title)+'</h3><p>'+esc(show.author||"Podcast")+'</p><p class="show-description">'+esc(show.description||"尚無節目簡介。")+'</p><span class="library-muted">'+episodes.length+' 集單集</span></div></div>'+
       sectionHead("EPISODES","所有單集",'<button class="primary" data-action="play-show">從頭播放</button>')+trackRows(episodes,"episode",episodes,0,{hideCover:true});
@@ -2974,7 +2980,7 @@ export function initLibraryUI(options = {}) {
       }
       if(action==="refresh-album-metadata"){await refreshAlbumMetadata();return;}
       if(action==="play-show"){
-        const show=state.shows.find(s=>s.id===state.selectedShowId),list=state.episodes.filter(e=>e.showId===show?.id).map(e=>({...e,showTitle:show.title}));
+        const show=state.shows.find(s=>s.id===state.selectedShowId),list=sortPodcastEpisodesByFileName(state.episodes.filter(e=>e.showId===show?.id)).map(e=>({...e,showTitle:show.title}));
         if(list.length)await playItem("episode",list[0],list,0,{queueLabel:"Podcast / "+String(show?.title||"節目")});return;
       }
       if(action==="play-group"){
