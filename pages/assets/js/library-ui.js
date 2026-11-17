@@ -1422,7 +1422,7 @@ export function initLibraryUI(options = {}) {
   }
   function renderHome() {
     const recent=state.recentTracks.slice(0,8);
-    const recentMarkup=recent.length?albumGroupedTrackRows(recent,recent,0,{groupByAlbum:false,groupTitle:"最近播放",groupArtist:"依最後播放時間排序"}):
+    const recentMarkup=recent.length?albumGroupedTrackRows(recent,recent,0,{preserveTrackOrder:true}):
       '<div class="library-empty"><div class="library-empty-mark">♫</div><h3>還沒有播放紀錄</h3><p>開始播放音樂後，最近播放的歌曲就會出現在這裡。</p></div>';
     if(!recent.length){state.items=[];state.itemType="track";}
     root.innerHTML=stats([["MUSIC TRACKS",state.catalogCounts.tracks.toLocaleString()],["PODCAST SHOWS",state.catalogCounts.shows.toLocaleString()],["PODCAST EPISODES",state.catalogCounts.episodes.toLocaleString()]])+
@@ -1473,7 +1473,7 @@ export function initLibraryUI(options = {}) {
     root.innerHTML=searchBar("搜尋最近播放的歌曲")+
       sectionHead("RECENTLY PLAYED","最近播放",'<span class="library-muted">'+recent.length.toLocaleString()+' 筆紀錄 · 最新在前</span>')+
       (recent.length
-        ?albumGroupedTrackRows(visible,recent,0,{groupByAlbum:false,groupTitle:"最近播放",groupArtist:"依最後播放時間排序"})
+        ?albumGroupedTrackRows(visible,recent,0,{preserveTrackOrder:true})
         :'<div class="library-empty"><div class="library-empty-mark">♫</div><h3>還沒有播放紀錄</h3><p>開始播放音樂後，最近 50 筆歌曲紀錄就會出現在這裡。</p></div>');
     loadCovers();
   }
@@ -1496,7 +1496,7 @@ export function initLibraryUI(options = {}) {
       return compareTrackFileNames(a,b);
     });
   }
-  function albumListGroups(rows,offset=0) {
+  function albumListGroups(rows,offset=0,options={}) {
     const groups=new Map();
     rows.forEach((track,index)=>{
       const rawAlbumName=track.album==null?"":String(track.album);
@@ -1516,7 +1516,7 @@ export function initLibraryUI(options = {}) {
       groups.get(key).tracks.push(track);
     });
     return [...groups.values()].map(group=>{
-      const ordered=albumListTrackOrder(group.tracks);
+      const ordered=options.preserveTrackOrder===true?[...group.tracks]:albumListTrackOrder(group.tracks);
       const years=[...new Set(ordered.map(track=>Number(track.year)).filter(year=>Number.isInteger(year)&&year>0))].sort((a,b)=>a-b);
       const yearLabel=years.length===1?String(years[0]):years.length>1?years[0]+"–"+years[years.length-1]:"";
       const artworkTrack=ordered.find(track=>artworkOf(track))||ordered[0];
@@ -1541,7 +1541,7 @@ export function initLibraryUI(options = {}) {
       yearLabel:"",
       artworkHash:artworkOf(rows[0]),
       tracks:rows
-    }]:albumListGroups(rows,indexOffset);
+    }]:albumListGroups(rows,indexOffset,{preserveTrackOrder:rowOptions.preserveTrackOrder===true});
     const header='<div class="album-track-columns" aria-hidden="true">'+
       '<span>封面</span><span>狀態</span><span>#</span><span>標題</span>'+
       '<span>年份</span><span>藝術家</span><span>評分</span><span>時間</span><span>操作</span></div>';
