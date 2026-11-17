@@ -254,7 +254,7 @@ export async function getOpenListFileInfo({ baseUrl, token, path, timeoutMs = DE
   if (config.provider === "local") {
     const base = normalizeOpenListUrl(config.baseUrl || window.location.origin);
     const encodedPath = safePath.split("/").slice(1).map(segment => encodeURIComponent(segment)).join("/");
-    const downloadUrl = new URL("d/" + encodedPath, base.replace(/\\/+$/, "") + "/");
+    const downloadUrl = new URL("d/" + encodedPath, base.replace(/\/+$/, "") + "/");
     if (info.sign) downloadUrl.searchParams.set("sign", String(info.sign));
     info.download_url = downloadUrl.href;
   } else if (info.download_url) {
