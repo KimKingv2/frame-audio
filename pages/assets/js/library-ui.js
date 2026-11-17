@@ -3,6 +3,7 @@ import { parseSynchronizedLyrics } from "./player-effects.js?v=20261111-sylt-ms1
 import { readCatalogCache, openCatalogCache, clearCatalogStore, putCatalogBatch, writeCatalogMeta } from "./catalog-cache.js?v=20261116-progress-phases1";
 
 const PERIODS = [["week","近 7 日"],["month","近 30 日"],["year","近 365 日"],["all","全部時間"]];
+const RECENT_TRACKS_CACHE_TTL_MS=30_000;
 const PLAYBACK_QUEUE_STORAGE_KEY = "frame-audio-playback-queue-v1";
 const PLAYBACK_POSITION_STORAGE_KEY = "frame-audio-playback-position-v1";
 const USER_PLAYLISTS_STORAGE_KEY = "frame-audio-user-playlists-v1";
@@ -1470,38 +1471,37 @@ export function initLibraryUI(options = {}) {
       showCards(state.shows.slice(0,6));
     loadCovers();
   }
-  async function renderRecentTracks() {
-    if(!state.recentTrackRowsLoadedAt){
-      if(!recentTracksPromise){
-        recentTracksPromise=(async()=>{
-          const data=await api("/api/listening?view=recent&itemType=track&limit=50");
-          const byId=new Map(),byPath=new Map();
-          for(const track of state.tracks){
-            const id=String(track?.id||track?.item_id||"");
-            const path=String(pathOf(track)||"");
-            if(id&&!byId.has(id))byId.set(id,track);
-            if(path&&!byPath.has(path))byPath.set(path,track);
-          }
-          state.recentTrackRows=(Array.isArray(data.items)?data.items:[]).map(record=>{
-            const id=String(record?.item_id||"");
-            const path=String(record?.path||"");
-            if(!id||!path)return null;
-            const track=byId.get(id)||byPath.get(path);
-            return track
-              ?{...track,recentlyPlayedAt:String(record.updated_at||"")}
-              :{
-                  id,path,title:String(record.title||fileNameOf({path})||"未命名音訊"),
-                  albumArtist:String(record.subtitle||""),
-                  artworkHash:record.artwork_hash||null,
-                  durationMs:Number(record.duration_ms||0),
-                  recentlyPlayedAt:String(record.updated_at||"")
-                };
-          }).filter(Boolean);
-          state.recentTrackRowsLoadedAt=Date.now();
-        })().finally(()=>{recentTracksPromise=null;});
+  async function fetchRecentTrackRows(){
+    if(recentTracksPromise)return recentTracksPromise;
+    recentTracksPromise=(async()=>{
+      const data=await api("/api/listening?view=recent&itemType=track&limit=50");
+      const byId=new Map(),byPath=new Map();
+      for(const track of state.tracks){
+        const id=String(track?.id||track?.item_id||"");
+        const path=String(pathOf(track)||"");
+        if(id&&!byId.has(id))byId.set(id,track);
+        if(path&&!byPath.has(path))byPath.set(path,track);
       }
-      await recentTracksPromise;
-    }
+      state.recentTrackRows=(Array.isArray(data.items)?data.items:[]).map(record=>{
+        const id=String(record?.item_id||"");
+        const path=String(record?.path||"");
+        if(!id||!path)return null;
+        const track=byId.get(id)||byPath.get(path);
+        return track
+          ?{...track,recentlyPlayedAt:String(record.updated_at||"")}
+          :{
+              id,path,title:String(record.title||fileNameOf({path})||"未命名音訊"),
+              albumArtist:String(record.subtitle||""),
+              artworkHash:record.artwork_hash||null,
+              durationMs:Number(record.duration_ms||0),
+              recentlyPlayedAt:String(record.updated_at||"")
+            };
+      }).filter(Boolean);
+      state.recentTrackRowsLoadedAt=Date.now();
+    })().finally(()=>{recentTracksPromise=null;});
+    return recentTracksPromise;
+  }
+  function renderRecentTrackRows(){
     const recent=state.recentTrackRows;
     const query=String(state.search||"").trim().toLocaleLowerCase();
     const visible=recent.filter(track=>!query||
@@ -1514,6 +1514,25 @@ export function initLibraryUI(options = {}) {
         ?albumGroupedTrackRows(visible,recent,0,{preserveTrackOrder:true})
         :'<div class="library-empty"><div class="library-empty-mark">♫</div><h3>還沒有播放紀錄</h3><p>開始播放音樂後，最近 50 筆歌曲紀錄就會出現在這裡。</p></div>');
     loadCovers();
+  }
+  async function renderRecentTracks(){
+    if(!state.recentTrackRowsLoadedAt){
+      root.innerHTML=searchBar("搜尋最近播放的歌曲")+
+        sectionHead("RECENTLY PLAYED","最近播放",'<span class="library-muted">正在載入紀錄…</span>')+
+        '<div class="library-message">正在讀取最近播放紀錄……</div>';
+      await fetchRecentTrackRows();
+      if(state.view!=="recent")return;
+      renderRecentTrackRows();
+      return;
+    }
+    renderRecentTrackRows();
+    if(Date.now()-state.recentTrackRowsLoadedAt>RECENT_TRACKS_CACHE_TTL_MS){
+      void fetchRecentTrackRows().then(()=>{
+        if(state.view==="recent")renderRecentTrackRows();
+      }).catch(error=>{
+        console.warn("[FRAME Audio] Recent listening refresh failed; keeping cached rows.",error);
+      });
+    }
   }
   function albumListArtist(track) {
     const artists=Array.isArray(track?.artists)?track.artists.map(value=>String(value||"").trim()).filter(Boolean):[];
@@ -3033,10 +3052,13 @@ export function initLibraryUI(options = {}) {
   audio.addEventListener("play",()=>{
     startSession();saveProgress(true);savePlaybackPosition(true);
     if(state.currentItem?.itemType==="track"){
-      const id=String(state.currentItem.id||state.currentItem.item_id||""),path=pathOf(state.currentItem);
-      state.recentTracks=[state.currentItem,...state.recentTracks.filter(item=>
-        !(id&&String(item.id||item.item_id||"")===id)&&!(path&&pathOf(item)===path)
-      )].slice(0,8);
+      const playedTrack={...state.currentItem,recentlyPlayedAt:new Date().toISOString()};
+      const id=String(playedTrack.id||playedTrack.item_id||""),path=pathOf(playedTrack);
+      const isSameTrack=item=>
+        (id&&String(item.id||item.item_id||"")===id)||(path&&pathOf(item)===path);
+      state.recentTracks=[playedTrack,...state.recentTracks.filter(item=>!isSameTrack(item))].slice(0,8);
+      state.recentTrackRows=[playedTrack,...state.recentTrackRows.filter(item=>!isSameTrack(item))].slice(0,50);
+      state.recentTrackRowsLoadedAt=Date.now();
     }
     $("#player-toggle").textContent="Ⅱ";
     document.body.classList.add("is-audio-playing");
@@ -3253,9 +3275,7 @@ export function initLibraryUI(options = {}) {
     if(target!=="now-playing")state.lastLibraryView=target;
     if(target==="folders"&&!restoringLibraryDetail)state.selectedFolder=null;
     if(target==="playlists"&&!restoringLibraryDetail)state.selectedPlaylistId="";
-    const enteringRecent=target==="recent"&&state.view!=="recent";
     state.view=target;
-    if(enteringRecent)state.recentTrackRowsLoadedAt=0;
     if(target!=="now-playing"&&!returningFromNowPlaying)state.search="";
     if(returningFromNowPlaying){render();return;}
     if(!state.homeReady){
