@@ -1114,10 +1114,21 @@ export function initLibraryUI(options = {}) {
     catch{throw new Error("無法建立 OpenList 下載網址。");}
     if(!["http:","https:"].includes(target.protocol))throw new Error("下載網址必須使用 HTTP 或 HTTPS。");
     if(info.sign)target.searchParams.set("sign",String(info.sign));
+    const frameName="frame-audio-download-target";
+    let frame=document.querySelector('iframe[name="'+frameName+'"]');
+    if(!frame){
+      frame=document.createElement("iframe");
+      frame.name=frameName;
+      frame.title="歌曲下載";
+      frame.hidden=true;
+      frame.setAttribute("aria-hidden","true");
+      frame.style.display="none";
+      document.body.append(frame);
+    }
     const link=document.createElement("a");
     link.href=target.href;
     link.download=filename;
-    link.target="_blank";
+    link.target=frameName;
     link.rel="noopener noreferrer";
     link.style.position="fixed";
     link.style.left="-10000px";

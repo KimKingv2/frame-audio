@@ -539,6 +539,36 @@ body.is-now-playing .dock{border-top-color:transparent}
   box-sizing:border-box;flex:0 0 25px;width:25px;height:25px;min-width:25px;border-radius:8px;font-size:15px;
 }
 .album-track-actions .play-button{box-sizing:border-box;flex:0 0 26px;width:26px;height:26px;min-width:26px;border-radius:50%;font-size:9px;opacity:.72}
+.album-track-actions .play-button,
+.album-track-actions .playlist-add-button,
+.album-track-actions .playlist-remove-button,
+.album-track-actions .track-download-button{
+  box-sizing:border-box;display:grid;place-items:center;
+  border:1px solid rgba(199,179,223,.22);
+  border-radius:8px;color:#d9c6ed;background:rgba(255,255,255,.025);
+  transition:background .16s ease,border-color .16s ease,color .16s ease,transform .16s ease,opacity .16s ease;
+}
+.album-track-actions .play-button{
+  flex:0 0 25px;width:25px;height:25px;min-width:25px;
+  border-radius:8px;font-size:9px;opacity:1;
+}
+.album-track-actions .playlist-add-button,
+.album-track-actions .playlist-remove-button{
+  color:#d9c6ed;background:rgba(255,255,255,.025);
+}
+.album-track-actions .track-download-button{
+  color:#d9c6ed;background:rgba(255,255,255,.025);
+}
+.album-track-actions .play-button:hover,
+.album-track-actions .playlist-add-button:hover,
+.album-track-actions .playlist-remove-button:hover,
+.album-track-actions .track-download-button:hover{
+  border-color:#b99ae866;color:#fff;background:#9b75c926;
+}
+.album-track-actions .play-button:active,
+.album-track-actions .playlist-add-button:active,
+.album-track-actions .playlist-remove-button:active,
+.album-track-actions .track-download-button:active{transform:scale(.93)}
 .album-track-row:hover .album-track-actions .play-button,.album-track-row.is-current .album-track-actions .play-button{opacity:1}
 .album-track-artist-inline{display:none}
 @media(max-width:900px){
@@ -571,15 +601,13 @@ body.is-now-playing .dock{border-top-color:transparent}
   .album-track-artist-inline{display:block;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#807687;font-size:8px}
   .album-track-duration{font-size:9px}
   .album-track-actions{gap:3px}
-  .album-track-actions .track-download-button,.album-track-actions .playlist-add-button,.album-track-actions .playlist-remove-button{width:23px;height:23px;min-width:23px;flex-basis:23px}
-  .album-track-actions .play-button{width:24px;height:24px;min-width:24px;flex-basis:24px}
+  .album-track-actions .track-download-button,.album-track-actions .playlist-add-button,.album-track-actions .playlist-remove-button,.album-track-actions .play-button{width:24px;height:24px;min-width:24px;flex-basis:24px}
 }
 @media(max-width:390px){
   .album-track-columns{grid-template-columns:42px 16px 25px minmax(0,1fr) 40px 72px;gap:4px}
   .album-group-body{grid-template-columns:42px minmax(0,1fr);gap:6px;align-items:start}
   .album-group-cover{width:42px;height:42px}
   .album-track-row{grid-template-columns:16px 25px minmax(0,1fr) 40px 72px;gap:4px}
-  .album-track-actions .track-download-button,.album-track-actions .playlist-add-button,.album-track-actions .playlist-remove-button{width:21px;height:21px;min-width:21px;flex-basis:21px}
-  .album-track-actions .play-button{width:22px;height:22px;min-width:22px;flex-basis:22px}
+  .album-track-actions .track-download-button,.album-track-actions .playlist-add-button,.album-track-actions .playlist-remove-button,.album-track-actions .play-button{width:22px;height:22px;min-width:22px;flex-basis:22px}
 }
 @media(prefers-reduced-motion:reduce){.album-track-row{transition:none!important}}
