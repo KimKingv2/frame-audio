@@ -1134,7 +1134,6 @@ export function initLibraryUI(options = {}) {
     link.style.left="-10000px";
     document.body.append(link);
     try{link.click();}finally{link.remove();}
-    message("已送出下載請求："+filename,"success");
   }
   function compareTrackFileNames(a,b){
     const byName=fileNameOf(a).localeCompare(fileNameOf(b),"zh-Hant",{numeric:true,sensitivity:"base"});
@@ -2790,6 +2789,7 @@ export function initLibraryUI(options = {}) {
         const item=state.items[i];if(!item||b.disabled)return;
         b.disabled=true;
         try{await downloadTrack(item);}
+        catch(error){appendPlaybackLog("歌曲下載失敗 · "+String(error?.message||error),"error");}
         finally{if(b.isConnected)b.disabled=false;}
         return;
       }
