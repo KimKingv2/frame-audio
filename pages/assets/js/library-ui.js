@@ -1,4 +1,4 @@
-import { getOpenListFileInfo } from "./openlist-client.js?v=20261114-auth-password-only1";
+import { getOpenListFileInfo } from "./openlist-client.js?v=20261117-download-native1";
 import { parseSynchronizedLyrics } from "./player-effects.js?v=20261111-sylt-ms1";
 import { readCatalogCache, openCatalogCache, clearCatalogStore, putCatalogBatch, writeCatalogMeta } from "./catalog-cache.js?v=20261116-progress-phases1";
 
@@ -1107,13 +1107,11 @@ export function initLibraryUI(options = {}) {
     const info=await getOpenListFileInfo({baseUrl:config.baseUrl,path,timeoutMs:180000});
     if(!info||info.is_dir)throw new Error("選取的項目不是歌曲檔案。");
     const filename=fileNameOf(item)||String(info.name||"").trim()||"audio";
-    const base=String(config.baseUrl).replace(/\/+$/,"");
-    const encodedPath=path.split("/").map(part=>encodeURIComponent(part)).join("/");
+    if(!info.download_url)throw new Error("目前 OpenList 來源沒有提供可用的原生下載連結。請重新測試連線後再試。");
     let target;
-    try{target=new URL(base+"/d"+encodedPath);}
-    catch{throw new Error("無法建立 OpenList 下載網址。");}
-    if(!["http:","https:"].includes(target.protocol))throw new Error("下載網址必須使用 HTTP 或 HTTPS。");
-    if(info.sign)target.searchParams.set("sign",String(info.sign));
+    try{target=new URL(String(info.download_url));}
+    catch{throw new Error("OpenList 回傳的下載網址格式不正確。");}
+    if(!["http:","https:"].includes(target.protocol)||target.username||target.password)throw new Error("下載網址格式不受支援。");
     const frameName="frame-audio-download-target";
     let frame=document.querySelector('iframe[name="'+frameName+'"]');
     if(!frame){
@@ -1121,15 +1119,15 @@ export function initLibraryUI(options = {}) {
       frame.name=frameName;
       frame.title="歌曲下載";
       frame.hidden=true;
+      frame.tabIndex=-1;
       frame.setAttribute("aria-hidden","true");
-      frame.style.display="none";
+      frame.style.cssText="display:none!important;width:0;height:0;border:0";
       document.body.append(frame);
     }
     const link=document.createElement("a");
     link.href=target.href;
     link.download=filename;
     link.target=frameName;
-    link.rel="noopener noreferrer";
     link.style.position="fixed";
     link.style.left="-10000px";
     document.body.append(link);
@@ -2785,14 +2783,6 @@ export function initLibraryUI(options = {}) {
       if(action==="navigate"){showView(b.dataset.view);return;}
       if(action==="back-now-playing"){closeNowPlaying();return;}
       if(action==="open-playlist-creator"){openPlaylistDialog();return;}
-      if(action==="download-track"){
-        const item=state.items[i];if(!item||b.disabled)return;
-        b.disabled=true;
-        try{await downloadTrack(item);}
-        catch(error){appendPlaybackLog("歌曲下載失敗 · "+String(error?.message||error),"error");}
-        finally{if(b.isConnected)b.disabled=false;}
-        return;
-      }
       if(action==="open-playlist-picker"){const item=state.items[i];if(item)openPlaylistDialog(item);return;}
       if(action==="close-playlist-dialog"){const dialog=$("#playlist-picker-dialog");if(dialog?.open)dialog.close();return;}
       if(action==="toggle-playlist-membership"){
@@ -2965,6 +2955,21 @@ export function initLibraryUI(options = {}) {
       if(action==="reindex-error"){await reindexError(i);return;}
     }catch(e){message(e.message||"操作失敗。","error");}
   }
+  root.addEventListener("click",event=>{
+    const button=event.target?.closest?.('button[data-action="download-track"]');
+    if(!button)return;
+    event.preventDefault();
+    event.stopPropagation();
+    const index=Number(button.dataset.index);
+    const item=state.items[index];
+    if(!item||button.disabled)return;
+    button.disabled=true;
+    void downloadTrack(item)
+      .catch(error=>appendPlaybackLog("歌曲下載失敗 · "+String(error?.message||error),"error"))
+      .finally(()=>{
+        if(button.isConnected){button.disabled=false;button.blur();}
+      });
+  },true);
   root.addEventListener("click",handleClick);
   $("#playlist-picker-dialog")?.addEventListener("click",handleClick);
   $("#playlist-new-name")?.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();$("#playlist-create-submit")?.click();}});
